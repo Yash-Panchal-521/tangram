@@ -14,14 +14,25 @@ import {
 } from "@dnd-kit/core";
 import { useAuth } from "@/lib/auth";
 import { api, BoardDetailResponse, CardResponse } from "@/lib/api";
-import { createBoardHubConnection, OperationBroadcast } from "@/lib/signalr";
+import {
+  createBoardHubConnection,
+  type CursorUpdate,
+  type OperationBroadcast,
+  type PresenceUser,
+  type ResyncResult,
+} from "@/lib/signalr";
 import { applyOperation, moveCardOptimistic } from "@/lib/boardReducer";
 import { BoardColumn } from "@/components/board/BoardColumn";
 import { KanbanCard } from "@/components/board/KanbanCard";
 import { CardDetailPanel } from "@/components/board/CardDetailPanel";
+import { PresenceAvatars } from "@/components/board/PresenceAvatars";
+import { RemoteCursors } from "@/components/board/RemoteCursors";
+import { ReconnectingBanner } from "@/components/board/ReconnectingBanner";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { Avatar } from "@/components/ui/Avatar";
 import { TangramMark } from "@/components/ui/TangramMark";
+
+const CURSOR_SEND_INTERVAL_MS = 50;
 
 function resolveMove(
   board: BoardDetailResponse,
@@ -45,10 +56,17 @@ export function BoardView({ boardId }: { boardId: string }) {
   const { user, getToken } = useAuth();
   const [board, setBoard] = useState<BoardDetailResponse | null>(null);
   const [connected, setConnected] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeCard, setActiveCard] = useState<CardResponse | null>(null);
   const [selectedCard, setSelectedCard] = useState<CardResponse | null>(null);
+  const [presentUsers, setPresentUsers] = useState<PresenceUser[]>([]);
+  const [remoteCursors, setRemoteCursors] = useState<Record<string, CursorUpdate>>({});
+
   const connectionRef = useRef<HubConnection | null>(null);
+  const lastSeenSeqRef = useRef(0);
+  const lastCursorSentRef = useRef(0);
+  const boardAreaRef = useRef<HTMLDivElement | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
@@ -56,26 +74,79 @@ export function BoardView({ boardId }: { boardId: string }) {
     if (!user) return;
     let cancelled = false;
 
+    function applyOp(op: OperationBroadcast) {
+      lastSeenSeqRef.current = Math.max(lastSeenSeqRef.current, op.seq);
+      setBoard((prev) => (prev ? applyOperation(prev, op.opType, op.payload) : prev));
+    }
+
+    async function resyncAfterReconnect(connection: HubConnection) {
+      try {
+        await connection.invoke("JoinBoard", boardId);
+        const result = await connection.invoke<ResyncResult>("Resync", boardId, lastSeenSeqRef.current);
+        if (result.needsSnapshot) {
+          const token = await getToken();
+          const fresh = await api.get<BoardDetailResponse>(`/boards/${boardId}`, token);
+          lastSeenSeqRef.current = fresh.seq;
+          setBoard(fresh);
+        } else {
+          for (const op of result.operations) applyOp(op);
+        }
+      } finally {
+        setReconnecting(false);
+        setConnected(true);
+      }
+    }
+
     async function connect() {
+      let connection: HubConnection | null = null;
       try {
         const token = await getToken();
         const detail = await api.get<BoardDetailResponse>(`/boards/${boardId}`, token);
         if (cancelled) return;
         setBoard(detail);
+        lastSeenSeqRef.current = detail.seq;
 
-        const connection = createBoardHubConnection(getToken);
-        connectionRef.current = connection;
+        connection = createBoardHubConnection(getToken);
 
-        connection.on("operation", (op: OperationBroadcast) => {
-          setBoard((prev) => (prev ? applyOperation(prev, op.opType, op.payload) : prev));
+        connection.on("operation", applyOp);
+
+        connection.on("presence.join", (presenceUser: PresenceUser) => {
+          setPresentUsers((prev) =>
+            prev.some((p) => p.userId === presenceUser.userId) ? prev : [...prev, presenceUser]
+          );
+        });
+        connection.on("presence.leave", (presenceUser: PresenceUser) => {
+          setPresentUsers((prev) => prev.filter((p) => p.userId !== presenceUser.userId));
+          setRemoteCursors((prev) => {
+            const next = { ...prev };
+            delete next[presenceUser.userId];
+            return next;
+          });
+        });
+        connection.on("cursor", (cursor: CursorUpdate) => {
+          setRemoteCursors((prev) => ({ ...prev, [cursor.userId]: cursor }));
         });
 
-        connection.onreconnecting(() => setConnected(false));
-        connection.onreconnected(() => setConnected(true));
+        connection.onreconnecting(() => {
+          setConnected(false);
+          setReconnecting(true);
+        });
+        connection.onreconnected(() => resyncAfterReconnect(connection!));
 
         await connection.start();
-        await connection.invoke("JoinBoard", boardId);
-        if (!cancelled) setConnected(true);
+        if (cancelled) {
+          // React StrictMode's dev-mode double-invoke can unmount this effect
+          // before start() resolves -- don't join the board group on a
+          // connection we're about to discard.
+          await connection.stop();
+          return;
+        }
+
+        connectionRef.current = connection;
+        const initialPresence = await connection.invoke<PresenceUser[]>("JoinBoard", boardId);
+        if (cancelled) return;
+        setPresentUsers(initialPresence);
+        setConnected(true);
       } catch {
         if (!cancelled) setError("Couldn't connect to the board. Is the backend running?");
       }
@@ -90,6 +161,26 @@ export function BoardView({ boardId }: { boardId: string }) {
       }
     };
   }, [boardId, user, getToken]);
+
+  function handlePointerMove(e: React.MouseEvent<HTMLDivElement>) {
+    // Gated on `connected` (set only once JoinBoard resolves), not just the
+    // transport state -- start() can report "Connected" before the server
+    // has associated this connection with a board, in which case Context.Items
+    // isn't populated yet and UpdateCursor would silently no-op.
+    if (!connected) return;
+
+    const now = Date.now();
+    if (now - lastCursorSentRef.current < CURSOR_SEND_INTERVAL_MS) return;
+    lastCursorSentRef.current = now;
+
+    const connection = connectionRef.current;
+    if (!connection || connection.state !== HubConnectionState.Connected || !boardAreaRef.current) return;
+
+    const rect = boardAreaRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    connection.invoke("UpdateCursor", x, y).catch(() => {});
+  }
 
   async function handleAddCard(columnId: string, title: string) {
     const token = await getToken();
@@ -170,6 +261,8 @@ export function BoardView({ boardId }: { boardId: string }) {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden relative">
+      {reconnecting && <ReconnectingBanner />}
+
       <header className="h-[52px] shrink-0 flex items-center px-4.5 border-b border-border bg-surface">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <div className="w-6.5 h-6.5 rounded-md bg-accent flex items-center justify-center shrink-0">
@@ -197,6 +290,8 @@ export function BoardView({ boardId }: { boardId: string }) {
 
           <div className="w-px h-4.5 bg-border" />
 
+          <PresenceAvatars users={presentUsers} />
+
           {user && <Avatar name={user.displayName ?? user.email ?? "You"} size="sm" />}
 
           <div className="w-px h-4.5 bg-border" />
@@ -211,7 +306,13 @@ export function BoardView({ boardId }: { boardId: string }) {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex-1 overflow-x-auto overflow-y-hidden px-6 py-5">
+        <div
+          ref={boardAreaRef}
+          onMouseMove={handlePointerMove}
+          className="flex-1 overflow-x-auto overflow-y-hidden px-6 py-5 relative"
+        >
+          <RemoteCursors cursors={remoteCursors} />
+
           <div className="flex items-start gap-3.5 h-full">
             {board.columns.map((column, i) => (
               <BoardColumn

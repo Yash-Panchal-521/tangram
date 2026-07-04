@@ -16,3 +16,20 @@ export interface OperationBroadcast {
   opType: string;
   payload: unknown;
 }
+
+export interface PresenceUser {
+  userId: string;
+  displayName: string;
+}
+
+export interface CursorUpdate {
+  userId: string;
+  displayName: string;
+  x: number;
+  y: number;
+}
+
+export interface ResyncResult {
+  needsSnapshot: boolean;
+  operations: OperationBroadcast[];
+}

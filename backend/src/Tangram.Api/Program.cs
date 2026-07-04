@@ -52,6 +52,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<ICurrentUserLoader, CurrentUserLoader>();
 builder.Services.AddScoped<IBoardOperationService, BoardOperationService>();
+builder.Services.AddSingleton<IPresenceTracker, PresenceTracker>();
 
 builder.Services.AddSignalR();
 

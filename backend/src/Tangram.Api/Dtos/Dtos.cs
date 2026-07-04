@@ -21,6 +21,8 @@ public record CardResponse(Guid Id, Guid ColumnId, string Title, string? Descrip
 public record CardDeletedPayload(Guid Id, Guid ColumnId);
 
 public record ColumnWithCardsResponse(Guid Id, string Name, string Rank, List<CardResponse> Cards);
-public record BoardDetailResponse(Guid Id, string Name, List<ColumnWithCardsResponse> Columns);
+public record BoardDetailResponse(Guid Id, string Name, long Seq, List<ColumnWithCardsResponse> Columns);
 
 public record OperationBroadcast(long Seq, string OpType, object Payload);
+public record ResyncResult(bool NeedsSnapshot, List<OperationBroadcast> Operations);
+public record CursorUpdate(Guid UserId, string DisplayName, double X, double Y);

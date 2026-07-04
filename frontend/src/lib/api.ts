@@ -76,6 +76,7 @@ export interface ColumnWithCardsResponse {
 
 export interface BoardDetailResponse {
   id: string;
+  seq: number;
   name: string;
   columns: ColumnWithCardsResponse[];
 }
