@@ -7,10 +7,10 @@ namespace Tangram.Api.Controllers;
 
 [ApiController]
 [Authorize]
-[Route("boards/{boardId:guid}/columns/{columnId:guid}/cards")]
-public class CardsController(ICardOperationService cardOperations) : ControllerBase
+[Route("boards/{boardId:guid}")]
+public class CardsController(IBoardOperationService boardOperations) : ControllerBase
 {
-    [HttpPost]
+    [HttpPost("columns/{columnId:guid}/cards")]
     public async Task<ActionResult<CardResponse>> CreateCard(
         Guid boardId, Guid columnId, CreateCardRequest request, CancellationToken ct)
     {
@@ -19,14 +19,59 @@ public class CardsController(ICardOperationService cardOperations) : ControllerB
             return ValidationProblem("Card title is required.");
         }
 
+        return await Run(() => boardOperations.CreateCardAsync(boardId, columnId, request.Title.Trim(), request.Description, ct));
+    }
+
+    [HttpPatch("cards/{cardId:guid}")]
+    public async Task<ActionResult<CardResponse>> RenameCard(
+        Guid boardId, Guid cardId, RenameCardRequest request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Title))
+        {
+            return ValidationProblem("Card title is required.");
+        }
+
+        return await Run(() => boardOperations.RenameCardAsync(boardId, cardId, request.Title.Trim(), request.Description, ct));
+    }
+
+    [HttpDelete("cards/{cardId:guid}")]
+    public async Task<IActionResult> DeleteCard(Guid boardId, Guid cardId, CancellationToken ct)
+    {
         try
         {
-            var card = await cardOperations.CreateCardAsync(boardId, columnId, request.Title.Trim(), request.Description, ct);
-            return CreatedAtAction(nameof(CreateCard), new { boardId, columnId, id = card.Id }, card);
+            await boardOperations.DeleteCardAsync(boardId, cardId, ct);
+            return NoContent();
         }
-        catch (CardOperationNotFoundException)
+        catch (BoardOperationNotFoundException)
         {
             return NotFound();
+        }
+        catch (BoardOperationForbiddenException)
+        {
+            return Forbid();
+        }
+    }
+
+    [HttpPost("cards/{cardId:guid}/move")]
+    public async Task<ActionResult<CardResponse>> MoveCard(
+        Guid boardId, Guid cardId, MoveCardRequest request, CancellationToken ct)
+    {
+        return await Run(() => boardOperations.MoveCardAsync(boardId, cardId, request.TargetColumnId, request.BeforeCardId, ct));
+    }
+
+    private async Task<ActionResult<CardResponse>> Run(Func<Task<CardResponse>> operation)
+    {
+        try
+        {
+            return await operation();
+        }
+        catch (BoardOperationNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (BoardOperationForbiddenException)
+        {
+            return Forbid();
         }
     }
 }

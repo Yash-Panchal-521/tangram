@@ -1,16 +1,14 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Tangram.Api.Data;
 using Tangram.Api.Dtos;
-using Tangram.Api.Entities;
+using Tangram.Api.Services;
 
 namespace Tangram.Api.Controllers;
 
 [ApiController]
 [Authorize]
 [Route("boards/{boardId:guid}/columns")]
-public class ColumnsController(AppDbContext db) : ControllerBase
+public class ColumnsController(IBoardOperationService boardOperations) : ControllerBase
 {
     [HttpPost]
     public async Task<ActionResult<ColumnResponse>> CreateColumn(Guid boardId, CreateColumnRequest request, CancellationToken ct)
@@ -20,32 +18,57 @@ public class ColumnsController(AppDbContext db) : ControllerBase
             return ValidationProblem("Column name is required.");
         }
 
-        var boardExists = await db.Boards.AnyAsync(b => b.Id == boardId, ct);
-        if (!boardExists)
+        return await Run(() => boardOperations.CreateColumnAsync(boardId, request.Name.Trim(), ct));
+    }
+
+    [HttpPatch("{columnId:guid}")]
+    public async Task<ActionResult<ColumnResponse>> RenameColumn(Guid boardId, Guid columnId, RenameColumnRequest request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Name))
+        {
+            return ValidationProblem("Column name is required.");
+        }
+
+        return await Run(() => boardOperations.RenameColumnAsync(boardId, columnId, request.Name.Trim(), ct));
+    }
+
+    [HttpDelete("{columnId:guid}")]
+    public async Task<IActionResult> DeleteColumn(Guid boardId, Guid columnId, CancellationToken ct)
+    {
+        try
+        {
+            await boardOperations.DeleteColumnAsync(boardId, columnId, ct);
+            return NoContent();
+        }
+        catch (BoardOperationNotFoundException)
         {
             return NotFound();
         }
-
-        var lastRank = await db.Columns
-            .Where(c => c.BoardId == boardId)
-            .OrderByDescending(c => c.Rank)
-            .Select(c => c.Rank)
-            .FirstOrDefaultAsync(ct);
-
-        var now = DateTimeOffset.UtcNow;
-        var column = new Column
+        catch (BoardOperationForbiddenException)
         {
-            Id = Guid.NewGuid(),
-            BoardId = boardId,
-            Name = request.Name.Trim(),
-            Rank = Services.RankService.GenerateBetween(lastRank, null),
-            CreatedAt = now,
-            UpdatedAt = now
-        };
-        db.Columns.Add(column);
-        await db.SaveChangesAsync(ct);
+            return Forbid();
+        }
+    }
 
-        return CreatedAtAction(nameof(CreateColumn), new { boardId, id = column.Id },
-            new ColumnResponse(column.Id, column.BoardId, column.Name, column.Rank));
+    [HttpPost("{columnId:guid}/move")]
+    public async Task<ActionResult<ColumnResponse>> MoveColumn(Guid boardId, Guid columnId, MoveColumnRequest request, CancellationToken ct)
+    {
+        return await Run(() => boardOperations.MoveColumnAsync(boardId, columnId, request.BeforeColumnId, ct));
+    }
+
+    private async Task<ActionResult<ColumnResponse>> Run(Func<Task<ColumnResponse>> operation)
+    {
+        try
+        {
+            return await operation();
+        }
+        catch (BoardOperationNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (BoardOperationForbiddenException)
+        {
+            return Forbid();
+        }
     }
 }

@@ -1,0 +1,99 @@
+import type { BoardDetailResponse, CardResponse, ColumnResponse } from "@/lib/api";
+
+function byRank<T extends { rank: string }>(items: T[]): T[] {
+  return [...items].sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0));
+}
+
+function upsertCard(board: BoardDetailResponse, card: CardResponse): BoardDetailResponse {
+  return {
+    ...board,
+    columns: board.columns.map((col) => {
+      const withoutCard = col.cards.filter((c) => c.id !== card.id);
+      return col.id === card.columnId
+        ? { ...col, cards: byRank([...withoutCard, card]) }
+        : { ...col, cards: withoutCard };
+    }),
+  };
+}
+
+function removeCard(board: BoardDetailResponse, cardId: string, columnId: string): BoardDetailResponse {
+  return {
+    ...board,
+    columns: board.columns.map((col) =>
+      col.id === columnId ? { ...col, cards: col.cards.filter((c) => c.id !== cardId) } : col
+    ),
+  };
+}
+
+function upsertColumn(board: BoardDetailResponse, column: ColumnResponse): BoardDetailResponse {
+  const existing = board.columns.find((c) => c.id === column.id);
+  const merged = { ...column, cards: existing?.cards ?? [] };
+  const withoutColumn = board.columns.filter((c) => c.id !== column.id);
+  return { ...board, columns: byRank([...withoutColumn, merged]) };
+}
+
+function removeColumn(board: BoardDetailResponse, columnId: string): BoardDetailResponse {
+  return { ...board, columns: board.columns.filter((c) => c.id !== columnId) };
+}
+
+// Places the dragged card at the exact drop position immediately (before
+// the server confirms), rather than waiting on the rank-sorted reducer
+// below -- the authoritative broadcast that follows moments later
+// reconciles it to the server-computed rank via applyOperation.
+export function moveCardOptimistic(
+  board: BoardDetailResponse,
+  cardId: string,
+  targetColumnId: string,
+  beforeCardId: string | null
+): BoardDetailResponse {
+  const card = board.columns.flatMap((c) => c.cards).find((c) => c.id === cardId);
+  if (!card) return board;
+
+  const withoutCard = board.columns.map((col) => ({
+    ...col,
+    cards: col.cards.filter((c) => c.id !== cardId),
+  }));
+
+  return {
+    ...board,
+    columns: withoutCard.map((col) => {
+      if (col.id !== targetColumnId) return col;
+      const insertAt = beforeCardId ? col.cards.findIndex((c) => c.id === beforeCardId) : -1;
+      const next = [...col.cards];
+      next.splice(insertAt === -1 ? next.length : insertAt, 0, { ...card, columnId: targetColumnId });
+      return { ...col, cards: next };
+    }),
+  };
+}
+
+// Applies one broadcast operation to board state. Used both to reconcile a
+// move this tab initiated optimistically, and to apply moves/renames/deletes
+// that arrived from someone else -- each case is idempotent (re-applying the
+// same operation twice is harmless) since every op replaces state by id
+// rather than appending blindly.
+export function applyOperation(
+  board: BoardDetailResponse,
+  opType: string,
+  payload: unknown
+): BoardDetailResponse {
+  switch (opType) {
+    case "card.create":
+    case "card.rename":
+    case "card.move":
+      return upsertCard(board, payload as CardResponse);
+    case "card.delete": {
+      const { id, columnId } = payload as { id: string; columnId: string };
+      return removeCard(board, id, columnId);
+    }
+    case "column.create":
+    case "column.rename":
+    case "column.move":
+      return upsertColumn(board, payload as ColumnResponse);
+    case "column.delete": {
+      const { id } = payload as { id: string };
+      return removeColumn(board, id);
+    }
+    default:
+      return board;
+  }
+}

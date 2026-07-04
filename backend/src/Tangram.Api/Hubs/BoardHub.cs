@@ -2,13 +2,12 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Tangram.Api.Data;
-using Tangram.Api.Dtos;
 using Tangram.Api.Services;
 
 namespace Tangram.Api.Hubs;
 
 [Authorize]
-public class BoardHub(AppDbContext db, ICurrentUserLoader loader, ICardOperationService cardOperations) : Hub
+public class BoardHub(AppDbContext db, ICurrentUserLoader loader) : Hub
 {
     public static string GroupName(Guid boardId) => $"board:{boardId}";
 
@@ -23,12 +22,5 @@ public class BoardHub(AppDbContext db, ICurrentUserLoader loader, ICardOperation
         }
 
         await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(boardId), Context.ConnectionAborted);
-    }
-
-    public async Task<CardResponse> CreateCard(Guid boardId, Guid columnId, string title, string? description)
-    {
-        await loader.LoadAsync(Context.User!, Context.ConnectionAborted);
-
-        return await cardOperations.CreateCardAsync(boardId, columnId, title, description, Context.ConnectionAborted);
     }
 }

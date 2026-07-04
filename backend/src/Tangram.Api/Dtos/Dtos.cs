@@ -9,10 +9,16 @@ public record CreateBoardRequest(string Name);
 public record BoardResponse(Guid Id, Guid WorkspaceId, string Name, DateTimeOffset CreatedAt);
 
 public record CreateColumnRequest(string Name);
+public record RenameColumnRequest(string Name);
+public record MoveColumnRequest(Guid? BeforeColumnId);
 public record ColumnResponse(Guid Id, Guid BoardId, string Name, string Rank);
+public record ColumnDeletedPayload(Guid Id);
 
 public record CreateCardRequest(string Title, string? Description);
+public record RenameCardRequest(string Title, string? Description);
+public record MoveCardRequest(Guid TargetColumnId, Guid? BeforeCardId);
 public record CardResponse(Guid Id, Guid ColumnId, string Title, string? Description, string Rank);
+public record CardDeletedPayload(Guid Id, Guid ColumnId);
 
 public record ColumnWithCardsResponse(Guid Id, string Name, string Rank, List<CardResponse> Cards);
 public record BoardDetailResponse(Guid Id, string Name, List<ColumnWithCardsResponse> Columns);

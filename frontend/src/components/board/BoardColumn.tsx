@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { KanbanCard } from "@/components/board/KanbanCard";
-import type { ColumnWithCardsResponse } from "@/lib/api";
+import { useDroppable } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { SortableKanbanCard } from "@/components/board/SortableKanbanCard";
+import type { CardResponse, ColumnWithCardsResponse } from "@/lib/api";
 
 // Purely decorative column identifiers -- the backend doesn't track a column
 // color, so this just cycles a fixed palette by position (matches the
@@ -14,15 +16,25 @@ export function BoardColumn({
   colorIndex,
   disabled,
   onAddCard,
+  onRenameColumn,
+  onDeleteColumn,
+  onCardClick,
 }: {
   column: ColumnWithCardsResponse;
   colorIndex: number;
   disabled: boolean;
   onAddCard: (columnId: string, title: string) => Promise<void>;
+  onRenameColumn: (columnId: string, name: string) => Promise<void>;
+  onDeleteColumn: (columnId: string) => Promise<void>;
+  onCardClick: (card: CardResponse) => void;
 }) {
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [name, setName] = useState(column.name);
+
+  const { setNodeRef } = useDroppable({ id: `column:${column.id}` });
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -37,25 +49,65 @@ export function BoardColumn({
     }
   }
 
+  async function handleRenameSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = name.trim();
+    setRenaming(false);
+    if (!trimmed || trimmed === column.name) {
+      setName(column.name);
+      return;
+    }
+    await onRenameColumn(column.id, trimmed);
+  }
+
   return (
     <div className="flex-none w-[262px] h-full flex flex-col">
-      <div className="flex items-center gap-2 px-0.5 pb-3 shrink-0">
+      <div className="flex items-center gap-2 px-0.5 pb-3 shrink-0 group">
         <div
           className="w-2 h-2 rounded-full shrink-0"
           style={{ background: DOT_COLORS[colorIndex % DOT_COLORS.length] }}
         />
-        <span className="text-[11px] font-semibold tracking-wider uppercase text-text-muted">
-          {column.name}
-        </span>
-        <span className="text-[11px] font-medium text-text-dim bg-surface-2 border border-border rounded px-1.5 leading-[1.9]">
+        {renaming ? (
+          <form onSubmit={handleRenameSubmit} className="flex-1 min-w-0">
+            <input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={handleRenameSubmit}
+              className="w-full text-[11px] font-semibold tracking-wider uppercase bg-surface-2 border border-border rounded px-1 py-0.5 outline-none focus-visible:border-accent"
+            />
+          </form>
+        ) : (
+          <span
+            onClick={() => !disabled && setRenaming(true)}
+            className="text-[11px] font-semibold tracking-wider uppercase text-text-muted truncate cursor-pointer"
+          >
+            {column.name}
+          </span>
+        )}
+        <span className="text-[11px] font-medium text-text-dim bg-surface-2 border border-border rounded px-1.5 leading-[1.9] shrink-0">
           {column.cards.length}
         </span>
+        <div className="flex-1" />
+        <button
+          onClick={() => onDeleteColumn(column.id)}
+          disabled={disabled}
+          title="Delete column"
+          className="w-5 h-5 shrink-0 hidden group-hover:flex items-center justify-center rounded text-text-dim hover:text-danger hover:bg-surface-2 cursor-pointer disabled:opacity-50"
+        >
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+            <path d="M2 3h8M4.5 3V2a1 1 0 011-1h1a1 1 0 011 1v1M3 3l.5 7a1 1 0 001 1h3a1 1 0 001-1L9 3"
+              stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto flex flex-col gap-2 min-h-0 pb-3">
-        {column.cards.map((card) => (
-          <KanbanCard key={card.id} card={card} />
-        ))}
+      <div ref={setNodeRef} className="flex-1 overflow-y-auto flex flex-col gap-2 min-h-0 pb-3">
+        <SortableContext items={column.cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+          {column.cards.map((card) => (
+            <SortableKanbanCard key={card.id} card={card} onClick={() => onCardClick(card)} />
+          ))}
+        </SortableContext>
       </div>
 
       {adding ? (

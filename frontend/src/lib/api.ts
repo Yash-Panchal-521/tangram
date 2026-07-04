@@ -32,6 +32,9 @@ export const api = {
   get: <T>(path: string, token: string | null) => request<T>(path, token),
   post: <T>(path: string, token: string | null, body?: unknown) =>
     request<T>(path, token, { method: "POST", body: body ? JSON.stringify(body) : undefined }),
+  patch: <T>(path: string, token: string | null, body?: unknown) =>
+    request<T>(path, token, { method: "PATCH", body: body ? JSON.stringify(body) : undefined }),
+  delete: <T>(path: string, token: string | null) => request<T>(path, token, { method: "DELETE" }),
 };
 
 export const API_BASE = API_BASE_URL;

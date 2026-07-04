@@ -56,7 +56,6 @@ public class CardCreateBroadcastTests(TangramWebApplicationFactory factory)
         Assert.True(completed == received.Task, "Timed out waiting for the board group broadcast.");
 
         var broadcast = await received.Task;
-        Assert.Equal(1, broadcast.Seq);
         Assert.Equal("card.create", broadcast.OpType);
         Assert.Equal(createdCard!.Id, broadcast.Payload.GetProperty("id").GetGuid());
         Assert.Equal("Ship the spine", broadcast.Payload.GetProperty("title").GetString());
@@ -65,8 +64,10 @@ public class CardCreateBroadcastTests(TangramWebApplicationFactory factory)
 
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var operation = await db.Operations.IgnoreQueryFilters().SingleAsync(o => o.BoardId == board.Id);
-        Assert.Equal(1, operation.Seq);
-        Assert.Equal("card.create", operation.OpType);
+        // Column creation goes through the same spine and already claimed
+        // seq 1, so the card's operation (and its broadcast) should be seq 2.
+        var operation = await db.Operations.IgnoreQueryFilters().SingleAsync(o => o.BoardId == board.Id && o.OpType == "card.create");
+        Assert.Equal(2, operation.Seq);
+        Assert.Equal(broadcast.Seq, operation.Seq);
     }
 }
