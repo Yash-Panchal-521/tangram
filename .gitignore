@@ -1,0 +1,17 @@
+# Editor/tooling
+.claude/
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# .NET build output
+[Bb]in/
+[Oo]bj/
+*.user
+.vs/
+
+# EF Core migrations bundle output (if ever produced locally)
+efbundle

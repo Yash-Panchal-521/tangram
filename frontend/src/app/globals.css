@@ -1,0 +1,120 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens ported from the finalized Claude Design export
+ * (Tangram.dc.html -> THEMES.terracotta). Only Terracotta is finalized;
+ * more [data-theme="..."] blocks can be added here later without touching
+ * component code, since every primitive is built on these token names.
+ */
+[data-theme="terracotta"][data-mode="light"] {
+  --bg: #eee0d5;
+  --surface: #faf3ec;
+  --surface-2: #f0e4d8;
+  --border: #d4bfb0;
+  --border-2: #c0a898;
+  --text: #2a1a10;
+  --text-muted: #7a5848;
+  --text-dim: #a08070;
+  --accent: #ae3e2e;
+  --accent-h: #963424;
+  --accent-fg: #ffffff;
+  --success: #4a7c58;
+  --danger: #b02e20;
+  --warn: #a06e10;
+  --ring: rgba(174, 62, 46, 0.2);
+}
+
+[data-theme="terracotta"][data-mode="dark"] {
+  --bg: #1a0e0a;
+  --surface: #241510;
+  --surface-2: #2e1c17;
+  --border: #3e2820;
+  --border-2: #4e3428;
+  --text: #f0e0d6;
+  --text-muted: #9a7868;
+  --text-dim: #685050;
+  --accent: #cc4e3e;
+  --accent-h: #ba4034;
+  --accent-fg: #ffffff;
+  --success: #5aaa70;
+  --danger: #d05040;
+  --warn: #c89040;
+  --ring: rgba(204, 78, 62, 0.25);
+}
+
+:root {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-sm: 5px;
+  --radius-md: 7px;
+  --radius-lg: 9px;
+  --radius-xl: 13px;
+  --radius-full: 999px;
+
+  --shadow-sm: 0 4px 18px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 28px rgba(0, 0, 0, 0.16);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-border-2: var(--border-2);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-dim: var(--text-dim);
+  --color-accent: var(--accent);
+  --color-accent-h: var(--accent-h);
+  --color-accent-fg: var(--accent-fg);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-warn: var(--warn);
+  --color-ring: var(--ring);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-full: var(--radius-full);
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-lg: var(--shadow-lg);
+
+  --font-sans: var(--font-sans);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+*:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+@keyframes sync-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.3;
+    transform: scale(0.7);
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

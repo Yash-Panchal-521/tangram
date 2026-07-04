@@ -1,0 +1,52 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.9" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.9" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Tangram.Api\Tangram.Api.csproj" />
+  </ItemGroup>
+
+  <!--
+    Microsoft.AspNetCore.Mvc.Testing.targets computes the SUT's content root
+    with $([System.IO.Path]::GetDirectoryName('%(MSBuildSourceProjectFile)')),
+    an MSBuild property function whose single-quoted argument breaks on any
+    apostrophe in the path (e.g. a "Yash's First Switch" folder name); it
+    silently writes the unevaluated "$([...])" expression into
+    MvcTestingAppManifest.json instead of a real path, which then crashes
+    WebApplicationFactory's PhysicalFileProvider at test run time. Rewriting
+    the manifest by string concatenation (not a property function) sidesteps
+    the parser bug; the exact directory doesn't matter here since tests
+    supply their own configuration rather than relying on content-root-based
+    file lookups.
+  -->
+  <Target Name="FixMvcTestingAppManifestForApostropheInPath" AfterTargets="_AddContentRootForProjectReferences">
+    <PropertyGroup>
+      <_FixedContentRoot>$(MSBuildProjectDirectory.Replace('\', '\\'))</_FixedContentRoot>
+    </PropertyGroup>
+    <ItemGroup>
+      <_FixedManifestLines Include="{&quot;Tangram.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null&quot;: &quot;$(_FixedContentRoot)&quot;}" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(IntermediateOutputPath)MvcTestingAppManifest.json" Lines="@(_FixedManifestLines)" Overwrite="true" />
+  </Target>
+
+</Project>
