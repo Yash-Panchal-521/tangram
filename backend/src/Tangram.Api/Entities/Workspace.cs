@@ -13,4 +13,5 @@ public class Workspace
 
     public ICollection<Membership> Memberships { get; set; } = new List<Membership>();
     public ICollection<Board> Boards { get; set; } = new List<Board>();
+    public ICollection<Invitation> Invitations { get; set; } = new List<Invitation>();
 }

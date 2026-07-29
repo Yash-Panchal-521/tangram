@@ -67,6 +67,6 @@ public class BoardsController(AppDbContext db) : ControllerBase
                     .ToList()))
             .ToList();
 
-        return Ok(new BoardDetailResponse(board.Id, board.Name, board.Seq, columns));
+        return Ok(new BoardDetailResponse(board.Id, board.WorkspaceId, board.Name, board.Seq, columns));
     }
 }

@@ -21,7 +21,21 @@ async function request<T>(
   });
 
   if (!res.ok) {
-    throw new ApiError(res.status, `${init?.method ?? "GET"} ${path} failed with ${res.status}`);
+    // ASP.NET returns ProblemDetails/ValidationProblemDetails on 400s, and the
+    // message there is the only place a rule like "a workspace must keep at
+    // least one owner" is explained -- surface it instead of a bare status.
+    let detail: string | undefined;
+    try {
+      const body = await res.json();
+      detail = body?.detail ?? body?.title;
+    } catch {
+      // Empty or non-JSON body (403 and 404 from Forbid()/NotFound() have none).
+    }
+
+    throw new ApiError(
+      res.status,
+      detail ?? `${init?.method ?? "GET"} ${path} failed with ${res.status}`
+    );
   }
 
   if (res.status === 204) return undefined as T;
@@ -76,6 +90,7 @@ export interface ColumnWithCardsResponse {
 
 export interface BoardDetailResponse {
   id: string;
+  workspaceId: string;
   seq: number;
   name: string;
   columns: ColumnWithCardsResponse[];
@@ -85,4 +100,43 @@ export interface MeResponse {
   id: string;
   displayName: string;
   avatarUrl: string | null;
+}
+
+export type MembershipRole = "Owner" | "Editor" | "Viewer";
+
+export interface WorkspaceBoardSummary {
+  id: string;
+  name: string;
+}
+
+export interface WorkspaceSummaryResponse {
+  id: string;
+  name: string;
+  role: MembershipRole;
+  boards: WorkspaceBoardSummary[];
+}
+
+export interface MemberResponse {
+  userId: string;
+  displayName: string;
+  email: string | null;
+  role: MembershipRole;
+}
+
+export interface PendingInvitationResponse {
+  id: string;
+  email: string;
+  role: MembershipRole;
+  createdAt: string;
+}
+
+export interface WorkspaceMembersResponse {
+  members: MemberResponse[];
+  pendingInvitations: PendingInvitationResponse[];
+}
+
+export interface InviteMemberResponse {
+  joined: boolean;
+  member: MemberResponse | null;
+  invitation: PendingInvitationResponse | null;
 }

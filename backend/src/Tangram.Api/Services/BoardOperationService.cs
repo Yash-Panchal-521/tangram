@@ -32,7 +32,8 @@ public interface IBoardOperationService
 public class BoardOperationService(
     AppDbContext db,
     IHubContext<BoardHub> hubContext,
-    ICurrentUserService currentUser) : IBoardOperationService
+    ICurrentUserService currentUser,
+    IMembershipService memberships) : IBoardOperationService
 {
     public async Task<ColumnResponse> CreateColumnAsync(Guid boardId, string name, CancellationToken ct)
     {
@@ -266,9 +267,9 @@ public class BoardOperationService(
             .SendAsync("operation", new OperationBroadcast(newSeq, opType, payload), ct);
     }
 
-    // Full RBAC (viewer UI + every-event enforcement) lands in Slice 4; this
-    // is the authorization hook Slice 2 calls for -- only an owner/editor
-    // membership in the board's workspace may mutate it.
+    // Only an owner/editor membership in the board's workspace may mutate it.
+    // Role resolution is delegated to IMembershipService so this and the
+    // workspace member endpoints share one RBAC definition.
     private async Task EnsureCanMutateAsync(Guid boardId, CancellationToken ct)
     {
         var workspaceId = await db.Boards
@@ -281,10 +282,7 @@ public class BoardOperationService(
             throw new BoardOperationNotFoundException("Board not found.");
         }
 
-        var role = await db.Memberships
-            .Where(m => m.WorkspaceId == workspaceId && m.UserId == currentUser.UserId)
-            .Select(m => (MembershipRole?)m.Role)
-            .FirstOrDefaultAsync(ct);
+        var role = await memberships.GetRoleAsync(workspaceId, currentUser.UserId, ct);
 
         if (role is null or MembershipRole.Viewer)
         {

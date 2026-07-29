@@ -15,3 +15,7 @@ Thumbs.db
 
 # EF Core migrations bundle output (if ever produced locally)
 efbundle
+
+# Local backend config overrides (real connection strings / project ids).
+# The committed template is appsettings.Local.json.example.
+appsettings.Local.json

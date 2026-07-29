@@ -9,6 +9,15 @@ using Tangram.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// A gitignored local-override file, so a developer can keep a real connection
+// string / Firebase project id in a file without risking a commit --
+// appsettings.Development.json is tracked. Slotted in after user-secrets but
+// before environment variables (re-added here to restore their precedence),
+// so a deploy environment's env vars still win over anyone's leftover file.
+builder.Configuration
+    .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true)
+    .AddEnvironmentVariables();
+
 var firebaseProjectId = builder.Configuration["Firebase:ProjectId"]
     ?? throw new InvalidOperationException("Firebase:ProjectId is not configured. Set it via appsettings, an environment variable, or user-secrets.");
 
@@ -51,6 +60,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<ICurrentUserLoader, CurrentUserLoader>();
+builder.Services.AddScoped<IMembershipService, MembershipService>();
 builder.Services.AddScoped<IBoardOperationService, BoardOperationService>();
 builder.Services.AddSingleton<IPresenceTracker, PresenceTracker>();
 

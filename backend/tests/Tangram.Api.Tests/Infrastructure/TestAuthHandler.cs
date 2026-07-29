@@ -17,6 +17,13 @@ public class TestAuthHandler(
 {
     public const string SchemeName = "Test";
     public const string UserHeader = "X-Test-User";
+    public const string EmailHeader = "X-Test-Email";
+
+    // Real Firebase tokens carry an email claim, and invitations are matched on
+    // it, so simulated users need one too. Defaults to a deterministic address
+    // derived from the uid; X-Test-Email overrides it when a test needs to
+    // invite one specific address.
+    public static string DefaultEmailFor(string firebaseUid) => $"{firebaseUid}@test.tangram";
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
@@ -25,10 +32,15 @@ public class TestAuthHandler(
             return Task.FromResult(AuthenticateResult.NoResult());
         }
 
+        var email = Request.Headers.TryGetValue(EmailHeader, out var overrideEmail) && !string.IsNullOrEmpty(overrideEmail)
+            ? overrideEmail.ToString()
+            : DefaultEmailFor(firebaseUid!);
+
         var claims = new[]
         {
             new Claim("user_id", firebaseUid!),
             new Claim("name", $"Test User {firebaseUid}"),
+            new Claim(ClaimTypes.Email, email),
         };
         var identity = new ClaimsIdentity(claims, SchemeName);
         var principal = new ClaimsPrincipal(identity);

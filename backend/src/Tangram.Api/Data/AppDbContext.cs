@@ -21,12 +21,18 @@ public class AppDbContext : DbContext
     public DbSet<Column> Columns => Set<Column>();
     public DbSet<Card> Cards => Set<Card>();
     public DbSet<Operation> Operations => Set<Operation>();
+    public DbSet<Invitation> Invitations => Set<Invitation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<User>(e =>
         {
             e.HasIndex(u => u.FirebaseUid).IsUnique();
+
+            // Unique so an invitation can never resolve to two users. Postgres
+            // permits any number of NULLs under a unique index, which is what
+            // keeps email optional.
+            e.HasIndex(u => u.Email).IsUnique();
         });
 
         modelBuilder.Entity<Workspace>(e =>
@@ -58,6 +64,25 @@ public class AppDbContext : DbContext
         {
             e.HasQueryFilter(c => _currentUser.WorkspaceIds.Contains(c.Column.Board.WorkspaceId));
             e.HasOne(c => c.Column).WithMany(col => col.Cards).HasForeignKey(c => c.ColumnId);
+        });
+
+        modelBuilder.Entity<Invitation>(e =>
+        {
+            // Same tenant scoping as everything else, so the owner-facing list
+            // and revoke endpoints are isolated for free. The claim path in
+            // CurrentUserLoader is the one caller that must bypass this (the
+            // invitee has no membership yet) and uses IgnoreQueryFilters().
+            e.HasQueryFilter(i => _currentUser.WorkspaceIds.Contains(i.WorkspaceId));
+
+            // Re-inviting the same address updates the existing row's role
+            // rather than stacking duplicates.
+            e.HasIndex(i => new { i.WorkspaceId, i.Email }).IsUnique();
+
+            // Backs the claim lookup, which runs on every authenticated request.
+            e.HasIndex(i => new { i.Email, i.AcceptedAt });
+
+            e.Property(i => i.Role).HasConversion<string>();
+            e.HasOne(i => i.Workspace).WithMany(w => w.Invitations).HasForeignKey(i => i.WorkspaceId);
         });
 
         modelBuilder.Entity<Operation>(e =>

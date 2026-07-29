@@ -1,8 +1,12 @@
+import { ConfirmDialogDemo } from "@/app/kitchen-sink/ConfirmDialogDemo";
+import { InviteChipsDemo } from "@/app/kitchen-sink/InviteChipsDemo";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
+import { Select } from "@/components/ui/Select";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 export default function KitchenSinkPage() {
@@ -32,7 +36,23 @@ export default function KitchenSinkPage() {
       <section className="flex flex-col gap-3 max-w-sm">
         <h2 className="text-sm font-semibold text-text-muted">Inputs</h2>
         <Input label="Email" placeholder="you@example.com" />
-        <Input label="Password" type="password" error="Password is required." />
+        <PasswordInput label="Password" placeholder="••••••••" />
+        <PasswordInput label="Password" error="Password is required." />
+        <Select label="Role" defaultValue="Editor">
+          <option value="Owner">Owner</option>
+          <option value="Editor">Editor</option>
+          <option value="Viewer">Viewer</option>
+        </Select>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold text-text-muted">Invite chips</h2>
+        <InviteChipsDemo />
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold text-text-muted">Confirm dialog</h2>
+        <ConfirmDialogDemo />
       </section>
 
       <section className="flex flex-col gap-3">

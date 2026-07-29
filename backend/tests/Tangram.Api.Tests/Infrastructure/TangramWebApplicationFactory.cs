@@ -11,8 +11,12 @@ namespace Tangram.Api.Tests.Infrastructure;
 
 public class TangramWebApplicationFactory : WebApplicationFactory<Program>
 {
-    public const string TestConnectionString =
-        "Host=localhost;Port=5432;Database=tangram_test;Username=postgres;Password=postgres";
+    // Throwaway local test database -- port 5433 is the Dockerised PostgreSQL
+    // ('tangram-pg'), since 5432 is taken by the native PostgreSQL service.
+    // Overridable so CI can point at its own instance without a code change.
+    public static readonly string TestConnectionString =
+        Environment.GetEnvironmentVariable("TANGRAM_TEST_POSTGRES")
+        ?? "Host=127.0.0.1;Port=5433;Database=tangram_test;Username=postgres;Password=postgres";
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -48,10 +52,17 @@ public class TangramWebApplicationFactory : WebApplicationFactory<Program>
             "TRUNCATE TABLE operations, cards, columns, boards, memberships, workspaces, users RESTART IDENTITY CASCADE;");
     }
 
-    public HttpClient CreateClientAs(string testUserId)
+    // Pass an email to simulate a user whose Firebase address the test chose
+    // (so an invitation can be addressed to it); omit it for the deterministic
+    // "{uid}@test.tangram" default.
+    public HttpClient CreateClientAs(string testUserId, string? email = null)
     {
         var client = CreateClient();
         client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, testUserId);
+        if (email is not null)
+        {
+            client.DefaultRequestHeaders.Add(TestAuthHandler.EmailHeader, email);
+        }
         return client;
     }
 }

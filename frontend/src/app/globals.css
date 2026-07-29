@@ -93,6 +93,23 @@ body {
 
 *:focus-visible {
   outline: none;
+}
+
+/*
+ * The app-wide focus ring. Split from the outline reset above so it can be
+ * opted out of without also restoring the browser's default outline.
+ *
+ * Composite fields -- ones where the focusable control isn't the visible box,
+ * like the invite chips input -- draw this ring on their wrapper instead, and
+ * mark the inner control with data-focus-ring="none". Otherwise the ring lands
+ * on the inner control and renders as a second outline inset inside the
+ * field's border.
+ *
+ * The opt-out has to live here rather than as a `focus-visible:shadow-none`
+ * class: this rule is unlayered, and unlayered declarations outrank anything in
+ * @layer utilities no matter how specific the utility's selector is.
+ */
+*:focus-visible:not([data-focus-ring="none"]) {
   box-shadow: 0 0 0 3px var(--ring);
 }
 

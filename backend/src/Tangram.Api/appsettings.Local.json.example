@@ -1,0 +1,19 @@
+{
+  "//": [
+    "Copy to appsettings.Local.json (gitignored) and fill in.",
+    "Alternative: dotnet user-secrets, which is the only option that also",
+    "reaches the integration test suite -- see README 'Backend setup'."
+  ],
+
+  "ConnectionStrings": {
+    "Postgres": "Host=localhost;Port=5432;Database=tangram_dev;Username=postgres;Password=<your-postgres-password>"
+  },
+
+  "Firebase": {
+    "ProjectId": "<your-firebase-project-id>"
+  },
+
+  "Cors": {
+    "FrontendOrigin": "http://localhost:3000"
+  }
+}

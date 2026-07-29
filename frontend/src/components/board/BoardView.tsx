@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { HubConnection, HubConnectionState } from "@microsoft/signalr";
 import {
   DndContext,
@@ -31,6 +32,7 @@ import { ReconnectingBanner } from "@/components/board/ReconnectingBanner";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { Avatar } from "@/components/ui/Avatar";
 import { TangramMark } from "@/components/ui/TangramMark";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 const CURSOR_SEND_INTERVAL_MS = 50;
 
@@ -54,6 +56,7 @@ function resolveMove(
 
 export function BoardView({ boardId }: { boardId: string }) {
   const { user, getToken } = useAuth();
+  const { confirm, dialog } = useConfirm();
   const [board, setBoard] = useState<BoardDetailResponse | null>(null);
   const [connected, setConnected] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
@@ -200,7 +203,20 @@ export function BoardView({ boardId }: { boardId: string }) {
   }
 
   async function handleDeleteColumn(columnId: string) {
-    if (!window.confirm("Delete this column and all its cards?")) return;
+    const column = board?.columns.find((c) => c.id === columnId);
+    const cardCount = column?.cards.length ?? 0;
+
+    const confirmed = await confirm({
+      title: `Delete "${column?.name ?? "this column"}"?`,
+      body:
+        cardCount > 0
+          ? `Its ${cardCount} ${cardCount === 1 ? "card" : "cards"} will be deleted too. Everyone on the board sees this immediately, and it can't be undone.`
+          : "Everyone on the board sees this immediately, and it can't be undone.",
+      confirmLabel: "Delete column",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+
     const token = await getToken();
     await api.delete(`/boards/${boardId}/columns/${columnId}`, token);
   }
@@ -296,6 +312,30 @@ export function BoardView({ boardId }: { boardId: string }) {
 
           <div className="w-px h-4.5 bg-border" />
 
+          <Link
+            href={`/workspace/${board.workspaceId}/members`}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium text-text-muted hover:text-text hover:bg-surface-2 transition-colors whitespace-nowrap"
+          >
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <circle cx="5.25" cy="4.5" r="2.25" stroke="currentColor" strokeWidth="1.2" />
+              <path
+                d="M1.25 11.5c0-1.8 1.79-3.25 4-3.25s4 1.45 4 3.25"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+              />
+              <path
+                d="M10 2.6a2.25 2.25 0 010 3.8M11.4 8.5c1.35.42 2.35 1.6 2.35 3"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+              />
+            </svg>
+            Members
+          </Link>
+
+          <div className="w-px h-4.5 bg-border" />
+
           <ThemeToggle />
         </div>
       </header>
@@ -352,6 +392,8 @@ export function BoardView({ boardId }: { boardId: string }) {
           onDelete={() => handleDeleteCard(selectedCard.id)}
         />
       )}
+
+      {dialog}
     </div>
   );
 }
