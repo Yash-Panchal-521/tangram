@@ -113,6 +113,31 @@ public class MembershipTests(TangramWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Forbidden, attempt.StatusCode);
     }
 
+    // The read-only board UI is driven entirely by this field, so it has to
+    // reflect the caller rather than the board.
+    [Fact]
+    public async Task Board_detail_reports_the_callers_own_role()
+    {
+        var owner = factory.CreateClientAs("owner-uid");
+        var (workspace, board, _) = await SeedWorkspaceAsync(owner);
+
+        var viewer = factory.CreateClientAs("viewer-uid");
+        await viewer.GetAsync("/me");
+        await owner.PostAsJsonAsync($"/workspaces/{workspace.Id}/members",
+            new InviteMemberRequest(TestAuthHandler.DefaultEmailFor("viewer-uid"), "Viewer"));
+
+        var asOwner = await (await owner.GetAsync($"/boards/{board.Id}"))
+            .Content.ReadFromJsonAsync<BoardDetailResponse>();
+        var asViewer = await (await viewer.GetAsync($"/boards/{board.Id}"))
+            .Content.ReadFromJsonAsync<BoardDetailResponse>();
+
+        // Same board, same seq -- different role per caller.
+        Assert.Equal("Owner", asOwner!.Role);
+        Assert.Equal("Viewer", asViewer!.Role);
+        Assert.Equal(asOwner.Id, asViewer.Id);
+        Assert.Equal(workspace.Id, asViewer.WorkspaceId);
+    }
+
     [Fact]
     public async Task Promoting_a_viewer_to_editor_lets_them_mutate()
     {

@@ -124,7 +124,33 @@ the implementation diverged from the original plan.
   `/signup?email=…` link, which the owner sends themselves. Prefilling the address
   is a correctness measure, not a convenience — claiming matches exactly.
 
-### Divergences and known debt from this slice
+## Slice 4b — viewer read-only UI
+
+- **The board reports the caller's role, not the board's.** `BoardDetailResponse`
+  gained a `Role` field resolved per request via `IMembershipService`. Two people
+  fetching the same board get different values — that asymmetry is the whole point,
+  and it's what the test asserts.
+- **Controls are removed for viewers, not disabled.** A greyed-out button reads as
+  "not right now"; the truth is "not you, ever, on this board". `disabled` stays
+  reserved for the transient case where the connection dropped and the ability is
+  coming back, so the two states remain distinguishable.
+- **Viewers keep presence, cursors and live updates.** Read-only restricts
+  origination, not participation — they still appear in the roster and see other
+  people's cursors, which is most of the value of a shared board for someone whose
+  job is to watch it.
+- **Card detail uses `readOnly`, not `disabled`.** `disabled` greys out text and
+  blocks selection; a viewer is entitled to read and copy card content at full
+  contrast. Save and Delete are removed and replaced with a line explaining why,
+  so the footer doesn't just look empty.
+- **Drag is refused in three places:** `useSortable({ disabled })`, omitting the
+  drag listeners and ARIA attributes entirely so nothing announces itself as
+  movable, and an early return in `handleDragEnd` so the optimistic update can
+  never run for a viewer. The server rejects it regardless; this is about not
+  showing an affordance that lies.
+- **The header carries a "View only" badge.** Without it a viewer sees a board that
+  looks like it's missing features rather than one that's deliberately restricted.
+
+### Divergences and known debt from Slice 4a
 
 - **The test suite needs `Firebase:ProjectId` from the environment or user-secrets.**
   `Program.cs` reads it before the host is built, which is earlier than

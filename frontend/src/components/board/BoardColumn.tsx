@@ -15,6 +15,7 @@ export function BoardColumn({
   column,
   colorIndex,
   disabled,
+  canEdit,
   onAddCard,
   onRenameColumn,
   onDeleteColumn,
@@ -22,7 +23,13 @@ export function BoardColumn({
 }: {
   column: ColumnWithCardsResponse;
   colorIndex: number;
+  // Transient: the connection dropped. Controls stay visible but inert, since
+  // the ability is coming back.
   disabled: boolean;
+  // Permanent for this session: the viewer role can't mutate at all, so the
+  // controls are removed rather than disabled -- a greyed-out button implies
+  // "not right now" when the truth is "not you".
+  canEdit: boolean;
   onAddCard: (columnId: string, title: string) => Promise<void>;
   onRenameColumn: (columnId: string, name: string) => Promise<void>;
   onDeleteColumn: (columnId: string) => Promise<void>;
@@ -79,8 +86,10 @@ export function BoardColumn({
           </form>
         ) : (
           <span
-            onClick={() => !disabled && setRenaming(true)}
-            className="text-[11px] font-semibold tracking-wider uppercase text-text-muted truncate cursor-pointer"
+            onClick={() => canEdit && !disabled && setRenaming(true)}
+            className={`text-[11px] font-semibold tracking-wider uppercase text-text-muted truncate ${
+              canEdit ? "cursor-pointer" : "cursor-default"
+            }`}
           >
             {column.name}
           </span>
@@ -89,6 +98,7 @@ export function BoardColumn({
           {column.cards.length}
         </span>
         <div className="flex-1" />
+        {canEdit && (
         <button
           onClick={() => onDeleteColumn(column.id)}
           disabled={disabled}
@@ -100,17 +110,23 @@ export function BoardColumn({
               stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
+        )}
       </div>
 
       <div ref={setNodeRef} className="flex-1 overflow-y-auto flex flex-col gap-2 min-h-0 pb-3">
         <SortableContext items={column.cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
           {column.cards.map((card) => (
-            <SortableKanbanCard key={card.id} card={card} onClick={() => onCardClick(card)} />
+            <SortableKanbanCard
+              key={card.id}
+              card={card}
+              canDrag={canEdit}
+              onClick={() => onCardClick(card)}
+            />
           ))}
         </SortableContext>
       </div>
 
-      {adding ? (
+      {!canEdit ? null : adding ? (
         <form onSubmit={handleSubmit} className="flex flex-col gap-2 shrink-0">
           <input
             autoFocus

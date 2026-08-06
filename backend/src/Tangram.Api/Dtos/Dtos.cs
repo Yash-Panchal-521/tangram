@@ -35,7 +35,10 @@ public record CardDeletedPayload(Guid Id, Guid ColumnId);
 public record ColumnWithCardsResponse(Guid Id, string Name, string Rank, List<CardResponse> Cards);
 // WorkspaceId is included so the board UI can link to that workspace's member
 // management without a second round trip to resolve which workspace it's in.
-public record BoardDetailResponse(Guid Id, Guid WorkspaceId, string Name, long Seq, List<ColumnWithCardsResponse> Columns);
+// Role is the caller's own role, so the client can render a read-only board for
+// viewers instead of showing edit controls that every mutation would reject.
+public record BoardDetailResponse(
+    Guid Id, Guid WorkspaceId, string Name, string Role, long Seq, List<ColumnWithCardsResponse> Columns);
 
 public record OperationBroadcast(long Seq, string OpType, object Payload);
 public record ResyncResult(bool NeedsSnapshot, List<OperationBroadcast> Operations);

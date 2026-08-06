@@ -73,6 +73,11 @@ export function BoardView({ boardId }: { boardId: string }) {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
+  // The caller's own role, from the board payload. Viewers still get presence,
+  // cursors and live updates -- they just can't originate a mutation, so the
+  // controls that would 403 are removed rather than shown and rejected.
+  const canEdit = board !== null && board.role !== "Viewer";
+
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
@@ -241,6 +246,9 @@ export function BoardView({ boardId }: { boardId: string }) {
     setActiveCard(null);
     const { active, over } = event;
     if (!over || !board || active.id === over.id) return;
+    // Backstop: individual cards already refuse to start a drag for viewers,
+    // but this keeps the optimistic update from ever running for one.
+    if (!canEdit) return;
 
     const move = resolveMove(board, String(active.id), String(over.id));
     if (!move) return;
@@ -304,6 +312,29 @@ export function BoardView({ boardId }: { boardId: string }) {
             </span>
           </div>
 
+          {/* Names the reason the editing controls are missing. Without it a
+              viewer just sees a board that appears to be missing features. */}
+          {!canEdit && (
+            <>
+              <div className="w-px h-4.5 bg-border" />
+              <span
+                title="You have view-only access to this workspace. Ask an owner for Editor access to make changes."
+                className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface-2 border border-border text-[11px] font-medium text-text-muted whitespace-nowrap"
+              >
+                <svg width="11" height="11" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                  <path
+                    d="M1 7s2.2-4 6-4 6 4 6 4-2.2 4-6 4-6-4-6-4Z"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                    strokeLinejoin="round"
+                  />
+                  <circle cx="7" cy="7" r="1.75" stroke="currentColor" strokeWidth="1.2" />
+                </svg>
+                View only
+              </span>
+            </>
+          )}
+
           <div className="w-px h-4.5 bg-border" />
 
           <PresenceAvatars users={presentUsers} />
@@ -360,6 +391,7 @@ export function BoardView({ boardId }: { boardId: string }) {
                 column={column}
                 colorIndex={i}
                 disabled={!connected}
+                canEdit={canEdit}
                 onAddCard={handleAddCard}
                 onRenameColumn={handleRenameColumn}
                 onDeleteColumn={handleDeleteColumn}
@@ -367,17 +399,19 @@ export function BoardView({ boardId }: { boardId: string }) {
               />
             ))}
 
-            <button
-              onClick={handleAddColumn}
-              disabled={!connected}
-              className="flex-none w-[180px] flex items-center gap-1.5 px-3 py-2 rounded-lg border-[1.5px] border-dashed border-border text-text-dim text-xs font-medium hover:border-accent hover:text-accent cursor-pointer disabled:opacity-50"
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <line x1="6" y1="2" x2="6" y2="10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                <line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-              Add column
-            </button>
+            {canEdit && (
+              <button
+                onClick={handleAddColumn}
+                disabled={!connected}
+                className="flex-none w-[180px] flex items-center gap-1.5 px-3 py-2 rounded-lg border-[1.5px] border-dashed border-border text-text-dim text-xs font-medium hover:border-accent hover:text-accent cursor-pointer disabled:opacity-50"
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <line x1="6" y1="2" x2="6" y2="10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  <line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+                Add column
+              </button>
+            )}
           </div>
         </div>
 
@@ -387,6 +421,7 @@ export function BoardView({ boardId }: { boardId: string }) {
       {selectedCard && (
         <CardDetailPanel
           card={selectedCard}
+          readOnly={!canEdit}
           onClose={() => setSelectedCard(null)}
           onSave={(title, description) => handleRenameCard(selectedCard.id, title, description)}
           onDelete={() => handleDeleteCard(selectedCard.id)}

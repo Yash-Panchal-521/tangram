@@ -93,6 +93,8 @@ export interface BoardDetailResponse {
   workspaceId: string;
   seq: number;
   name: string;
+  /** The *caller's* role in this board's workspace, not a property of the board. */
+  role: MembershipRole;
   columns: ColumnWithCardsResponse[];
 }
 

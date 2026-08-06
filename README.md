@@ -17,7 +17,8 @@ permissions.
 | 2 | Drag-and-drop, full column/card CRUD, optimistic UI with rollback | done |
 | 3 | Presence, live cursors, reconnect with delta resync | done |
 | 4a | Workspace membership, email invites, sign-up, RBAC enforcement | done |
-| 4b–5 | Viewer read-only UI, workspace picker, Redis-backed presence, deploy/CI | not started |
+| 4b | Viewer read-only board UI | done |
+| 5 | Workspace picker, Redis-backed presence, deploy/CI | not started |
 
 ## Architecture in brief
 
@@ -39,6 +40,9 @@ permissions.
   cached on the connection), so RBAC is enforced per-event rather than only at connect.
 - **RBAC:** `Owner` / `Editor` / `Viewer` per workspace. Viewers read but cannot
   mutate; only owners manage members. A workspace always keeps at least one owner.
+  The board reports the *caller's* role, so viewers get a genuinely read-only UI —
+  edit controls are removed rather than shown and rejected — while still receiving
+  presence, cursors and live updates.
 - **Invitations:** inviting an address that already has an account creates the
   membership immediately; anything else writes a pending invitation that is claimed
   on that person's first authenticated request, before their workspace scope is
@@ -183,8 +187,6 @@ To see real-time behaviour solo, open the same board URL in two tabs.
 
 ## Known gaps
 
-- **Viewers get an editing UI that fails.** The role is enforced server-side and
-  test-covered, but the board still renders edit affordances that return 403.
 - **No workspace/board picker.** `/board` opens your first board; there's no screen
   to switch between several.
 - **Invites are in-app only** — no email delivery, no shareable join link.
