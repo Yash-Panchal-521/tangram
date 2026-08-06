@@ -1,0 +1,59 @@
+# Line-ending policy.
+#
+# Every text file is stored LF in the repository AND checked out LF on every
+# platform. `eol=lf` rather than a bare `text=auto` is deliberate: `text=auto`
+# alone would still hand Windows working copies CRLF, which is what produced
+# the "LF will be replaced by CRLF" warnings on commit and what makes the same
+# file look different to prettier, eslint, and dotnet format depending on who
+# checked it out. Both toolchains here are fine with LF.
+#
+# The repo was already fully LF when this landed (97 text blobs, none with
+# CRLF), so this locks in the existing state rather than rewriting anything.
+* text=auto eol=lf
+
+# Windows script formats that genuinely want CRLF. cmd.exe can mis-parse
+# LF-only batch files around labels and goto, and PowerShell signature blocks
+# assume CRLF.
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+# Visual Studio rewrites .sln with CRLF; matching that avoids churn every time
+# the solution is opened.
+*.sln   text eol=crlf
+
+# Shell scripts break outright with CRLF — stated explicitly so no future
+# override can catch them.
+*.sh    text eol=lf
+
+# Binary — never convert, never diff as text. favicon.ico is the only one
+# tracked today, but the rest are here so a stray asset can't be corrupted by
+# line-ending conversion.
+*.ico   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.eot   binary
+*.pdf   binary
+*.zip   binary
+*.gz    binary
+*.dll   binary
+*.exe   binary
+*.pdb   binary
+*.snk   binary
+
+# Language-aware hunk headers, so diffs name the enclosing member instead of a
+# random brace.
+*.cs    diff=csharp
+*.css   diff=css
+*.html  diff=html
+*.md    diff=markdown
+
+# Generated: collapsed by default in GitHub diffs. Still versioned and still
+# reviewable, just not counted as hand-written change.
+package-lock.json linguist-generated=true
