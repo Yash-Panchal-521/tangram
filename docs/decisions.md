@@ -150,6 +150,27 @@ the implementation diverged from the original plan.
 - **The header carries a "View only" badge.** Without it a viewer sees a board that
   looks like it's missing features rather than one that's deliberately restricted.
 
+## Sign-out
+
+Shipped late — the app had sign-in and sign-up from Slice 4a but no way out,
+which nobody noticed until someone tried to switch accounts.
+
+- **Navigation lives inside the auth provider's `signOut`, not at the call
+  sites.** Not every page reacts to `user` going null on its own; `BoardView`
+  simply returned early and would have left you sitting on a board you could no
+  longer load. Redirecting centrally means a sign-out can't half-happen.
+- **`BoardView` also redirects when the session disappears.** Sign-out navigates
+  away by itself, so this covers the other case: a token revoked or expired
+  elsewhere.
+- **The remembered board id is cleared on sign-out.** The landing page already
+  validates it against the server, so a stale value was harmless — but leaving it
+  behind tells the next person on that browser which board the last one had open.
+- **The menu is positioned `fixed`, anchored off the trigger's measured rect.**
+  Both page shells are `overflow-hidden`, which clips an absolutely positioned
+  dropdown inside the header. Fixed escapes the clip without pulling in a portal.
+  The anchor is measured once on open, so scroll and resize close the menu rather
+  than leaving it stranded.
+
 ### Divergences and known debt from Slice 4a
 
 - **The test suite needs `Firebase:ProjectId` from the environment or user-secrets.**

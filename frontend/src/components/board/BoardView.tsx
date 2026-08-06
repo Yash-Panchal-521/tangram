@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { HubConnection, HubConnectionState } from "@microsoft/signalr";
 import {
   DndContext,
@@ -30,7 +31,7 @@ import { PresenceAvatars } from "@/components/board/PresenceAvatars";
 import { RemoteCursors } from "@/components/board/RemoteCursors";
 import { ReconnectingBanner } from "@/components/board/ReconnectingBanner";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import { Avatar } from "@/components/ui/Avatar";
+import { UserMenu } from "@/components/ui/UserMenu";
 import { TangramMark } from "@/components/ui/TangramMark";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 
@@ -55,7 +56,8 @@ function resolveMove(
 }
 
 export function BoardView({ boardId }: { boardId: string }) {
-  const { user, getToken } = useAuth();
+  const router = useRouter();
+  const { user, loading, getToken } = useAuth();
   const { confirm, dialog } = useConfirm();
   const [board, setBoard] = useState<BoardDetailResponse | null>(null);
   const [connected, setConnected] = useState(false);
@@ -77,6 +79,13 @@ export function BoardView({ boardId }: { boardId: string }) {
   // cursors and live updates -- they just can't originate a mutation, so the
   // controls that would 403 are removed rather than shown and rejected.
   const canEdit = board !== null && board.role !== "Viewer";
+
+  // Signing out navigates away on its own, so this covers the other way a
+  // session ends: a token revoked or expired elsewhere. Without it the board
+  // just sat there unable to load anything.
+  useEffect(() => {
+    if (!loading && !user) router.replace("/login");
+  }, [loading, user, router]);
 
   useEffect(() => {
     if (!user) return;
@@ -339,7 +348,7 @@ export function BoardView({ boardId }: { boardId: string }) {
 
           <PresenceAvatars users={presentUsers} />
 
-          {user && <Avatar name={user.displayName ?? user.email ?? "You"} size="sm" />}
+          <UserMenu />
 
           <div className="w-px h-4.5 bg-border" />
 
