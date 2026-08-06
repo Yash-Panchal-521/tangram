@@ -160,22 +160,28 @@ the implementation diverged from the original plan.
   a CI runner is. A module initializer in the test assembly seeds the environment
   variable before the first test class is constructed. `dotnet test` now works
   with no setup at all.
-- **Platform choice was constrained by SignalR and by "no credit card", not by
-  price.** Render's free tier has no WebSockets, so it was out despite being the
-  obvious default. Fly.io replaced free allowances with a two-hour trial in 2024.
-  Cloud Run and Oracle Always Free both work but want a card. Back4App Containers
-  won: no card, Docker from GitHub, and WebSocket support.
-- **Koyeb was chosen first, and that was a research failure worth recording.**
-  Comparison sites described a healthy no-card free tier; Mistral had acquired
-  Koyeb in February 2026 and closed the Starter plan to new signups. Northflank
-  went the same way — third-party pages said "no credit card", its own billing
-  docs say a payment method is required "even on the free plan". The lesson is
-  narrow and practical: for facts that decide a platform, the vendor's own
-  current pages are the only source that counts.
-- **256 MB was verified, not assumed.** Back4App's free container is 0.25 CPU /
-  256 MB, which sounds impossible for ASP.NET Core. Running the image under a
-  hard `--memory=256m` cap while serving requests: 26 MB, no OOM. The .NET GC
-  sizes itself to the cgroup limit.
+- **"No credit card" was the binding constraint, not price**, and it took four
+  attempts to satisfy. Koyeb was chosen first on the strength of comparison
+  sites describing a healthy no-card free tier — Mistral had acquired them in
+  February 2026 and closed the Starter plan to new signups. Northflank went the
+  same way: third-party pages said "no credit card", its own billing docs
+  require a payment method "even on the free plan". Back4App got as far as a
+  running container before revealing an undocumented 60-minute URL expiry.
+  Render finally worked.
+- **The lesson is narrow and reusable: for facts that decide a platform, only
+  the vendor's own current pages count.** Every wrong turn came from trusting a
+  comparison article over the provider.
+- **Rejecting Render for "no WebSockets on free" was the actual mistake.**
+  SignalR negotiates transports and degrades to Server-Sent Events, then long
+  polling; the board syncs either way, just with more HTTP round trips.
+  Treating a performance characteristic as a hard capability blocker cost three
+  platforms and most of a day. The check that would have caught it — "does this
+  break the feature, or make it slower?" — is worth asking before any platform
+  filter.
+- **Container footprint was measured, not assumed.** Free tiers advertise as
+  little as 256 MB, which sounds impossible for ASP.NET Core. Running the image
+  under a hard `--memory=256m` cap while serving requests: 26 MB, no OOM. The
+  .NET GC sizes itself to the cgroup limit, so RAM never was the constraint.
 - **Cold starts are accepted rather than worked around.** Free tiers idle out.
   Rather than add a keep-alive pinger — which fakes traffic to defeat the
   platform's own economics — the reconnect path from Slice 3 absorbs it:
@@ -191,12 +197,12 @@ the implementation diverged from the original plan.
 - **Deploys are driven from CI, with both platforms' git integrations disabled.**
   Back4App and Vercel would each happily deploy on a red build. Gating them behind
   the test job is the only reason CI has teeth.
-- **The deploy branch is the gate.** Back4App has no public redeploy API; it
-  builds whatever lands on the branch it watches. Pointing it at `main` would
-  have deployed on red and made CI decorative. So it watches `deploy`, and CI
-  advances that branch only once both test jobs pass — the gate is the branch
-  itself, and no API token exists to leak. `--force-with-lease` so a hand-push
-  to `deploy` fails loudly rather than being silently discarded.
+- **The deploy branch is the gate.** Render builds whatever lands on the branch
+  it watches. Pointing it at `main` would have deployed on red and made CI
+  decorative. So it watches `deploy`, and CI advances that branch only once both
+  test jobs pass — the gate is the branch itself, and no deploy credential
+  exists to leak. `--force-with-lease` so a hand-push to `deploy` fails loudly
+  rather than being silently discarded.
 - **Redis-backed presence was dropped from the slice.** It solves multi-instance
   inconsistency, and free hosting gives exactly one instance — so it would have
   been code no deployment exercises. `IPresenceTracker` stays shaped for the

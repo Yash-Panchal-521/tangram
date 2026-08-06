@@ -5,11 +5,17 @@ same board live — drag cards, rename columns, watch each other's cursors — b
 by a server-authoritative sync pipeline (sequenced operations log, not last-write-wins
 by clock time).
 
+**Live: [tangram-mu.vercel.app](https://tangram-mu.vercel.app)** · API at
+[tangram-hk8a.onrender.com](https://tangram-hk8a.onrender.com/health)
+
+Sign up, create a board, then invite a second address and open it in another browser —
+cards, columns, presence avatars and cursors all move in real time. The API sleeps
+after 15 minutes idle on the free tier, so the first request after a quiet spell takes
+30–60 seconds to wake; the client shows a reconnecting banner and recovers on its own.
+
 ## Status
 
-Four of five planned slices are in. The app is usable end to end: sign up, invite
-a teammate by email, and both of you edit one board in real time under role-based
-permissions.
+All five slices are in, and the app is deployed.
 
 | Slice | Scope | State |
 |---|---|---|
@@ -18,7 +24,7 @@ permissions.
 | 3 | Presence, live cursors, reconnect with delta resync | done |
 | 4a | Workspace membership, email invites, sign-up, RBAC enforcement | done |
 | 4b | Viewer read-only board UI | done |
-| 5 | CI, then deploy | CI done; deploy pipeline built, awaiting hosting accounts |
+| 5 | CI, then deploy | done — live on Render + Vercel + Neon |
 
 ## Architecture in brief
 
@@ -187,76 +193,74 @@ To see real-time behaviour solo, open the same board URL in two tabs.
 
 ## Deployment
 
-Free tier throughout, no credit card required anywhere:
+Free tier throughout, and **no credit card anywhere** — which turned out to be the
+binding constraint rather than price.
 
-| Layer | Platform | Notes |
+| Layer | Platform | Free tier |
 |---|---|---|
-| Frontend | Vercel Hobby | non-commercial use only |
-| Backend | Back4App Containers | 0.25 CPU / 256 MB, Docker from GitHub, WebSocket support, no card |
-| Database | Neon | 0.5 GB, 100 compute-hours/month, no card |
+| Frontend | [Vercel](https://tangram-mu.vercel.app) Hobby | non-commercial use only |
+| Backend | [Render](https://tangram-hk8a.onrender.com/health) | 750 hours/month, sleeps after 15 min idle |
+| Database | Neon | 0.5 GB, 100 compute-hours/month |
 | Auth | Firebase Spark | same project as local |
 
-Nothing here needs a credit card, which narrows the field sharply. Render's free tier
-has no WebSockets, which SignalR needs. Fly.io replaced free allowances with a two-hour
-trial in 2024. Koyeb's free Starter plan closed to new users when Mistral acquired them
-in February 2026. Northflank's own docs require a payment method "even on the free
-plan", whatever the comparison sites say.
+Finding a host took four attempts, all recorded in [docs/decisions.md](docs/decisions.md):
+Koyeb's free plan closed to new signups when Mistral acquired them in February 2026;
+Northflank's own docs require a payment method "even on the free plan" whatever the
+comparison sites claim; Back4App issues a URL that expires after 60 minutes.
 
-256 MB sounds tight for ASP.NET Core. Measured under a hard `--memory=256m` cap while
-serving requests: **26 MB**. The .NET GC sizes itself to the cgroup limit, so there's
-ample headroom.
+Render was initially rejected because its free tier has no WebSockets — **which was the
+wrong reason to reject it**. SignalR negotiates transports and falls back to Server-Sent
+Events, then long polling. The board still syncs; it just costs more HTTP round trips.
+Treating a performance characteristic as a hard blocker cost three platforms.
 
-If a host ever lacks WebSocket support, SignalR negotiates down to Server-Sent Events
-and then long polling, so the app degrades rather than breaks.
+Two consequences of the free tier worth knowing:
+
+- **The API sleeps after 15 minutes idle**, and the first request back takes 30–60
+  seconds. The client already handles this — `withAutomaticReconnect()`, then `Resync`
+  replays operations since the last seen `seq`, falling back to a snapshot past a
+  200-operation gap. The reconnecting banner appears and clears on its own.
+- **Neon suspends compute after 5 minutes** but resumes without intervention.
+
+Render's own free Postgres is deliberately unused: it is deleted after 90 days.
 
 ### The deploy branch
 
-Back4App's free plan has no autodeploy (it's a paid feature) and no public redeploy API,
-so the backend ships by pressing **Deploy** in their dashboard. The service is
-configured to build the **`deploy`** branch, which CI advances only after both test jobs
-pass — so a manual deploy still cannot ship red code. The gate is the branch, not the
-trigger, and no API token is involved.
-
-In practice: merge to `main`, let CI go green, then press Deploy when you want the
-change live. The frontend deploys automatically from CI, since Vercel's CLI works on
-the free plan.
-
-Vercel is deployed from CI through its CLI, so **Vercel's own git auto-deploy must be
-turned off** or it will deploy on red regardless.
+Render builds the **`deploy`** branch, which CI advances only after both test jobs pass
+([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). Pointing it at `main` would
+deploy on red and make CI decorative. The gate is the branch, so no deploy credential
+exists to leak.
 
 ### One-time setup
 
-1. Create the Neon database and copy its connection string — pick the **.NET / Npgsql**
-   format from Neon's dropdown, not the default `postgres://` URI, which Npgsql cannot
-   parse.
-2. Create the `deploy` branch: `git push origin main:deploy`.
-3. Back4App → Containers → deploy from GitHub, repo `tangram`, **branch `deploy`**, root
-   directory `backend`, Dockerfile `Dockerfile`. See [`backend/Dockerfile`](backend/Dockerfile);
-   it already reads `$PORT`, which is what Back4App requires.
-4. Back4App environment variables — **names must be uppercase**, which Back4App enforces:
+1. Neon: create the database and copy the connection string — pick the **.NET / Npgsql**
+   format, not the default `postgres://` URI, which Npgsql cannot parse.
+2. Create the deploy branch: `git push origin main:deploy`.
+3. Render → New Web Service → this repo, branch **`deploy`**, root directory `backend`,
+   runtime **Docker**, Dockerfile `./backend/Dockerfile`, instance type Free. Render
+   injects `PORT`; [`backend/Dockerfile`](backend/Dockerfile) already reads it.
+4. Render environment variables:
 
    | Name | Value |
    |---|---|
    | `CONNECTIONSTRINGS__POSTGRES` | the Neon connection string |
-   | `FIREBASE__PROJECTID` | `tangram-dev-6f6d8` |
-   | `CORS__FRONTENDORIGIN` | the Vercel URL, no trailing slash |
+   | `FIREBASE__PROJECTID` | your Firebase project id |
+   | `CORS__FRONTENDORIGIN` | the Vercel URL — **no trailing slash** |
    | `DATABASE__MIGRATEONSTARTUP` | `true`, so the schema is applied on boot |
 
-   .NET configuration keys are case-insensitive, so `CONNECTIONSTRINGS__POSTGRES` binds
-   to `ConnectionStrings:Postgres` just as the mixed-case form would. Verified by
-   running the image with only these uppercase names: the app started (it refuses to
-   without `Firebase:ProjectId`), migrated a fresh database, and returned the configured
-   origin on a CORS preflight.
-5. Vercel: import the repo with root directory `frontend`. Environment variables are the
-   six `NEXT_PUBLIC_FIREBASE_*` values plus `NEXT_PUBLIC_API_BASE_URL` pointing at the
-   Back4App URL.
+   Uppercase names work because .NET configuration keys are case-insensitive:
+   `CONNECTIONSTRINGS__POSTGRES` binds to `ConnectionStrings:Postgres`. Verified by
+   running the image with only these names — it booted, migrated a fresh database, and
+   returned the configured origin on a CORS preflight.
+5. Vercel: import the repo with root directory `frontend`. Set the six
+   `NEXT_PUBLIC_FIREBASE_*` values plus `NEXT_PUBLIC_API_BASE_URL` pointing at the Render
+   URL — again **no trailing slash**, or every request becomes `//health` and 404s.
 6. GitHub repository secrets: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`.
    Until these exist the frontend deploy skips with a notice rather than failing.
 7. Firebase console → Authentication → Settings → Authorized domains → add the Vercel
    domain. **Sign-in fails without this**, and the error is easy to misread.
 
-The two URLs reference each other, so: deploy the backend, point Vercel at it, deploy
-the frontend, then set `Cors__FrontendOrigin` and redeploy the backend.
+The two URLs reference each other, so: deploy the backend, point Vercel at it, deploy the
+frontend, then set `CORS__FRONTENDORIGIN` and redeploy the backend.
 
 ## Known gaps
 

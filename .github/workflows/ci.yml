@@ -121,12 +121,11 @@ jobs:
           if [ -n "$VERCEL_TOKEN" ]; then echo "vercel=true" >> "$GITHUB_OUTPUT"; else
             echo "vercel=false" >> "$GITHUB_OUTPUT"; echo "::notice::VERCEL_TOKEN not set — skipping frontend deploy"; fi
 
-      # `deploy` is the last-known-green pointer. Back4App's free plan has
-      # neither autodeploy (paid feature) nor a public redeploy API, so the
-      # backend is shipped by pressing Deploy in their dashboard -- and it is
-      # configured to build this branch, which only ever advances after both
-      # test jobs pass. So a manual deploy still cannot ship red code: the gate
-      # is the branch, not the trigger.
+      # `deploy` is the last-known-green pointer, and it's what Render is
+      # configured to build. Pointing Render at `main` would deploy on red and
+      # make this whole workflow decorative; advancing `deploy` only after both
+      # test jobs pass means broken code can't reach the branch the deployment
+      # watches. The gate is the branch, so there's no deploy token to leak.
       #
       # force-with-lease rather than force: if someone pushed to `deploy`
       # by hand, this fails loudly instead of silently discarding it.
