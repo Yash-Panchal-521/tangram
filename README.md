@@ -18,7 +18,7 @@ permissions.
 | 3 | Presence, live cursors, reconnect with delta resync | done |
 | 4a | Workspace membership, email invites, sign-up, RBAC enforcement | done |
 | 4b | Viewer read-only board UI | done |
-| 5 | Workspace picker, Redis-backed presence, deploy/CI | not started |
+| 5 | CI, then deploy, then Redis-backed presence | CI done |
 
 ## Architecture in brief
 
@@ -119,18 +119,18 @@ The API listens on `http://localhost:5286`. In Development, Swagger UI is at
 test handler.
 
 ```bash
-cd backend && Firebase__ProjectId=test-project dotnet test
+cd backend && dotnet test
 ```
 
-Two things to know:
+No secrets or environment variables required. `Program.cs` reads `Firebase:ProjectId`
+before the host is built — earlier than `WebApplicationFactory` can inject
+configuration — so the test assembly seeds it from a module initializer
+(`Infrastructure/TestEnvironment.cs`). The value is irrelevant: `TestAuthHandler`
+replaces Firebase JWT validation outright.
 
-- **`Firebase:ProjectId` must come from the environment or user-secrets, not
-  `appsettings.Local.json`.** `Program.cs` reads it before the host is built, which is
-  earlier than `WebApplicationFactory` can inject configuration, and the test project's
-  content root isn't the API project's. `dotnet user-secrets set "Firebase:ProjectId" "…"`
-  works too and saves repeating the variable.
-- The suite expects `tangram_test` at `127.0.0.1:5433` with `postgres`/`postgres`.
-  Override with `TANGRAM_TEST_POSTGRES` if your instance differs.
+The suite expects `tangram_test` at `127.0.0.1:5433` with `postgres`/`postgres`.
+Override with `TANGRAM_TEST_POSTGRES` if your instance differs — that's how CI points
+at its own service container.
 
 Coverage: tenant scoping, the card-create spine, board operations and rank
 convergence, presence/cursors/resync, and membership — instant vs pending invites,
@@ -192,7 +192,9 @@ To see real-time behaviour solo, open the same board URL in two tabs.
 - **Invites are in-app only** — no email delivery, no shareable join link.
 - **Presence is single-instance.** The tracker is in-memory, so horizontal scaling
   needs a Redis-backed implementation.
-- **No CI.** The test suite exists but nothing runs it automatically.
+- **Not deployed.** Runs locally only; no Dockerfiles or hosted environment yet.
+- **No frontend tests.** 20 on the backend, none on the front — despite the sync
+  reducer, rank ordering and invite parsing all being pure, testable logic.
 - **"Add column" still uses `window.prompt`.** Every other dialog is in-app.
 
 See [docs/decisions.md](docs/decisions.md) for the architecture decisions and
