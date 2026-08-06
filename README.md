@@ -211,10 +211,15 @@ and then long polling, so the app degrades rather than breaks.
 
 ### The deploy branch
 
-Back4App has no public redeploy API — it builds whatever lands on the branch it watches.
-Pointing it at `main` would deploy on red and make CI decorative, so **it watches
-`deploy`**, and CI advances that branch only after both test jobs pass. The gate is the
-branch itself; no API token is involved.
+Back4App's free plan has no autodeploy (it's a paid feature) and no public redeploy API,
+so the backend ships by pressing **Deploy** in their dashboard. The service is
+configured to build the **`deploy`** branch, which CI advances only after both test jobs
+pass — so a manual deploy still cannot ship red code. The gate is the branch, not the
+trigger, and no API token is involved.
+
+In practice: merge to `main`, let CI go green, then press Deploy when you want the
+change live. The frontend deploys automatically from CI, since Vercel's CLI works on
+the free plan.
 
 Vercel is deployed from CI through its CLI, so **Vercel's own git auto-deploy must be
 turned off** or it will deploy on red regardless.
