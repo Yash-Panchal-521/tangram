@@ -12,12 +12,16 @@ const DEFAULT_MODE: ThemeMode = "light";
 
 // Inlined into <head> so the theme/mode attributes are set before first
 // paint -- avoids a flash of the wrong theme on load.
+//
+// Light is the default outright, rather than following
+// prefers-color-scheme. Terracotta was designed light-first, and deferring to
+// the OS meant anyone on a dark desktop never saw the intended palette without
+// hunting for the toggle. A stored choice still wins, so the toggle is sticky.
 export const themeInitScript = `
 (function () {
   try {
     var theme = localStorage.getItem("${THEME_STORAGE_KEY}") || "${DEFAULT_THEME}";
-    var mode = localStorage.getItem("${MODE_STORAGE_KEY}") ||
-      (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "${DEFAULT_MODE}");
+    var mode = localStorage.getItem("${MODE_STORAGE_KEY}") || "${DEFAULT_MODE}";
     document.documentElement.dataset.theme = theme;
     document.documentElement.dataset.mode = mode;
   } catch (e) {}
