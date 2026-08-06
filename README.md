@@ -228,9 +228,20 @@ turned off** or it will deploy on red regardless.
 3. Back4App → Containers → deploy from GitHub, repo `tangram`, **branch `deploy`**, root
    directory `backend`, Dockerfile `Dockerfile`. See [`backend/Dockerfile`](backend/Dockerfile);
    it already reads `$PORT`, which is what Back4App requires.
-4. Back4App environment variables: `ConnectionStrings__Postgres`, `Firebase__ProjectId`,
-   `Cors__FrontendOrigin` (the Vercel URL), and `Database__MigrateOnStartup=true` so the
-   schema is applied on boot.
+4. Back4App environment variables — **names must be uppercase**, which Back4App enforces:
+
+   | Name | Value |
+   |---|---|
+   | `CONNECTIONSTRINGS__POSTGRES` | the Neon connection string |
+   | `FIREBASE__PROJECTID` | `tangram-dev-6f6d8` |
+   | `CORS__FRONTENDORIGIN` | the Vercel URL, no trailing slash |
+   | `DATABASE__MIGRATEONSTARTUP` | `true`, so the schema is applied on boot |
+
+   .NET configuration keys are case-insensitive, so `CONNECTIONSTRINGS__POSTGRES` binds
+   to `ConnectionStrings:Postgres` just as the mixed-case form would. Verified by
+   running the image with only these uppercase names: the app started (it refuses to
+   without `Firebase:ProjectId`), migrated a fresh database, and returned the configured
+   origin on a CORS preflight.
 5. Vercel: import the repo with root directory `frontend`. Environment variables are the
    six `NEXT_PUBLIC_FIREBASE_*` values plus `NEXT_PUBLIC_API_BASE_URL` pointing at the
    Back4App URL.
