@@ -192,41 +192,51 @@ Free tier throughout, no credit card required anywhere:
 | Layer | Platform | Notes |
 |---|---|---|
 | Frontend | Vercel Hobby | non-commercial use only |
-| Backend | Koyeb | 512 MB / 0.1 vCPU, one service, native WebSocket support |
-| Database | Neon | 0.5 GB, 100 compute-hours/month |
+| Backend | Back4App Containers | 0.25 CPU / 256 MB, Docker from GitHub, WebSocket support, no card |
+| Database | Neon | 0.5 GB, 100 compute-hours/month, no card |
 | Auth | Firebase Spark | same project as local |
 
-Render was ruled out — its free tier has no WebSockets, which SignalR needs. Fly.io
-replaced free allowances with a two-hour trial in 2024.
+Nothing here needs a credit card, which narrows the field sharply. Render's free tier
+has no WebSockets, which SignalR needs. Fly.io replaced free allowances with a two-hour
+trial in 2024. Koyeb's free Starter plan closed to new users when Mistral acquired them
+in February 2026. Northflank's own docs require a payment method "even on the free
+plan", whatever the comparison sites say.
 
-**Koyeb free scales to zero after an hour idle and that cannot be disabled**, and Neon
-suspends compute after five minutes but resumes on its own. So the first request after
-a quiet spell is slow, and live SignalR connections drop when the instance sleeps. The
-client already handles exactly this — `withAutomaticReconnect()`, then `Resync` replays
-operations since the last seen `seq`, falling back to a snapshot past a 200-operation
-gap.
+256 MB sounds tight for ASP.NET Core. Measured under a hard `--memory=256m` cap while
+serving requests: **26 MB**. The .NET GC sizes itself to the cgroup limit, so there's
+ample headroom.
 
-Deploys run from CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) only after
-the tests and frontend build pass, on pushes to `main`. **Both platforms' own git
-auto-deploy must be switched off**, or they will deploy on red and the gate means
-nothing.
+If a host ever lacks WebSocket support, SignalR negotiates down to Server-Sent Events
+and then long polling, so the app degrades rather than breaks.
+
+### The deploy branch
+
+Back4App has no public redeploy API — it builds whatever lands on the branch it watches.
+Pointing it at `main` would deploy on red and make CI decorative, so **it watches
+`deploy`**, and CI advances that branch only after both test jobs pass. The gate is the
+branch itself; no API token is involved.
+
+Vercel is deployed from CI through its CLI, so **Vercel's own git auto-deploy must be
+turned off** or it will deploy on red regardless.
 
 ### One-time setup
 
-1. Create the Neon database and copy its connection string (it needs `SSL Mode=Require`).
-2. Create a Koyeb app `tangram` with a service named `api`, built from
-   [`backend/Dockerfile`](backend/Dockerfile) with the work directory set to `backend`,
-   port 8000, and a health check on `/health`. CI redeploys this service; it does not
-   create it.
-3. Koyeb environment variables: `ConnectionStrings__Postgres`, `Firebase__ProjectId`,
+1. Create the Neon database and copy its connection string — pick the **.NET / Npgsql**
+   format from Neon's dropdown, not the default `postgres://` URI, which Npgsql cannot
+   parse.
+2. Create the `deploy` branch: `git push origin main:deploy`.
+3. Back4App → Containers → deploy from GitHub, repo `tangram`, **branch `deploy`**, root
+   directory `backend`, Dockerfile `Dockerfile`. See [`backend/Dockerfile`](backend/Dockerfile);
+   it already reads `$PORT`, which is what Back4App requires.
+4. Back4App environment variables: `ConnectionStrings__Postgres`, `Firebase__ProjectId`,
    `Cors__FrontendOrigin` (the Vercel URL), and `Database__MigrateOnStartup=true` so the
    schema is applied on boot.
-4. Vercel environment variables: the six `NEXT_PUBLIC_FIREBASE_*` values plus
-   `NEXT_PUBLIC_API_BASE_URL` pointing at the Koyeb URL.
-5. GitHub repository secrets: `KOYEB_TOKEN`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`,
-   `VERCEL_PROJECT_ID`. Until these exist the deploy job skips with a notice rather
-   than failing.
-6. Firebase console → Authentication → Settings → Authorized domains → add the Vercel
+5. Vercel: import the repo with root directory `frontend`. Environment variables are the
+   six `NEXT_PUBLIC_FIREBASE_*` values plus `NEXT_PUBLIC_API_BASE_URL` pointing at the
+   Back4App URL.
+6. GitHub repository secrets: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`.
+   Until these exist the frontend deploy skips with a notice rather than failing.
+7. Firebase console → Authentication → Settings → Authorized domains → add the Vercel
    domain. **Sign-in fails without this**, and the error is easy to misread.
 
 The two URLs reference each other, so: deploy the backend, point Vercel at it, deploy

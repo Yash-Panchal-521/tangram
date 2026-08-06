@@ -160,31 +160,43 @@ the implementation diverged from the original plan.
   a CI runner is. A module initializer in the test assembly seeds the environment
   variable before the first test class is constructed. `dotnet test` now works
   with no setup at all.
-- **Platform choice was constrained by SignalR, not by price.** Render's free
-  tier has no WebSockets, so it was out despite being the obvious default. Fly.io
-  replaced free allowances with a two-hour trial in 2024. Cloud Run and Oracle
-  Always Free both work but want a credit card. Koyeb supports WebSockets on a
-  no-card free tier, so it won.
-- **Cold starts are accepted rather than worked around.** Koyeb free scales to
-  zero after an hour and the behaviour can't be disabled. Rather than add a
-  keep-alive pinger — which fakes traffic to defeat the platform's own
-  economics — the reconnect path from Slice 3 absorbs it: automatic reconnect,
-  then `Resync` from the last seen `seq`, with a snapshot fallback past a
-  200-operation gap. The platform's worst property is the failure mode the app
-  was already built for.
+- **Platform choice was constrained by SignalR and by "no credit card", not by
+  price.** Render's free tier has no WebSockets, so it was out despite being the
+  obvious default. Fly.io replaced free allowances with a two-hour trial in 2024.
+  Cloud Run and Oracle Always Free both work but want a card. Back4App Containers
+  won: no card, Docker from GitHub, and WebSocket support.
+- **Koyeb was chosen first, and that was a research failure worth recording.**
+  Comparison sites described a healthy no-card free tier; Mistral had acquired
+  Koyeb in February 2026 and closed the Starter plan to new signups. Northflank
+  went the same way — third-party pages said "no credit card", its own billing
+  docs say a payment method is required "even on the free plan". The lesson is
+  narrow and practical: for facts that decide a platform, the vendor's own
+  current pages are the only source that counts.
+- **256 MB was verified, not assumed.** Back4App's free container is 0.25 CPU /
+  256 MB, which sounds impossible for ASP.NET Core. Running the image under a
+  hard `--memory=256m` cap while serving requests: 26 MB, no OOM. The .NET GC
+  sizes itself to the cgroup limit.
+- **Cold starts are accepted rather than worked around.** Free tiers idle out.
+  Rather than add a keep-alive pinger — which fakes traffic to defeat the
+  platform's own economics — the reconnect path from Slice 3 absorbs it:
+  automatic reconnect, then `Resync` from the last seen `seq`, with a snapshot
+  fallback past a 200-operation gap. SignalR also negotiates down to SSE and
+  long polling if a host ever lacks WebSockets, so transport support stopped
+  being a hard platform filter.
 - **Migrations run at startup, behind an opt-in flag.** There's no shell in the
   deployed environment to run `dotnet ef database update` from. This is only
   safe because the free tier is a single instance; several instances booting
   together would race on the migration history table, so the comment in
   `Program.cs` says so explicitly.
 - **Deploys are driven from CI, with both platforms' git integrations disabled.**
-  Koyeb and Vercel would each happily deploy on a red build. Gating them behind
+  Back4App and Vercel would each happily deploy on a red build. Gating them behind
   the test job is the only reason CI has teeth.
-- **`koyeb service redeploy` over `koyeb/action-git-deploy`.** The action
-  re-declares the whole service on every run, which risks clobbering the
-  environment variables holding the database password. Redeploy rebuilds the
-  existing service from the latest commit and touches nothing else. The cost is
-  that the service must be created by hand first.
+- **The deploy branch is the gate.** Back4App has no public redeploy API; it
+  builds whatever lands on the branch it watches. Pointing it at `main` would
+  have deployed on red and made CI decorative. So it watches `deploy`, and CI
+  advances that branch only once both test jobs pass — the gate is the branch
+  itself, and no API token exists to leak. `--force-with-lease` so a hand-push
+  to `deploy` fails loudly rather than being silently discarded.
 - **Redis-backed presence was dropped from the slice.** It solves multi-instance
   inconsistency, and free hosting gives exactly one instance — so it would have
   been code no deployment exercises. `IPresenceTracker` stays shaped for the

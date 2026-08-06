@@ -98,45 +98,39 @@ jobs:
 
   deploy:
     name: Deploy
-    # The whole point of gating: a red suite must not reach production. Both
-    # platforms' own git integrations would deploy on every push regardless, so
-    # Koyeb auto-deploy and Vercel auto-deploy are both turned off and the
-    # deployment is driven from here instead.
+    # The point of gating: a red suite must not reach production.
     needs: [backend, frontend]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
 
+    # Needed to advance the deploy branch below.
+    permissions:
+      contents: write
+
     steps:
       - uses: actions/checkout@v5
+        with:
+          # The push below needs real history, not the default shallow clone.
+          fetch-depth: 0
 
-      # Lets the repo be pushed to before the hosting accounts exist without
-      # painting main red. Once the secrets are set these steps start running
-      # on their own.
       - name: Check which deploy targets are configured
         id: targets
         env:
-          KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          if [ -n "$KOYEB_TOKEN" ]; then echo "koyeb=true" >> "$GITHUB_OUTPUT"; else
-            echo "koyeb=false" >> "$GITHUB_OUTPUT"; echo "::notice::KOYEB_TOKEN not set — skipping backend deploy"; fi
           if [ -n "$VERCEL_TOKEN" ]; then echo "vercel=true" >> "$GITHUB_OUTPUT"; else
             echo "vercel=false" >> "$GITHUB_OUTPUT"; echo "::notice::VERCEL_TOKEN not set — skipping frontend deploy"; fi
 
-      # Redeploy rather than koyeb/action-git-deploy: the action re-declares the
-      # whole service on every run, which risks clobbering the environment
-      # variables that hold the database password. Redeploy rebuilds the
-      # existing service from the latest commit on its configured branch and
-      # touches nothing else. The service must already exist — see README.
-      - name: Install and authenticate the Koyeb CLI
-        if: steps.targets.outputs.koyeb == 'true'
-        uses: koyeb-community/koyeb-actions@v2
-        with:
-          api_token: ${{ secrets.KOYEB_TOKEN }}
-
-      - name: Deploy backend
-        if: steps.targets.outputs.koyeb == 'true'
-        run: koyeb service redeploy tangram/api
+      # Back4App has no public redeploy API -- it builds whatever lands on the
+      # branch it watches. Pointing it at `main` directly would deploy on red
+      # and make CI decorative, so it watches `deploy` instead and this step
+      # advances that branch only after both test jobs pass. The gate is the
+      # branch itself; no API token involved.
+      #
+      # force-with-lease rather than force: if someone pushed to `deploy`
+      # by hand, this fails loudly instead of silently discarding it.
+      - name: Promote main to the deploy branch
+        run: git push origin HEAD:deploy --force-with-lease
 
       - uses: actions/setup-node@v5
         if: steps.targets.outputs.vercel == 'true'
