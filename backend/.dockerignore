@@ -1,0 +1,13 @@
+# Keep the build context small and, more importantly, keep local secrets out of
+# it entirely -- appsettings.Local.json holds a real connection string and
+# Firebase project id, and anything copied into a layer is recoverable from the
+# image even if a later layer deletes it.
+**/appsettings.Local.json
+
+**/bin/
+**/obj/
+**/.vs/
+**/*.user
+
+# The image only ever builds src/; the test project would just be dead weight.
+tests/

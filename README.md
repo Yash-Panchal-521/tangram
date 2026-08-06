@@ -18,7 +18,7 @@ permissions.
 | 3 | Presence, live cursors, reconnect with delta resync | done |
 | 4a | Workspace membership, email invites, sign-up, RBAC enforcement | done |
 | 4b | Viewer read-only board UI | done |
-| 5 | CI, then deploy, then Redis-backed presence | CI done |
+| 5 | CI, then deploy | CI done; deploy pipeline built, awaiting hosting accounts |
 
 ## Architecture in brief
 
@@ -185,14 +185,61 @@ To see real-time behaviour solo, open the same board URL in two tabs.
 /docs          architecture/decision notes, growing per slice
 ```
 
+## Deployment
+
+Free tier throughout, no credit card required anywhere:
+
+| Layer | Platform | Notes |
+|---|---|---|
+| Frontend | Vercel Hobby | non-commercial use only |
+| Backend | Koyeb | 512 MB / 0.1 vCPU, one service, native WebSocket support |
+| Database | Neon | 0.5 GB, 100 compute-hours/month |
+| Auth | Firebase Spark | same project as local |
+
+Render was ruled out — its free tier has no WebSockets, which SignalR needs. Fly.io
+replaced free allowances with a two-hour trial in 2024.
+
+**Koyeb free scales to zero after an hour idle and that cannot be disabled**, and Neon
+suspends compute after five minutes but resumes on its own. So the first request after
+a quiet spell is slow, and live SignalR connections drop when the instance sleeps. The
+client already handles exactly this — `withAutomaticReconnect()`, then `Resync` replays
+operations since the last seen `seq`, falling back to a snapshot past a 200-operation
+gap.
+
+Deploys run from CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) only after
+the tests and frontend build pass, on pushes to `main`. **Both platforms' own git
+auto-deploy must be switched off**, or they will deploy on red and the gate means
+nothing.
+
+### One-time setup
+
+1. Create the Neon database and copy its connection string (it needs `SSL Mode=Require`).
+2. Create a Koyeb app `tangram` with a service named `api`, built from
+   [`backend/Dockerfile`](backend/Dockerfile) with the work directory set to `backend`,
+   port 8000, and a health check on `/health`. CI redeploys this service; it does not
+   create it.
+3. Koyeb environment variables: `ConnectionStrings__Postgres`, `Firebase__ProjectId`,
+   `Cors__FrontendOrigin` (the Vercel URL), and `Database__MigrateOnStartup=true` so the
+   schema is applied on boot.
+4. Vercel environment variables: the six `NEXT_PUBLIC_FIREBASE_*` values plus
+   `NEXT_PUBLIC_API_BASE_URL` pointing at the Koyeb URL.
+5. GitHub repository secrets: `KOYEB_TOKEN`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`,
+   `VERCEL_PROJECT_ID`. Until these exist the deploy job skips with a notice rather
+   than failing.
+6. Firebase console → Authentication → Settings → Authorized domains → add the Vercel
+   domain. **Sign-in fails without this**, and the error is easy to misread.
+
+The two URLs reference each other, so: deploy the backend, point Vercel at it, deploy
+the frontend, then set `Cors__FrontendOrigin` and redeploy the backend.
+
 ## Known gaps
 
 - **No workspace/board picker.** `/board` opens your first board; there's no screen
   to switch between several.
 - **Invites are in-app only** — no email delivery, no shareable join link.
-- **Presence is single-instance.** The tracker is in-memory, so horizontal scaling
-  needs a Redis-backed implementation.
-- **Not deployed.** Runs locally only; no Dockerfiles or hosted environment yet.
+- **Presence is single-instance.** The tracker is in-memory, so horizontal scaling needs
+  a Redis-backed `IPresenceTracker`. Deliberately not built: free hosting gives exactly
+  one instance, so it would be code nothing exercises.
 - **No frontend tests.** 20 on the backend, none on the front — despite the sync
   reducer, rank ordering and invite parsing all being pure, testable logic.
 - **"Add column" still uses `window.prompt`.** Every other dialog is in-app.

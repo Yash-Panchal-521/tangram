@@ -110,6 +110,22 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+// Deployed environments have no shell to run `dotnet ef database update` from,
+// so the app can bring its own schema up to date on boot.
+//
+// Opt-in rather than automatic: it's off for local runs and for the test suite
+// (which manages its own schema in TangramWebApplicationFactory), and only the
+// hosted deployment sets Database__MigrateOnStartup=true.
+//
+// This is safe *because the free-tier deployment is a single instance*. Several
+// instances booting together would race on the migration history table, and at
+// that point this needs to move to a job that runs once before the rollout.
+if (app.Configuration.GetValue("Database:MigrateOnStartup", false))
+{
+    using var migrationScope = app.Services.CreateScope();
+    await migrationScope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();

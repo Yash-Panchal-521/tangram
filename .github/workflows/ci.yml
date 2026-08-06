@@ -95,3 +95,62 @@ jobs:
       - name: Build
         run: npm run build
         working-directory: frontend
+
+  deploy:
+    name: Deploy
+    # The whole point of gating: a red suite must not reach production. Both
+    # platforms' own git integrations would deploy on every push regardless, so
+    # Koyeb auto-deploy and Vercel auto-deploy are both turned off and the
+    # deployment is driven from here instead.
+    needs: [backend, frontend]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # Lets the repo be pushed to before the hosting accounts exist without
+      # painting main red. Once the secrets are set these steps start running
+      # on their own.
+      - name: Check which deploy targets are configured
+        id: targets
+        env:
+          KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -n "$KOYEB_TOKEN" ]; then echo "koyeb=true" >> "$GITHUB_OUTPUT"; else
+            echo "koyeb=false" >> "$GITHUB_OUTPUT"; echo "::notice::KOYEB_TOKEN not set — skipping backend deploy"; fi
+          if [ -n "$VERCEL_TOKEN" ]; then echo "vercel=true" >> "$GITHUB_OUTPUT"; else
+            echo "vercel=false" >> "$GITHUB_OUTPUT"; echo "::notice::VERCEL_TOKEN not set — skipping frontend deploy"; fi
+
+      # Redeploy rather than koyeb/action-git-deploy: the action re-declares the
+      # whole service on every run, which risks clobbering the environment
+      # variables that hold the database password. Redeploy rebuilds the
+      # existing service from the latest commit on its configured branch and
+      # touches nothing else. The service must already exist — see README.
+      - name: Install and authenticate the Koyeb CLI
+        if: steps.targets.outputs.koyeb == 'true'
+        uses: koyeb-community/koyeb-actions@v2
+        with:
+          api_token: ${{ secrets.KOYEB_TOKEN }}
+
+      - name: Deploy backend
+        if: steps.targets.outputs.koyeb == 'true'
+        run: koyeb service redeploy tangram/api
+
+      - uses: actions/setup-node@v5
+        if: steps.targets.outputs.vercel == 'true'
+        with:
+          node-version: "22"
+
+      - name: Deploy frontend
+        if: steps.targets.outputs.vercel == 'true'
+        working-directory: frontend
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          npm install --global vercel@latest
+          vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
+          vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
+          vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}"
