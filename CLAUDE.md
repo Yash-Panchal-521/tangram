@@ -13,10 +13,20 @@ rationale live elsewhere and should not be duplicated here:
 - [`README.md`](README.md) — architecture, setup, deployment, known gaps
 - `git log` — commit messages are written as decision records; search them first
 
-**v2 phase 1 defines a UI/UX standard in `docs/ui-standards.md`.** Once that file exists,
-new or changed UI must satisfy it, and the change should state which rules apply and how
-each is met. Until it exists, the members page and `components/ui` are the working
-reference for the intended bar.
+## The UI gate
+
+**Anything user-facing must satisfy [`docs/ui-standards.md`](docs/ui-standards.md).** Read
+it before writing UI, and in the change say which rules it engages and how each is met —
+e.g. *"meets S2.1 (four states), S3.2 (error names the next action), S4.2 (consequence in
+the confirm)"*.
+
+The rules exist because each was learned the hard way here. The ones most often violated by
+plausible-looking code: **S1.3** (`cn()` has no Tailwind conflict resolution), **S3.1** (no
+infrastructure in error copy), **S3.6** (silent catches), and **S8.1** (remove for a role,
+disable for a transient state).
+
+Two rules are lint-enforced — native dialogs and raw hex — so a violation fails CI rather
+than review.
 
 ## Invariants — violating these breaks correctness
 

@@ -1,0 +1,178 @@
+# UI & UX standards
+
+The bar for anything user-facing in Tangram. Rules are numbered so a change can cite the
+ones it engages: *"meets S2.1 (skeleton holds layout), S3.2 (error names the user's next
+action)"*.
+
+These are **checkable**, not aspirational. If a rule can't be checked by reading the diff,
+it doesn't belong here.
+
+Deliberately not covered: visual taste. Spacing and type scale come from the existing
+components; the design tokens in `globals.css` are the palette.
+
+---
+
+## S1 · Components and tokens
+
+**S1.1 — Reuse before creating.** Check `components/ui` first. New primitives go there only
+when nothing existing fits, and they are demonstrated on `/kitchen-sink` in the same change.
+
+**S1.2 — Colour comes from tokens.** Use `bg-surface`, `text-text-muted`, `border-border`
+and friends. Raw hex is allowed only where a value identifies a *thing* rather than a
+theme — the per-person avatar palette and the decorative column dots — and each such use
+carries a comment saying why. Lint enforces this.
+
+**S1.3 — Never append conflicting Tailwind classes.** `cn()` is a plain join with no
+conflict resolution, so a second `border-*` or `px-*` is decided by stylesheet order, not
+by argument order. Replace the class set outright, or branch:
+
+```tsx
+className={hasError ? "border-danger focus-within:border-danger"
+                    : "border-border focus-within:border-accent"}
+```
+
+**S1.4 — Variants beat base classes.** A shared `focus-visible:border-accent` will hide an
+error border exactly while the user is typing in the field. Choose the focus colour per
+branch, as above.
+
+**S1.5 — The focus ring is unlayered.** The global ring in `globals.css` outranks anything
+in `@layer utilities` regardless of specificity, so a utility cannot override it. Composite
+fields — where the focusable control isn't the visible box — opt the inner control out with
+`data-focus-ring="none"` and put the ring on the wrapper.
+
+---
+
+## S2 · States
+
+**S2.1 — Four states, every async surface.** Loading, empty, error, success. A surface that
+can only render its happy path is incomplete.
+
+**S2.2 — Skeletons hold layout.** Loading states occupy the same space as the content they
+replace, so nothing shifts on arrival. See `MemberSkeleton` in `WorkspaceMembersView`.
+
+**S2.3 — Empty states suggest the next action.** "No cards yet" is a dead end; an empty
+state names what to do and offers the control to do it.
+
+**S2.4 — Long waits explain themselves.** Anything that can exceed ~3 seconds says why and
+what to expect. The free-tier API sleeps after 15 minutes and takes 30–60 seconds to wake —
+that is predictable, so a bare "Loading…" that sits there is a bug, not a limitation.
+
+**S2.5 — Success is visible but not sticky.** Confirm that something happened; clear it
+afterwards so it can't be misread as fresh. Errors persist until dismissed or superseded.
+
+---
+
+## S3 · Error copy
+
+**S3.1 — Never describe infrastructure.** No "Is the backend running?", no service names,
+no environment detail. The user cannot act on any of it, and it is usually wrong about the
+cause anyway.
+
+**S3.2 — Name the user's next action.** "Couldn't save — check your connection and try
+again" beats "Request failed". If nothing can be done, say that plainly rather than
+implying effort will help.
+
+**S3.3 — No raw protocol.** Status codes, methods, paths and stack traces never reach the
+UI. `ApiError` carries them for logging; the surface renders human text.
+
+**S3.4 — No vendor text passed through.** Firebase and ASP.NET messages are
+developer-facing. Map them, as `friendlyAuthError` does.
+
+**S3.5 — "Something went wrong" is a last resort**, reachable only when the cause is
+genuinely unknown, and always paired with a retry.
+
+**S3.6 — Failure must be visible.** A rejected mutation shows something. A silent catch is
+only acceptable for genuinely inconsequential telemetry, and carries a comment justifying
+it.
+
+---
+
+## S4 · Destructive actions
+
+**S4.1 — Confirm through `ConfirmDialog`.** Never `window.confirm`, `window.prompt` or
+`window.alert` — they are unstyleable, inconsistent, and break the theme. Lint enforces
+this.
+
+**S4.2 — State the consequence, not the act.** "Its 3 cards will be deleted too. Everyone
+on the board sees this immediately, and it can't be undone" — not "Are you sure?".
+
+**S4.3 — Name what is affected.** Include the actual column or person, so the user can tell
+they picked the right one.
+
+**S4.4 — Destructive dialogs focus Cancel**, so a reflexive Enter doesn't do the damage.
+
+**S4.5 — Guard rules are surfaced, not discovered.** If the server will reject an action —
+removing the last owner — disable the control and say why, rather than letting it fail.
+
+---
+
+## S5 · Keyboard and focus
+
+**S5.1 — Every action reachable by keyboard.** If it can be clicked it can be tabbed to and
+activated. Interactive elements are `<button>` or `<a>`, never a `div` with `onClick`.
+
+**S5.2 — Focus is always visible**, via the global ring. Never remove it without replacing
+it with something at least as clear.
+
+**S5.3 — Escape closes** any dialog, popover or menu.
+
+**S5.4 — Focus returns to the trigger** when an overlay closes.
+
+**S5.5 — Overlays contain focus** while open.
+
+**S5.6 — Labels for everything.** Icon-only controls carry `aria-label`; inputs are
+associated with a `<label>`; toggles expose `aria-expanded` / `aria-pressed`.
+
+---
+
+## S6 · Motion and stability
+
+**S6.1 — Respect `prefers-reduced-motion`.** Non-essential animation is disabled under it.
+
+**S6.2 — No layout shift after load.** Reserve space for anything that arrives late.
+
+**S6.3 — Motion is brief and purposeful** — entry and state transitions, ~150–250ms.
+Nothing that delays a user who knows where they're going.
+
+---
+
+## S7 · Responsiveness and performance
+
+**S7.1 — Optimistic where it is safe.** Prefer applying the change immediately with a
+snapshot rollback on failure over blocking on a spinner. See `moveCardOptimistic` and the
+rollback in `handleDragEnd`.
+
+**S7.2 — Rollback must restore exactly.** Keep a snapshot; don't attempt an inverse
+operation.
+
+**S7.3 — Disable only the control in flight**, not the whole surface, so unrelated work
+continues.
+
+**S7.4 — Wide content scrolls inside its own container**, never the page body.
+
+---
+
+## S8 · Permissions
+
+**S8.1 — Remove what a role cannot do; disable what is temporarily unavailable.** A
+greyed-out button reads "not right now"; for a viewer the truth is "not you". Keep
+`disabled` for transient states like a dropped connection.
+
+**S8.2 — Explain a restricted surface.** A viewer sees a "View only" badge, so the board
+reads as deliberately restricted rather than broken.
+
+**S8.3 — The client never becomes the authority.** Server-side enforcement stays; UI gating
+is presentation, and a hidden control is not security.
+
+---
+
+## S9 · Verification
+
+**S9.1 — Pure logic gets a test.** Reducers, parsers, formatters and mappers extend the
+Vitest suite. Rendering-only components don't need one.
+
+**S9.2 — Claims are measured, not asserted.** Contrast ratios, memory, timings — check
+them. This project has a documented history of confident claims that were wrong.
+
+**S9.3 — Cite the rules.** A change touching UI states which of these it engages and how it
+satisfies them. That is the gate in `CLAUDE.md`.

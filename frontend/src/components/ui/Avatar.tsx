@@ -15,6 +15,10 @@ const sizeClasses = {
 // colours are fixed: these identify a *person*, so the colour must stay put
 // across themes and modes. Every entry clears 4.5:1 against white, since the
 // initials sit on top at 10-12px semibold.
+// S1.2 documented exception: these identify a *person*, not a theme, so they
+// must stay fixed across themes and modes. Every entry clears 4.5:1 against the
+// white initials.
+// eslint-disable-next-line no-restricted-syntax
 const PALETTE = ["#AE3E2E", "#3F6B4A", "#3B5F92", "#6B4392", "#8A5A10", "#1F6B6E"];
 
 // Deterministic, so one person keeps one colour on every render, in every list,

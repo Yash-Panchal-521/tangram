@@ -9,6 +9,9 @@ import type { CardResponse, ColumnWithCardsResponse } from "@/lib/api";
 // Purely decorative column identifiers -- the backend doesn't track a column
 // color, so this just cycles a fixed palette by position (matches the
 // reference design's per-column dot, not real data).
+// S1.2 documented exception: these identify a column by position rather than
+// expressing the theme, and are deliberately stable across light and dark.
+// eslint-disable-next-line no-restricted-syntax
 const DOT_COLORS = ["#909090", "#4A9EFF", "#F5A623", "#4A9E62", "#8058A8"];
 
 export function BoardColumn({

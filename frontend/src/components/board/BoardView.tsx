@@ -205,6 +205,11 @@ export function BoardView({ boardId }: { boardId: string }) {
   }
 
   async function handleAddColumn() {
+    // KNOWN VIOLATION of S4.1, scheduled as B5 in docs/roadmap-v2.md. The last
+    // native dialog in the app; replaced by an inline form in v2 phase 1.
+    // Suppressed rather than fixed here so adding the rule didn't smuggle in
+    // unrelated UI work.
+    // eslint-disable-next-line no-restricted-properties
     const name = window.prompt("Column name?");
     if (!name?.trim()) return;
     const token = await getToken();
