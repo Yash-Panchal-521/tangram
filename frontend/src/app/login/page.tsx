@@ -1,20 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
 import { authInputClasses, friendlyAuthError } from "@/lib/authForm";
-import { AuthBrandPanel } from "@/components/auth/AuthBrandPanel";
+import { AuthField } from "@/components/auth/AuthField";
+import { AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/Button";
 import { PasswordInput } from "@/components/ui/PasswordInput";
-import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 export default function LoginPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
+  const emailId = useId();
+  const passwordId = useId();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -41,59 +43,69 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex-1 flex overflow-hidden">
-      <AuthBrandPanel
-        headline={
-          <>
-            Ship faster,
-            <br />
-            together.
-          </>
-        }
-        subhead="Multi-tenant real-time kanban for engineering teams. RBAC, live cursors, offline-tolerant sync."
-      />
+    <AuthShell
+      headline={
+        <>
+          Ship faster,
+          <br />
+          together.
+        </>
+      }
+      subhead="Multi-tenant real-time kanban for engineering teams. Roles, live cursors, and a board that catches itself up after a disconnect."
+      // Covers both the initial resolve and the moment between a known session
+      // and the redirect landing, so the form never appears to someone who is
+      // on their way out of this page.
+      checking={loading || user !== null}
+    >
+      <h2 className="text-[26px] font-semibold tracking-tight mb-1.5">Welcome back.</h2>
+      <p className="text-[13px] text-text-muted mb-8">Sign in to continue to Tangram.</p>
 
-      <div className="flex-1 bg-bg relative flex flex-col items-center justify-center p-12 overflow-y-auto">
-        <div className="absolute top-5 right-5 z-10">
-          <ThemeToggle />
-        </div>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 mb-4">
+        <AuthField id={emailId} label="Email">
+          <input
+            id={emailId}
+            type="email"
+            placeholder="you@company.com"
+            autoComplete="email"
+            autoFocus
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={authInputClasses}
+          />
+        </AuthField>
 
-        <div className="w-full max-w-[360px] animate-[fade-up_0.25s_ease-out]">
-          <h2 className="text-[26px] font-semibold tracking-tight mb-1.5">Welcome back.</h2>
-          <p className="text-[13px] text-text-muted mb-8">Sign in to continue to Tangram.</p>
+        <AuthField id={passwordId} label="Password">
+          <PasswordInput
+            id={passwordId}
+            placeholder="••••••••"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={authInputClasses}
+          />
+        </AuthField>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-2.5 mb-4">
-            <input
-              type="email"
-              placeholder="Email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={authInputClasses}
-            />
-            <PasswordInput
-              placeholder="Password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={authInputClasses}
-            />
-            {error && <p className="text-xs text-danger">{error}</p>}
-            <Button type="submit" disabled={submitting} className="w-full mt-1">
-              {submitting ? "Signing in…" : "Sign in →"}
-            </Button>
-          </form>
-
-          <p className="text-[13px] text-text-muted">
-            New to Tangram?{" "}
-            <Link href="/signup" className="text-accent font-medium hover:underline">
-              Create an account
-            </Link>
+        {/* role="alert" so a failed sign-in is announced. Without it the only
+            signal is a line of red text the reader never reaches. */}
+        {error && (
+          <p role="alert" className="text-xs text-danger">
+            {error}
           </p>
-        </div>
-      </div>
-    </div>
+        )}
+
+        <Button type="submit" disabled={submitting} className="w-full mt-1">
+          {submitting ? "Signing in…" : "Sign in →"}
+        </Button>
+      </form>
+
+      <p className="text-[13px] text-text-muted">
+        New to Tangram?{" "}
+        <Link href="/signup" className="text-accent font-medium hover:underline">
+          Create an account
+        </Link>
+      </p>
+    </AuthShell>
   );
 }

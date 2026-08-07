@@ -409,6 +409,32 @@ So jsdom is now opt-in per file. Two things cost real time to discover:
   forked child exceeded the worker startup timeout on Windows, and the run died
   before a single test executed.
 
+## v2 phase 1, scope C4 — auth pages
+
+- **A session-checking state (S2.1).** Firebase resolves a stored session
+  asynchronously, so both pages rendered a full sign-in form to someone who was
+  already signed in and then redirected out from under them. Indistinguishable
+  from having been logged out.
+- **Sign-up treats mid-sign-up separately.** `user` goes non-null the instant the
+  account is created, before the profile update finishes — so "signed in" cannot
+  by itself mean "swap to the checking state", or a failure right after account
+  creation would hide its own error message.
+- **`submitting` drives that, not the existing ref.** The ref has to be set
+  synchronously before the first `await`, which is why it exists — but a ref read
+  during render doesn't re-render when it changes, so the shell would keep
+  whichever value it first saw. Lint catches this; it was right to.
+- **Placeholder-only fields became labelled fields (S5.6).** A placeholder
+  vanishes as you type, so the one field that most needs its label — the password,
+  with a requirement attached — lost it exactly when you started meeting it.
+- **The password rule is shown and ticked live**, and the submit button is
+  disabled until it passes. The requirement is knowable in the browser, so making
+  someone submit to discover it is a round trip that existed only because the UI
+  stayed quiet.
+- **"Offline-tolerant sync" is gone from the sign-in page.** It was not true: the
+  app replays operations since the last seen `seq` on reconnect, but it never
+  queued mutations made while offline. Now "Replays what you missed on
+  reconnect", which is accurate and describes the harder thing anyway.
+
 ### Divergences and known debt from Slice 4a
 
 - **The test suite needs `Firebase:ProjectId` from the environment or user-secrets.**

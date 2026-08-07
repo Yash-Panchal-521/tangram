@@ -1,9 +1,14 @@
 import { TangramMark } from "@/components/ui/TangramMark";
 
+// "Offline-tolerant sync" used to be the third line, and it was not true: the
+// app reconnects and replays the operations it missed, but it does not queue
+// edits made while offline. Either build the queue or stop claiming it -- and
+// the honest version describes something more impressive anyway, because
+// catching up by sequence number is the part that's actually hard.
 const FEATURES = [
   "Real-time cursor presence",
   "Owner / Editor / Viewer RBAC",
-  "Offline-tolerant sync",
+  "Replays what you missed on reconnect",
 ];
 
 // The left-hand marketing panel shared by /login and /signup. Extracted so the

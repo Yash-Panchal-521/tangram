@@ -41,7 +41,7 @@ property of this app a screenshot cannot convey.
 | C5 | ~~Loading states~~ **done** | `Skeleton` primitive, board silhouette on both loading routes, `prefers-reduced-motion`. Board and column *empty* states stayed with C2, where they belong next to card visuals |
 | C2 | ~~Board view~~ **done** | Empty states for board and column, clamped cards with a drag grip, pending placeholders for creates, theme moved into the account menu |
 | C3 | ~~Card detail~~ **done** | Unsaved-change guard on every exit, Cmd/Ctrl+Enter save, a confirmation before delete, labelled fields. Brought jsdom in so this is covered by tests |
-| C4 | Auth pages | Auth-checking state, password requirements shown before submit |
+| C4 | ~~Auth pages~~ **done** | Session-checking state, labelled fields, the password rule ticked live, and the untrue "offline-tolerant sync" claim replaced |
 | C1 | Onboarding | Last, so it showcases a board that is already excellent |
 | C6 | Guided walkthrough | **After C2/C3 — see below** |
 
@@ -100,8 +100,11 @@ matching case in the frontend reducer.
 
 *Not selected: command palette and keyboard shortcuts.*
 
-## Known overstatement to resolve
+## Known overstatement — resolved in C4
 
-The sign-in page advertises **"Offline-tolerant sync"**. The app reconnects and replays
-operations since the last seen `seq`, but it does not queue mutations made while offline.
-Either implement the queue or change the copy — currently the claim is not true.
+The sign-in page advertised **"Offline-tolerant sync"**. The app reconnects and replays
+operations since the last seen `seq`, but it does not queue mutations made while offline,
+so the claim was not true. Changed to "Replays what you missed on reconnect", which is both
+accurate and a better description of the part that was actually hard to build.
+
+An offline mutation queue remains unbuilt, and is not currently planned.

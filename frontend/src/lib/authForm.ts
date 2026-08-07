@@ -5,6 +5,11 @@ import { FirebaseError } from "firebase/app";
 export const authInputClasses =
   "w-full py-2.5 px-3.5 bg-surface border border-border rounded-lg text-sm text-text placeholder:text-text-dim transition-colors focus-visible:border-accent";
 
+// Firebase's own floor. Named rather than inlined so the hint shown to the user,
+// the input's minLength and the submit guard can't drift from each other -- the
+// failure mode being a form that promises one rule and enforces another.
+export const MIN_PASSWORD_LENGTH = 6;
+
 // Firebase error codes are precise but user-hostile; this maps the ones either
 // form can realistically produce onto something a person can act on.
 export function friendlyAuthError(error: unknown): string {

@@ -1,20 +1,23 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
-import { authInputClasses, friendlyAuthError } from "@/lib/authForm";
-import { AuthBrandPanel } from "@/components/auth/AuthBrandPanel";
+import { authInputClasses, friendlyAuthError, MIN_PASSWORD_LENGTH } from "@/lib/authForm";
+import { AuthField, PasswordRule } from "@/components/auth/AuthField";
+import { AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/Button";
 import { PasswordInput } from "@/components/ui/PasswordInput";
-import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 export default function SignupPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
+  const nameId = useId();
+  const emailId = useId();
+  const passwordId = useId();
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,6 +27,8 @@ export default function SignupPage() {
   // Set synchronously at the top of handleSubmit, before any await, so it is
   // already true by the time Firebase notifies the auth listener below.
   const signingUpRef = useRef(false);
+
+  const passwordLongEnough = password.length >= MIN_PASSWORD_LENGTH;
 
   useEffect(() => {
     // Bounce visitors who are already signed in -- but not mid-sign-up.
@@ -71,75 +76,108 @@ export default function SignupPage() {
       router.replace("/board");
     } catch (err) {
       setError(friendlyAuthError(err));
+      signingUpRef.current = false;
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="flex-1 flex overflow-hidden">
-      <AuthBrandPanel
-        headline={
-          <>
-            Start building,
-            <br />
-            together.
-          </>
-        }
-        subhead="Create an account to join a workspace or start your own. Invitations waiting on your email are picked up automatically."
-      />
+    <AuthShell
+      headline={
+        <>
+          Start building,
+          <br />
+          together.
+        </>
+      }
+      subhead="Create an account to join a workspace or start your own. Invitations waiting on your email are picked up automatically."
+      // `submitting`, not the ref: a ref read during render doesn't re-render
+      // when it changes, so the shell would keep whichever value it saw first.
+      // The two flip together anyway -- setSubmitting(true) is the line above
+      // signingUpRef.current = true.
+      //
+      // Mid-sign-up `user` is non-null while this page is still working, so the
+      // form has to stay put; swapping to "Checking your session…" would hide
+      // the error if account creation then failed.
+      checking={loading || (user !== null && !submitting)}
+    >
+      <h2 className="text-[26px] font-semibold tracking-tight mb-1.5">Create your account.</h2>
+      <p className="text-[13px] text-text-muted mb-8">Takes about ten seconds.</p>
 
-      <div className="flex-1 bg-bg relative flex flex-col items-center justify-center p-12 overflow-y-auto">
-        <div className="absolute top-5 right-5 z-10">
-          <ThemeToggle />
-        </div>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 mb-4">
+        <AuthField id={nameId} label="Full name">
+          <input
+            id={nameId}
+            type="text"
+            placeholder="Ada Lovelace"
+            autoComplete="name"
+            autoFocus
+            required
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            className={authInputClasses}
+          />
+        </AuthField>
 
-        <div className="w-full max-w-[360px] animate-[fade-up_0.25s_ease-out]">
-          <h2 className="text-[26px] font-semibold tracking-tight mb-1.5">Create your account.</h2>
-          <p className="text-[13px] text-text-muted mb-8">Takes about ten seconds.</p>
+        <AuthField id={emailId} label="Email">
+          <input
+            id={emailId}
+            type="email"
+            placeholder="you@company.com"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={authInputClasses}
+          />
+        </AuthField>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-2.5 mb-4">
-            <input
-              type="text"
-              placeholder="Full name"
-              autoComplete="name"
-              required
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              className={authInputClasses}
-            />
-            <input
-              type="email"
-              placeholder="Email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={authInputClasses}
-            />
-            <PasswordInput
-              placeholder="Password"
-              autoComplete="new-password"
-              required
-              minLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={authInputClasses}
-            />
-            {error && <p className="text-xs text-danger">{error}</p>}
-            <Button type="submit" disabled={submitting} className="w-full mt-1">
-              {submitting ? "Creating account…" : "Create account →"}
-            </Button>
-          </form>
+        <AuthField
+          id={passwordId}
+          label="Password"
+          hint={
+            <PasswordRule met={passwordLongEnough}>
+              At least {MIN_PASSWORD_LENGTH} characters
+            </PasswordRule>
+          }
+        >
+          <PasswordInput
+            id={passwordId}
+            placeholder="••••••••"
+            autoComplete="new-password"
+            required
+            minLength={MIN_PASSWORD_LENGTH}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={authInputClasses}
+          />
+        </AuthField>
 
-          <p className="text-[13px] text-text-muted">
-            Already have an account?{" "}
-            <Link href="/login" className="text-accent font-medium hover:underline">
-              Sign in
-            </Link>
+        {error && (
+          <p role="alert" className="text-xs text-danger">
+            {error}
           </p>
-        </div>
-      </div>
-    </div>
+        )}
+
+        {/* Disabled on the rule the server actually enforces, so the failure
+            path for a short password no longer needs a round trip to reveal
+            something already known here. */}
+        <Button
+          type="submit"
+          disabled={submitting || !passwordLongEnough}
+          className="w-full mt-1"
+        >
+          {submitting ? "Creating account…" : "Create account →"}
+        </Button>
+      </form>
+
+      <p className="text-[13px] text-text-muted">
+        Already have an account?{" "}
+        <Link href="/login" className="text-accent font-medium hover:underline">
+          Sign in
+        </Link>
+      </p>
+    </AuthShell>
   );
 }
