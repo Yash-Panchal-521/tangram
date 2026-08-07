@@ -18,6 +18,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { UserMenu } from "@/components/ui/UserMenu";
 import { TangramMark } from "@/components/ui/TangramMark";
@@ -100,7 +101,12 @@ function roleChangeConfirm(
 
 function MemberSkeleton() {
   return (
-    <div className="flex flex-col rounded-lg border border-border overflow-hidden">
+    <div
+      role="status"
+      aria-busy="true"
+      className="flex flex-col rounded-lg border border-border overflow-hidden"
+    >
+      <span className="sr-only">Loading members…</span>
       {[0, 1, 2].map((i) => (
         <div
           key={i}
@@ -108,12 +114,12 @@ function MemberSkeleton() {
             i > 0 ? "border-t border-border" : ""
           }`}
         >
-          <div className="w-8 h-8 rounded-full bg-surface-2 animate-pulse shrink-0" />
+          <Skeleton className="w-8 h-8 rounded-full shrink-0" />
           <div className="flex-1 flex flex-col gap-1.5">
-            <div className="h-3 w-32 rounded bg-surface-2 animate-pulse" />
-            <div className="h-2.5 w-48 rounded bg-surface-2 animate-pulse" />
+            <Skeleton className="h-3 w-32 rounded" />
+            <Skeleton className="h-2.5 w-48 rounded" />
           </div>
-          <div className="h-6 w-16 rounded-full bg-surface-2 animate-pulse shrink-0" />
+          <Skeleton className="h-6 w-16 rounded-full shrink-0" />
         </div>
       ))}
     </div>

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
+import { BoardSkeleton } from "@/components/board/BoardSkeleton";
 import { friendlyError } from "@/lib/errorMessage";
 import {
   api,
@@ -82,21 +83,16 @@ export default function BoardBootstrapPage() {
     })();
   }, [loading, user, router, getToken]);
 
-  return (
-    <div className="flex-1 flex items-center justify-center">
-      {error ? (
+  if (error) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
         <p className="text-sm text-danger max-w-sm text-center">{error}</p>
-      ) : (
-        <div className="flex flex-col items-center gap-2 text-center">
-          <p className="text-sm text-text-muted">Setting up your workspace…</p>
-          {slow && (
-            <p className="text-xs text-text-dim max-w-xs">
-              The server sleeps when it hasn&apos;t been used for a while. Waking it takes up to a
-              minute — this will continue on its own.
-            </p>
-          )}
-        </div>
-      )}
-    </div>
-  );
+      </div>
+    );
+  }
+
+  // The same silhouette the board route itself shows while loading. This page
+  // redirects into that route, so anything else here would flash a second,
+  // different loading screen on the way through.
+  return <BoardSkeleton slow={slow} />;
 }

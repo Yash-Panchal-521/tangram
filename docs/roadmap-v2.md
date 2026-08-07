@@ -38,7 +38,7 @@ property of this app a screenshot cannot convey.
 | | Item | Note |
 |---|---|---|
 | C0 | ~~Accessibility violations~~ **done** | `useDialog` now backs both overlays; column rename and delete are real buttons; cards are buttons with Space-to-lift, Enter-to-open. See `docs/decisions.md` |
-| C5 | Loading and empty states | Board skeleton replacing "Loading board…"; audit the small board components |
+| C5 | ~~Loading states~~ **done** | `Skeleton` primitive, board silhouette on both loading routes, `prefers-reduced-motion`. Board and column *empty* states stayed with C2, where they belong next to card visuals |
 | C2 | Board view | Column and board empty states, card visuals, pending feedback, header density, drag affordance |
 | C3 | Card detail | Dialog semantics, Cmd+Enter save, unsaved-change guard, layout |
 | C4 | Auth pages | Auth-checking state, password requirements shown before submit |

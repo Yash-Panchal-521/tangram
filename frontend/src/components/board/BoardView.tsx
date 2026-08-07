@@ -28,6 +28,7 @@ import {
 import { applyOperation, moveCardOptimistic } from "@/lib/boardReducer";
 import { friendlyError } from "@/lib/errorMessage";
 import { BoardColumn } from "@/components/board/BoardColumn";
+import { BoardSkeleton } from "@/components/board/BoardSkeleton";
 import { KanbanCard } from "@/components/board/KanbanCard";
 import { CardDetailPanel } from "@/components/board/CardDetailPanel";
 import { PresenceAvatars } from "@/components/board/PresenceAvatars";
@@ -409,19 +410,7 @@ export function BoardView({ boardId }: { boardId: string }) {
     );
   }
 
-  if (!board) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-2 p-8 text-center">
-        <p className="text-sm text-text-muted">Loading board…</p>
-        {slowLoad && (
-          <p className="text-xs text-text-dim max-w-xs">
-            The server sleeps when it hasn&apos;t been used for a while. Waking it takes up to a
-            minute — this will continue on its own.
-          </p>
-        )}
-      </div>
-    );
-  }
+  if (!board) return <BoardSkeleton slow={slowLoad} />;
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden relative">

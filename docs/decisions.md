@@ -302,6 +302,35 @@ dnd-kit's source and the generated CSS rather than by keystroke — Chrome
 suppresses focus styling and drops synthesized keys while its window is not
 focused, so `document.hasFocus()` was false throughout.
 
+## v2 phase 1, scope C5 — loading states
+
+- **The board loads as its own silhouette, not a centred "Loading board…".**
+  The old state told you nothing and then shoved the entire page aside on
+  arrival. Measured on the running app: header top/height and the first column's
+  left/top/width are identical between skeleton and loaded board, so nothing
+  moves (S2.2, S6.2).
+- **The skeleton draws the real header, not a placeholder strip.** 52px of chrome
+  whose position never depends on the response — faking it would only add a
+  second thing that can be wrong.
+- **The bootstrap page shows the same silhouette.** `/board` redirects into
+  `/board/[id]`, so a different loading screen there would flash a second,
+  unrelated wait on the way through.
+- **`Skeleton` carries no default radius.** `className` is appended, and a second
+  `rounded-*` is decided by stylesheet order rather than argument order (S1.3) —
+  the members list needs `rounded-full`, the cards need `rounded-[8px]`.
+- **The slow-load note is absolutely positioned.** It appears several seconds in
+  and disappears on arrival; in the flow it would push the columns down and then
+  yank them back, so explaining the wait would itself have caused two layout
+  shifts (S6.2).
+- **Reduced motion collapses durations rather than setting `animation: none`.**
+  `none` strands an element on its *initial* keyframe, and the card panel
+  animates in from `opacity: 0` — it would never appear. `!important` is load
+  bearing: the sync dot sets its animation inline, and nothing else outranks
+  that.
+- **Board and column empty states were left to C2.** They belong next to card
+  visuals and the drag affordance, and splitting them across two changes would
+  mean designing the same surface twice.
+
 ### Divergences and known debt from Slice 4a
 
 - **The test suite needs `Firebase:ProjectId` from the environment or user-secrets.**

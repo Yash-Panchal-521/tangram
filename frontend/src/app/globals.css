@@ -135,3 +135,26 @@ body {
     transform: translateY(0);
   }
 }
+
+/* S6.1 -- no motion in this app is load-bearing. Panels sliding in, skeletons
+ * pulsing and the sync dot breathing are all decoration over a state that is
+ * legible without them, so under a reduced-motion preference they all stop.
+ *
+ * Collapsed to ~0 rather than `animation: none`, because `none` would strand an
+ * element on its *initial* keyframe -- the card panel animates in from
+ * opacity 0, so it would never appear at all. A near-zero duration lands it on
+ * the final frame immediately, which is the intended resting state.
+ *
+ * `!important` is doing real work here: the sync dot sets its animation via an
+ * inline style, and nothing but !important outranks that.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

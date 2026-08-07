@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Select } from "@/components/ui/Select";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 export default function KitchenSinkPage() {
@@ -53,6 +54,22 @@ export default function KitchenSinkPage() {
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold text-text-muted">Confirm dialog</h2>
         <ConfirmDialogDemo />
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold text-text-muted">Skeleton</h2>
+        <p className="text-xs text-text-dim">
+          Shape comes from the caller — it has to occupy exactly the space its content will.
+          Stops pulsing under <code>prefers-reduced-motion</code>.
+        </p>
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-surface p-3.5">
+          <Skeleton className="w-8 h-8 rounded-full shrink-0" />
+          <div className="flex-1 flex flex-col gap-1.5">
+            <Skeleton className="h-3 w-32 rounded" />
+            <Skeleton className="h-2.5 w-48 rounded" />
+          </div>
+          <Skeleton className="h-6 w-16 rounded-full shrink-0" />
+        </div>
       </section>
 
       <section className="flex flex-col gap-3">
