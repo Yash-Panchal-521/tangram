@@ -105,8 +105,16 @@ needing a DOM were verified in a real browser instead.
 
 ## Deploying
 
-CI advances the **`deploy` branch** only after both test jobs pass, and Render builds that
-branch. The gate is the branch, so there is no deploy token. Never point a host at `main`.
+Three branches: `main` (work) → `deploy` (last CI-green commit, advanced by CI) → `release`
+(what production serves, pushed by hand). Render builds `deploy`; Vercel builds `release`.
+Never point a host at `main` — the gate is the branch, so there is no deploy token.
+
+Both deploys are manual and **backend goes first**: an API returning extra fields won't
+break an old frontend, but a frontend reading a field the deployed API doesn't send yet
+will. Render → Manual Deploy, then `git push origin deploy:release`.
+
+Do not use Vercel's *Ignored Build Step* to make the frontend manual — "Don't build
+anything" cancels manually created deployments too, leaving no way to deploy.
 
 ## Conventions
 

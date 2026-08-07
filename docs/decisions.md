@@ -204,6 +204,22 @@ the implementation diverged from the original plan.
   The gate is the branch rather than the trigger, so the repository holds no
   deploy credentials at all. `--force-with-lease` so a hand-push to `deploy`
   fails loudly rather than being silently discarded.
+- **Deploy order is the reason both halves are manual, not tidiness.** The two
+  share an API contract, and only one order is safe: an API returning extra
+  fields doesn't break an old frontend, while a frontend reading a field the
+  deployed API doesn't send yet does break. With both hosts watching `deploy`
+  and Vercel on auto, the frontend always won the race — Render can only build a
+  commit that is already on `deploy`, which means CI has run, which means Vercel
+  has already shipped. Ordering was unobtainable until the frontend became
+  manual. Hence the third branch: CI advances `deploy`, and
+  `git push origin deploy:release` promotes the frontend afterwards.
+- **Vercel's Ignored Build Step is not a way to make deploys manual.** Setting
+  it to "Don't build anything" also cancels manually created deployments —
+  confirmed by testing rather than by documentation, which does not say so
+  either way: a Create Deployment from `deploy` returned "Build Canceled … as a
+  result of running the command defined in the Ignored Build Step setting". Had
+  this been assumed rather than tested, the frontend would have been left with
+  no deployment path at all.
 - **The frontend originally deployed from CI via the Vercel CLI, and that was
   over-engineered.** It needed three repository secrets and a build step to
   achieve what setting Vercel's production branch to `deploy` does by itself —

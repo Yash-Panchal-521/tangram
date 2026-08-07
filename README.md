@@ -223,19 +223,39 @@ Two consequences of the free tier worth knowing:
 
 Render's own free Postgres is deliberately unused: it is deleted after 90 days.
 
-### The deploy branch
+### Release flow — three branches
 
-**Both hosts build the `deploy` branch**, which CI advances only after the backend and
-frontend jobs pass ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). Render watches
-it, and Vercel's **Production Branch** is set to it. Pointing either at `main` would deploy
-on red and make CI decorative.
+| Branch | Meaning | Who moves it |
+|---|---|---|
+| `main` | latest work | you |
+| `deploy` | last commit that passed CI | CI, automatically |
+| `release` | what production serves | you, deliberately |
 
-The gate is the branch, not the trigger — so no deploy tokens exist in the repository at
-all. Each host's own git integration does the deploying; it simply can't see anything that
-hasn't passed.
+CI advances `deploy` only after the backend and frontend jobs pass
+([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). Neither host watches `main`, so
+nothing red can reach production, and **no deploy tokens exist in the repository** — the
+gate is the branch rather than the trigger.
 
-With Vercel's production branch set to `deploy`, pushes to `main` still produce **preview**
-deployments, which is a useful side effect: a URL for the change before it is promoted.
+Both deploys are manual, and the order matters. **Backend first**: an API returning extra
+fields does not break an old frontend, whereas a frontend reading a field the deployed API
+does not yet send does break.
+
+```bash
+# 1. backend — Render dashboard → Manual Deploy → Deploy latest commit
+# 2. frontend
+git push origin deploy:release
+```
+
+Render's free plan has no auto-deploy, which forces the manual step there. The frontend is
+manual by choice, so the two can be released in the right order — with Vercel tracking
+`deploy` directly it would always deploy first, since Render can only build a commit that
+is already on `deploy`.
+
+> Do **not** use Vercel's *Ignored Build Step* to make the frontend manual. Setting it to
+> "Don't build anything" also cancels manually created deployments, leaving no way to
+> deploy at all. Verified: a Create Deployment from `deploy` came back
+> `Build Canceled — as a result of running the command defined in the "Ignored Build Step"
+> setting`.
 
 ### One-time setup
 
@@ -259,8 +279,9 @@ deployments, which is a useful side effect: a URL for the change before it is pr
    running the image with only these names — it booted, migrated a fresh database, and
    returned the configured origin on a CORS preflight.
 5. Vercel: import the repo with root directory `frontend`, then point production at the
-   gated branch — **Settings → Environments → Production → Branch Tracking → `deploy`**.
-   (This lived under Settings → Git in older versions of the dashboard.) Set the six
+   release branch — **Settings → Environments → Production → Branch Tracking → `release`**.
+   (This lived under Settings → Git in older versions of the dashboard.) Leave *Ignored
+   Build Step* on **Automatic**. Set the six
    `NEXT_PUBLIC_FIREBASE_*` values plus
    `NEXT_PUBLIC_API_BASE_URL` pointing at the Render URL — again **no trailing slash**, or
    every request becomes `//health` and 404s.
