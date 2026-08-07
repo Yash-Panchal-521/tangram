@@ -19,7 +19,6 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { UserMenu } from "@/components/ui/UserMenu";
 import { TangramMark } from "@/components/ui/TangramMark";
 import { useConfirm, type ConfirmOptions } from "@/components/ui/ConfirmDialog";
@@ -352,7 +351,6 @@ export function WorkspaceMembersView({ workspaceId }: { workspaceId: string }) {
           </Link>
           <div className="w-px h-4.5 bg-border" />
           <UserMenu />
-          <ThemeToggle />
         </div>
       </header>
 

@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { KanbanCard } from "@/components/board/KanbanCard";
 import { SortableKanbanCard } from "@/components/board/SortableKanbanCard";
 import type { CardResponse, ColumnWithCardsResponse } from "@/lib/api";
 
@@ -41,6 +42,9 @@ export function BoardColumn({
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // Held separately from `title`, which the form clears on success -- the
+  // placeholder needs to keep showing what is in flight.
+  const [pendingTitle, setPendingTitle] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(column.name);
   // Escape leaves the field, which fires onBlur -- and onBlur commits. Without
@@ -51,14 +55,17 @@ export function BoardColumn({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim()) return;
+    const trimmed = title.trim();
+    if (!trimmed) return;
     setSubmitting(true);
+    setPendingTitle(trimmed);
     try {
-      await onAddCard(column.id, title.trim());
+      await onAddCard(column.id, trimmed);
       setTitle("");
       setAdding(false);
     } finally {
       setSubmitting(false);
+      setPendingTitle(null);
     }
   }
 
@@ -164,6 +171,22 @@ export function BoardColumn({
             />
           ))}
         </SortableContext>
+
+        {/* Doubles as a drop target hint: an empty column used to be blank
+            space, so there was nothing to aim a dragged card at (S2.3). */}
+        {column.cards.length === 0 && !submitting && (
+          <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-text-dim">
+            {canEdit ? "Empty — add a card, or drag one here." : "No cards in this column."}
+          </p>
+        )}
+
+        {/* Creates are not optimistic: the server assigns the rank and the id,
+            and inventing a temporary one would leave a duplicate on screen
+            until the broadcast arrived. A placeholder is the honest version --
+            it says the card is on its way without pretending it exists. */}
+        {submitting && pendingTitle && (
+          <KanbanCard card={{ title: pendingTitle, description: null }} pending />
+        )}
       </div>
 
       {!canEdit ? null : adding ? (

@@ -331,6 +331,41 @@ focused, so `document.hasFocus()` was false throughout.
   visuals and the drag affordance, and splitting them across two changes would
   mean designing the same surface twice.
 
+## v2 phase 1, scope C2 — board view
+
+- **Creates get a placeholder, not an optimistic row.** Moves, renames and
+  deletes apply optimistically because the client already knows the result. A
+  create does not: the server assigns both the id and the fractional rank, and
+  inventing a temporary id would leave a duplicate on screen until the broadcast
+  arrived, because `applyOperation` replaces by id. A dashed "Adding…" card is
+  the honest version — it says the card is on its way without pretending it
+  exists. Same reasoning for a new column.
+- **An empty column now states it is a drop target.** It was blank space, so a
+  card being dragged had nothing to aim at — the fix serves S2.3 and the drag
+  affordance at once.
+- **The empty board explains what a column is.** It previously rendered as one
+  dashed button in the top-left corner, which reads as a broken layout rather
+  than a starting point. Viewers get the explanation without the control (S8.1).
+- **Card text is clamped** — three lines of title, two of description. One long
+  paragraph used to grow a card tall enough to push the rest of the column out
+  of view.
+- **The drag grip reveals on `group-focus-visible` as well as hover.** A
+  `cursor-grab` is invisible until you are already over the card, and useless to
+  a keyboard user; revealing on focus puts the hint on screen at the moment the
+  drag keys become live.
+- **Theme moved into the account menu.** The board header was carrying seven
+  clusters and three dividers. Theme is a personal preference rather than a board
+  action, so it belongs with the account — the standalone `ThemeToggle` stays for
+  sign-in and sign-up, which have no account menu. Two dividers now.
+
+Verified against the running app: both empty-state variants and their copy, the
+grip hidden at `opacity: 0` until `group-hover`/`group-focus-visible`, the
+clamps, and the theme item flipping `data-mode` and the page background. The
+pending placeholder needed a MutationObserver to catch — a 403 on localhost
+returns faster than a 40 ms poll, and the first attempt wrongly showed nothing.
+That same run confirmed the failure path end to end: placeholder, then "You
+don't have permission to add that card", then no card added.
+
 ### Divergences and known debt from Slice 4a
 
 - **The test suite needs `Firebase:ProjectId` from the environment or user-secrets.**

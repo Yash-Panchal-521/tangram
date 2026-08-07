@@ -35,7 +35,6 @@ import { PresenceAvatars } from "@/components/board/PresenceAvatars";
 import { RemoteCursors } from "@/components/board/RemoteCursors";
 import { ReconnectingBanner } from "@/components/board/ReconnectingBanner";
 import { Button } from "@/components/ui/Button";
-import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { UserMenu } from "@/components/ui/UserMenu";
 import { TangramMark } from "@/components/ui/TangramMark";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
@@ -94,6 +93,8 @@ export function BoardView({ boardId }: { boardId: string }) {
   const [reloadKey, setReloadKey] = useState(0);
   const [addingColumn, setAddingColumn] = useState(false);
   const [newColumnName, setNewColumnName] = useState("");
+  // The name of a column whose create is still in flight, or null.
+  const [pendingColumn, setPendingColumn] = useState<string | null>(null);
   const [activeCard, setActiveCard] = useState<CardResponse | null>(null);
   const [selectedCard, setSelectedCard] = useState<CardResponse | null>(null);
   const [presentUsers, setPresentUsers] = useState<PresenceUser[]>([]);
@@ -289,9 +290,14 @@ export function BoardView({ boardId }: { boardId: string }) {
   }
 
   async function handleAddColumn(name: string) {
-    await runMutation("add that column", async () =>
-      api.post(`/boards/${boardId}/columns`, await getToken(), { name })
-    );
+    setPendingColumn(name);
+    try {
+      await runMutation("add that column", async () =>
+        api.post(`/boards/${boardId}/columns`, await getToken(), { name })
+      );
+    } finally {
+      setPendingColumn(null);
+    }
   }
 
   async function handleRenameColumn(columnId: string, name: string) {
@@ -468,10 +474,6 @@ export function BoardView({ boardId }: { boardId: string }) {
 
           <PresenceAvatars users={presentUsers} />
 
-          <UserMenu />
-
-          <div className="w-px h-4.5 bg-border" />
-
           <Link
             href={`/workspace/${board.workspaceId}/members`}
             className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium text-text-muted hover:text-text hover:bg-surface-2 transition-colors whitespace-nowrap"
@@ -494,9 +496,7 @@ export function BoardView({ boardId }: { boardId: string }) {
             Members
           </Link>
 
-          <div className="w-px h-4.5 bg-border" />
-
-          <ThemeToggle />
+          <UserMenu />
         </div>
       </header>
 
@@ -544,6 +544,25 @@ export function BoardView({ boardId }: { boardId: string }) {
         >
           <RemoteCursors cursors={remoteCursors} />
 
+          {/* S2.3: a board with no columns rendered as a lone dashed button in
+              the top-left, which reads as a broken layout rather than a
+              starting point. Viewers get the same explanation without the
+              control they cannot use (S8.1). */}
+          {board.columns.length === 0 && !addingColumn && !pendingColumn ? (
+            <div className="h-full flex flex-col items-center justify-center gap-3 text-center">
+              <p className="text-sm font-medium">This board is empty.</p>
+              <p className="text-[13px] text-text-muted max-w-xs">
+                {canEdit
+                  ? "Columns are the stages work moves through — To Do, In Progress, Done. Add the first one to get started."
+                  : "Nobody has added any columns yet. You'll see them here as soon as someone does."}
+              </p>
+              {canEdit && (
+                <Button size="sm" onClick={() => setAddingColumn(true)} disabled={!connected}>
+                  Add the first column
+                </Button>
+              )}
+            </div>
+          ) : (
           <div className="flex items-start gap-3.5 h-full">
             {board.columns.map((column, i) => (
               <BoardColumn
@@ -558,6 +577,18 @@ export function BoardView({ boardId }: { boardId: string }) {
                 onCardClick={setSelectedCard}
               />
             ))}
+
+            {/* Same reasoning as the pending card: the server assigns the rank,
+                so this says "on its way" rather than faking the row. */}
+            {pendingColumn && (
+              <div className="flex-none w-[262px] flex items-center gap-2 px-0.5 opacity-60">
+                <span className="w-2 h-2 rounded-full bg-border-2 shrink-0" />
+                <span className="text-[11px] font-semibold tracking-wider uppercase text-text-dim truncate">
+                  {pendingColumn}
+                </span>
+                <span className="text-[11px] text-text-dim">Adding…</span>
+              </div>
+            )}
 
             {canEdit &&
               (addingColumn ? (
@@ -618,9 +649,18 @@ export function BoardView({ boardId }: { boardId: string }) {
                 </button>
               ))}
           </div>
+          )}
         </div>
 
-        <DragOverlay>{activeCard && <KanbanCard card={activeCard} />}</DragOverlay>
+        <DragOverlay>
+          {activeCard && (
+            // Lifted off the board while it travels, so the card under the
+            // cursor is clearly the one being moved and not a duplicate.
+            <div className="rotate-2 shadow-lg rounded-[8px] cursor-grabbing">
+              <KanbanCard card={activeCard} />
+            </div>
+          )}
+        </DragOverlay>
       </DndContext>
 
       {selectedCard && (

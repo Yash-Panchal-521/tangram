@@ -40,11 +40,11 @@ export function SortableKanbanCard({
         type="button"
         onClick={onClick}
         {...dragProps}
-        className={`block w-full text-left rounded-[8px] ${
+        className={`group block w-full text-left rounded-[8px] ${
           canDrag ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
         }`}
       >
-        <KanbanCard card={card} />
+        <KanbanCard card={card} draggable={canDrag} />
       </button>
     </div>
   );

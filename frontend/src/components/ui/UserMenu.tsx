@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
+import { useTheme } from "@/lib/theme";
 import { Avatar } from "@/components/ui/Avatar";
 
 export function UserMenu() {
   const { user, signOut } = useAuth();
+  const { mode, toggleMode } = useTheme();
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   // Fixed-position coordinates measured from the trigger. Both page shells are
@@ -101,6 +103,33 @@ export function UserMenu() {
               <p className="text-xs text-text-muted truncate mt-0.5">{user.email}</p>
             )}
           </div>
+
+          {/* Theme is a personal preference, not a board action, so it belongs
+              with the account rather than taking a slot in a header that was
+              already carrying seven clusters. The standalone ThemeToggle stays
+              for the signed-out pages, which have no account menu. */}
+          <button
+            role="menuitem"
+            onClick={toggleMode}
+            className="w-full flex items-center gap-2 px-3.5 py-2.5 text-[13px] text-text hover:bg-surface-2 transition-colors cursor-pointer border-b border-border"
+          >
+            {mode === "dark" ? (
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <circle cx="7" cy="7" r="2.5" fill="currentColor" />
+                <path
+                  d="M7 1.5V3M7 11V12.5M1.5 7H3M11 7H12.5M3.2 3.2L4.2 4.2M9.8 9.8L10.8 10.8M10.8 3.2L9.8 4.2M4.2 9.8L3.2 10.8"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                  strokeLinecap="round"
+                />
+              </svg>
+            ) : (
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <path d="M11.2 8.8A5 5 0 015.2 2.8 5 5 0 1011.2 8.8z" fill="currentColor" />
+              </svg>
+            )}
+            {mode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          </button>
 
           <button
             role="menuitem"
