@@ -225,10 +225,17 @@ Render's own free Postgres is deliberately unused: it is deleted after 90 days.
 
 ### The deploy branch
 
-Render builds the **`deploy`** branch, which CI advances only after both test jobs pass
-([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). Pointing it at `main` would
-deploy on red and make CI decorative. The gate is the branch, so no deploy credential
-exists to leak.
+**Both hosts build the `deploy` branch**, which CI advances only after the backend and
+frontend jobs pass ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). Render watches
+it, and Vercel's **Production Branch** is set to it. Pointing either at `main` would deploy
+on red and make CI decorative.
+
+The gate is the branch, not the trigger — so no deploy tokens exist in the repository at
+all. Each host's own git integration does the deploying; it simply can't see anything that
+hasn't passed.
+
+With Vercel's production branch set to `deploy`, pushes to `main` still produce **preview**
+deployments, which is a useful side effect: a URL for the change before it is promoted.
 
 ### One-time setup
 
@@ -251,12 +258,11 @@ exists to leak.
    `CONNECTIONSTRINGS__POSTGRES` binds to `ConnectionStrings:Postgres`. Verified by
    running the image with only these names — it booted, migrated a fresh database, and
    returned the configured origin on a CORS preflight.
-5. Vercel: import the repo with root directory `frontend`. Set the six
-   `NEXT_PUBLIC_FIREBASE_*` values plus `NEXT_PUBLIC_API_BASE_URL` pointing at the Render
-   URL — again **no trailing slash**, or every request becomes `//health` and 404s.
-6. GitHub repository secrets: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`.
-   Until these exist the frontend deploy skips with a notice rather than failing.
-7. Firebase console → Authentication → Settings → Authorized domains → add the Vercel
+5. Vercel: import the repo with root directory `frontend`, and set **Settings → Git →
+   Production Branch** to `deploy`. Set the six `NEXT_PUBLIC_FIREBASE_*` values plus
+   `NEXT_PUBLIC_API_BASE_URL` pointing at the Render URL — again **no trailing slash**, or
+   every request becomes `//health` and 404s.
+6. Firebase console → Authentication → Settings → Authorized domains → add the Vercel
    domain. **Sign-in fails without this**, and the error is easy to misread.
 
 The two URLs reference each other, so: deploy the backend, point Vercel at it, deploy the

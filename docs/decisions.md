@@ -197,12 +197,20 @@ the implementation diverged from the original plan.
 - **Deploys are driven from CI, with both platforms' git integrations disabled.**
   Back4App and Vercel would each happily deploy on a red build. Gating them behind
   the test job is the only reason CI has teeth.
-- **The deploy branch is the gate.** Render builds whatever lands on the branch
-  it watches. Pointing it at `main` would have deployed on red and made CI
-  decorative. So it watches `deploy`, and CI advances that branch only once both
-  test jobs pass — the gate is the branch itself, and no deploy credential
-  exists to leak. `--force-with-lease` so a hand-push to `deploy` fails loudly
-  rather than being silently discarded.
+- **The deploy branch is the gate, for both hosts.** Each builds whatever lands
+  on the branch it watches, so pointing either at `main` would have deployed on
+  red and made CI decorative. Render watches `deploy` and Vercel's production
+  branch is set to it; CI advances that branch only once both test jobs pass.
+  The gate is the branch rather than the trigger, so the repository holds no
+  deploy credentials at all. `--force-with-lease` so a hand-push to `deploy`
+  fails loudly rather than being silently discarded.
+- **The frontend originally deployed from CI via the Vercel CLI, and that was
+  over-engineered.** It needed three repository secrets and a build step to
+  achieve what setting Vercel's production branch to `deploy` does by itself —
+  and because the secrets were never added, the step silently skipped on every
+  run while Vercel's own git integration deployed from `main` ungated. The
+  simpler mechanism is also the one that actually holds: fewer moving parts,
+  no tokens, and one mental model shared with the backend.
 - **Redis-backed presence was dropped from the slice.** It solves multi-instance
   inconsistency, and free hosting gives exactly one instance — so it would have
   been code no deployment exercises. `IPresenceTracker` stays shaped for the

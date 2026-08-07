@@ -100,14 +100,20 @@ jobs:
         run: npm run build
         working-directory: frontend
 
-  deploy:
-    name: Deploy
-    # The point of gating: a red suite must not reach production.
+  promote:
+    name: Promote to deploy
+    # `deploy` is the last-known-green pointer, and it is the only thing either
+    # host builds. Render watches it, and Vercel's production branch is set to
+    # it too, so neither can ship a red build -- and neither needs a deploy
+    # credential, because the gate is the branch rather than the trigger.
+    #
+    # This replaced a CLI-based Vercel deploy that needed three repository
+    # secrets and a build step to achieve what pointing Vercel's production
+    # branch at `deploy` does on its own.
     needs: [backend, frontend]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
 
-    # Needed to advance the deploy branch below.
     permissions:
       contents: write
 
@@ -117,38 +123,7 @@ jobs:
           # The push below needs real history, not the default shallow clone.
           fetch-depth: 0
 
-      - name: Check which deploy targets are configured
-        id: targets
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: |
-          if [ -n "$VERCEL_TOKEN" ]; then echo "vercel=true" >> "$GITHUB_OUTPUT"; else
-            echo "vercel=false" >> "$GITHUB_OUTPUT"; echo "::notice::VERCEL_TOKEN not set — skipping frontend deploy"; fi
-
-      # `deploy` is the last-known-green pointer, and it's what Render is
-      # configured to build. Pointing Render at `main` would deploy on red and
-      # make this whole workflow decorative; advancing `deploy` only after both
-      # test jobs pass means broken code can't reach the branch the deployment
-      # watches. The gate is the branch, so there's no deploy token to leak.
-      #
       # force-with-lease rather than force: if someone pushed to `deploy`
       # by hand, this fails loudly instead of silently discarding it.
       - name: Promote main to the deploy branch
         run: git push origin HEAD:deploy --force-with-lease
-
-      - uses: actions/setup-node@v5
-        if: steps.targets.outputs.vercel == 'true'
-        with:
-          node-version: "22"
-
-      - name: Deploy frontend
-        if: steps.targets.outputs.vercel == 'true'
-        working-directory: frontend
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: |
-          npm install --global vercel@latest
-          vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
-          vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
-          vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}"
