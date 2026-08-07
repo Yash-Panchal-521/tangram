@@ -33,6 +33,40 @@ is the working reference.
 second cursor demonstrating a drag, so the collaborative nature is *shown*. It is the one
 property of this app a screenshot cannot convey.
 
+### Scope C, in order
+
+| | Item | Note |
+|---|---|---|
+| C0 | Accessibility violations | Escape/focus-trap/dialog semantics on `CardDetailPanel`, keyboard-reachable column rename, keyboard drag. Correctness failures against S5, and small — do first |
+| C5 | Loading and empty states | Board skeleton replacing "Loading board…"; audit the small board components |
+| C2 | Board view | Column and board empty states, card visuals, pending feedback, header density, drag affordance |
+| C3 | Card detail | Dialog semantics, Cmd+Enter save, unsaved-change guard, layout |
+| C4 | Auth pages | Auth-checking state, password requirements shown before submit |
+| C1 | Onboarding | Last, so it showcases a board that is already excellent |
+| C6 | Guided walkthrough | **After C2/C3 — see below** |
+
+### C6 — guided walkthrough, deliberately deferred
+
+A step-through tour of the UI. Deferred until after C2 and C3 for three reasons, recorded
+so the decision isn't relitigated:
+
+1. **It collides with C1.** A self-assembling first board and a coach-mark tour are both
+   first-run experiences competing for the same minute. They are one decision about what
+   the first minute is, not two features.
+2. **It would be built twice.** A tour anchors to specific elements, positions and copy —
+   and C2/C3 move the card, the column header, the detail panel and the board header.
+3. **A tour can hide UI that should be clearer.** If someone needs a coach mark to find
+   "Add card", the affordance is wrong. Explaining it first lets the unclear thing survive.
+   After C2/C3, the list of things still needing explanation is usually much shorter.
+
+Meanwhile the cheaper version is already in scope: **just-in-time hints** in the empty
+states — a column with no cards teaches adding, being alone on a board teaches inviting
+(the members page already does this). Most of a tour's value, delivered where the question
+actually arises, and it doesn't rot when the UI moves.
+
+**Dependency:** build C1's machinery — step sequencing, spotlight, and "has this user seen
+it" persistence — to be reusable, so C6 is assembly rather than invention.
+
 ## Phase 2 — features
 
 Chosen for v2:
