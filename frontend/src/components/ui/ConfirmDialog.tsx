@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { useDialog } from "@/lib/useDialog";
 
 export interface ConfirmOptions {
   title: string;
@@ -21,47 +22,26 @@ function ConfirmDialog({
 }: ConfirmOptions & { onResolve: (confirmed: boolean) => void }) {
   const titleId = useId();
   const bodyId = useId();
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   const cancelRef = useRef<HTMLButtonElement | null>(null);
   const confirmRef = useRef<HTMLButtonElement | null>(null);
 
   const cancel = useCallback(() => onResolve(false), [onResolve]);
 
-  useEffect(() => {
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-
+  useDialog({
+    containerRef: dialogRef,
+    onClose: cancel,
     // Destructive dialogs focus Cancel, so a reflexive Enter doesn't carry out
     // the damage. Everything else focuses the primary action.
-    (tone === "danger" ? cancelRef : confirmRef).current?.focus();
-
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        cancel();
-        return;
-      }
-
-      // Only two focusable controls, so containment is just a two-way cycle --
-      // enough to stop Tab escaping to the page behind the overlay.
-      if (e.key === "Tab") {
-        e.preventDefault();
-        const [a, b] = [cancelRef.current, confirmRef.current];
-        if (!a || !b) return;
-        (document.activeElement === a ? b : a).focus();
-      }
-    }
-
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      previouslyFocused?.focus?.();
-    };
-  }, [tone, cancel]);
+    initialFocusRef: tone === "danger" ? cancelRef : confirmRef,
+  });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={cancel} />
+      <div className="absolute inset-0 bg-black/40" onClick={cancel} aria-hidden="true" />
 
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

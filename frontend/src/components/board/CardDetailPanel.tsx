@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { useDialog } from "@/lib/useDialog";
 import type { CardResponse } from "@/lib/api";
 
 export function CardDetailPanel({
@@ -17,12 +18,19 @@ export function CardDetailPanel({
   onSave: (title: string, description: string | null) => Promise<void>;
   onDelete: () => Promise<void>;
 }) {
+  const headingId = useId();
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description ?? "");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const dirty = title !== card.title || description !== (card.description ?? "");
+
+  // Escape closes without warning about unsaved edits, matching the existing
+  // click-outside. Guarding both is C3's job -- adding it to only one would
+  // make the panel inconsistent about when it protects your work.
+  useDialog({ containerRef: panelRef, onClose });
 
   async function handleSave() {
     if (!title.trim()) return;
@@ -46,12 +54,21 @@ export function CardDetailPanel({
 
   return (
     <>
-      <div className="absolute inset-0 bg-black/20 z-30" onClick={onClose} />
-      <div className="absolute top-0 right-0 bottom-0 w-[420px] bg-surface border-l border-border flex flex-col z-40 animate-[fade-up_0.2s_ease-out] overflow-hidden">
+      <div className="absolute inset-0 bg-black/20 z-30" onClick={onClose} aria-hidden="true" />
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={headingId}
+        className="absolute top-0 right-0 bottom-0 w-[420px] bg-surface border-l border-border flex flex-col z-40 animate-[fade-up_0.2s_ease-out] overflow-hidden"
+      >
         <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
-          <span className="text-xs font-semibold uppercase tracking-wider text-text-dim">
+          <h2
+            id={headingId}
+            className="text-xs font-semibold uppercase tracking-wider text-text-dim"
+          >
             {readOnly ? "Card · read-only" : "Card"}
-          </span>
+          </h2>
           <button
             onClick={onClose}
             className="w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:bg-surface-2 cursor-pointer"
@@ -72,6 +89,7 @@ export function CardDetailPanel({
             readOnly={readOnly}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Card title"
+            aria-label="Card title"
             className={`w-full text-base font-medium bg-transparent outline-none border border-transparent rounded-md -mx-1 px-1 py-0.5 ${
               readOnly ? "cursor-default" : "focus-visible:border-accent focus-visible:bg-surface-2"
             }`}
@@ -84,6 +102,7 @@ export function CardDetailPanel({
               readOnly={readOnly}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Add a description…"
+              aria-label="Card description"
               rows={5}
               className={`w-full text-sm text-text-muted bg-surface-2 border border-border rounded-lg p-3 outline-none resize-none ${
                 readOnly ? "cursor-default" : "focus-visible:border-accent"

@@ -29,11 +29,23 @@ export function SortableKanbanCard({
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      {...dragProps}
-      onClick={onClick}
       className={isDragging ? "opacity-40" : undefined}
     >
-      <KanbanCard card={card} />
+      {/* A real <button>, not a div with onClick, so the card is tabbable and
+          Enter opens it (S5.1). That is also what makes keyboard drag possible:
+          the KeyboardSensor claims Space and preventDefaults it, so Space never
+          reaches the button's implicit click -- one element, two verbs, no
+          separate grab handle to hunt for. See DRAG_KEYS in BoardView. */}
+      <button
+        type="button"
+        onClick={onClick}
+        {...dragProps}
+        className={`block w-full text-left rounded-[8px] ${
+          canDrag ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
+        }`}
+      >
+        <KanbanCard card={card} />
+      </button>
     </div>
   );
 }

@@ -256,6 +256,52 @@ which nobody noticed until someone tried to switch accounts.
   The anchor is measured once on open, so scroll and resize close the menu rather
   than leaving it stranded.
 
+## v2 phase 1, scope C0 — accessibility
+
+Three violations of `docs/ui-standards.md` §S5 that the standard itself made
+visible. Correctness failures, not polish, so they went first.
+
+- **`useDialog` is shared, not duplicated per overlay.** `ConfirmDialog` already
+  had Escape, focus restore and containment; `CardDetailPanel` had none of it.
+  Copying would have left two implementations to keep in step, and the failure
+  mode here is invisible — an overlay missing the trap looks perfect and simply
+  drops the keyboard user onto the page behind it. `ConfirmDialog` moved onto the
+  hook, which also fixed a latent bug: its two-way Tab cycle assumed exactly two
+  focusable controls, so a link inside `body` would have escaped it.
+- **The trap re-queries focusables on every Tab.** A list captured at mount goes
+  stale as the dialog's own controls change — Save enables once dirty, Delete
+  disables mid-request.
+- **`onClose` is held in a ref.** Callers pass inline arrows; depending on it
+  directly would re-run the effect every render, re-firing initial focus and
+  yanking the caret back to the top of the dialog on every keystroke.
+- **Escape on the card panel does not guard unsaved edits.** Click-outside
+  already discarded them, and guarding one but not the other would make the panel
+  inconsistent about when it protects your work. Both are C3's job.
+- **Space picks a card up, Enter opens it.** The card became a real `<button>`,
+  which is what makes it tabbable — but a button's implicit click and dnd-kit's
+  keyboard activation both want the same keys. dnd-kit `preventDefault`s whatever
+  is listed in `keyboardCodes.start`, so restricting `start` to `Space` is
+  precisely what stops Space also firing the click. Leaving Enter in `start`
+  (the default) would give keyboard users drag but no way to open a card. Rejected
+  the alternative — a separate grab handle — because it would have narrowed
+  pointer drag from the whole card to a grip nobody asked to hunt for.
+- **The delete-column button is faded, not `hidden`.** `display: none` cannot take
+  focus, so delete was mouse-only. The reveal had to move to a wrapper element:
+  `opacity-0` on the button itself collides with its own `disabled:opacity-50`,
+  and the variant wins — which would have shown a delete button on every column
+  whenever the connection dropped. Two elements, two independent opacities.
+- **Escape during a column rename needs a ref guard.** Leaving the field fires
+  `onBlur`, and `onBlur` commits — so without the flag, cancelling would have
+  saved the very edit it was meant to discard.
+
+Verified against the running app: dialog semantics, both wrap directions of the
+focus trap, Escape, and focus returning to the exact card that opened the panel;
+rename discarding on Escape; delete and rename reachable with `tabIndex` 0 while
+the reveal wrapper is transparent. The keyboard-drag key split is verified from
+dnd-kit's source and the generated CSS rather than by keystroke — Chrome
+suppresses focus styling and drops synthesized keys while its window is not
+focused, so `document.hasFocus()` was false throughout.
+
 ### Divergences and known debt from Slice 4a
 
 - **The test suite needs `Firebase:ProjectId` from the environment or user-secrets.**

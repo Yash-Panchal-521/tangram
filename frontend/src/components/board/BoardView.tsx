@@ -7,6 +7,7 @@ import { HubConnection, HubConnectionState } from "@microsoft/signalr";
 import {
   DndContext,
   DragOverlay,
+  KeyboardSensor,
   PointerSensor,
   closestCenter,
   useSensor,
@@ -14,6 +15,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { useAuth } from "@/lib/auth";
 import { api, BoardDetailResponse, CardResponse } from "@/lib/api";
 import {
@@ -38,6 +40,22 @@ import { TangramMark } from "@/components/ui/TangramMark";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 const CURSOR_SEND_INTERVAL_MS = 50;
+
+// The card is one element carrying two verbs, so the keys have to be split:
+// Enter opens it, Space picks it up. dnd-kit preventDefaults whatever is listed
+// in `start`, and that is precisely what stops Space from also firing the
+// button's implicit click. Leaving Enter in `start` (the default) would mean a
+// keyboard user could move cards but never open one.
+const DRAG_KEYS = {
+  start: ["Space"],
+  cancel: ["Escape"],
+  end: ["Space", "Enter", "Tab"],
+};
+
+const DRAG_INSTRUCTIONS = {
+  draggable:
+    "Press enter to open this card. Press the space bar to pick it up, then use the arrow keys to move it between positions and columns. Press space again to drop it, or escape to cancel.",
+};
 
 function resolveMove(
   board: BoardDetailResponse,
@@ -85,7 +103,13 @@ export function BoardView({ boardId }: { boardId: string }) {
   const lastCursorSentRef = useRef(0);
   const boardAreaRef = useRef<HTMLDivElement | null>(null);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+      keyboardCodes: DRAG_KEYS,
+    })
+  );
 
   // The caller's own role, from the board payload. Viewers still get presence,
   // cursors and live updates -- they just can't originate a mutation, so the
@@ -522,6 +546,7 @@ export function BoardView({ boardId }: { boardId: string }) {
         collisionDetection={closestCenter}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
+        accessibility={{ screenReaderInstructions: DRAG_INSTRUCTIONS }}
       >
         <div
           ref={boardAreaRef}

@@ -37,7 +37,7 @@ property of this app a screenshot cannot convey.
 
 | | Item | Note |
 |---|---|---|
-| C0 | Accessibility violations | Escape/focus-trap/dialog semantics on `CardDetailPanel`, keyboard-reachable column rename, keyboard drag. Correctness failures against S5, and small — do first |
+| C0 | ~~Accessibility violations~~ **done** | `useDialog` now backs both overlays; column rename and delete are real buttons; cards are buttons with Space-to-lift, Enter-to-open. See `docs/decisions.md` |
 | C5 | Loading and empty states | Board skeleton replacing "Loading board…"; audit the small board components |
 | C2 | Board view | Column and board empty states, card visuals, pending feedback, header density, drag affordance |
 | C3 | Card detail | Dialog semantics, Cmd+Enter save, unsaved-change guard, layout |
