@@ -28,6 +28,8 @@ import {
 import { applyOperation, moveCardOptimistic } from "@/lib/boardReducer";
 import { friendlyError } from "@/lib/errorMessage";
 import { useSeenOnce } from "@/lib/useSeenOnce";
+import { BOARD_TOUR } from "@/lib/boardTour";
+import { Walkthrough } from "@/components/onboarding/Walkthrough";
 import { BoardColumn } from "@/components/board/BoardColumn";
 import { BoardIntro } from "@/components/board/BoardIntro";
 import { BoardSkeleton } from "@/components/board/BoardSkeleton";
@@ -101,6 +103,8 @@ export function BoardView({ boardId }: { boardId: string }) {
   // toggling: if the user opens the form and cancels, it must not spring open
   // again on the next render.
   const [autoAddFirstCard, setAutoAddFirstCard] = useState(false);
+  // On demand only -- see the reasoning in lib/boardTour.ts.
+  const [tourOpen, setTourOpen] = useState(false);
   const [activeCard, setActiveCard] = useState<CardResponse | null>(null);
   const [selectedCard, setSelectedCard] = useState<CardResponse | null>(null);
   const [presentUsers, setPresentUsers] = useState<PresenceUser[]>([]);
@@ -449,7 +453,7 @@ export function BoardView({ boardId }: { boardId: string }) {
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5" data-tour="sync">
             <div
               className="w-1.5 h-1.5 rounded-full shrink-0"
               style={{
@@ -493,6 +497,7 @@ export function BoardView({ boardId }: { boardId: string }) {
           <PresenceAvatars users={presentUsers} />
 
           <Link
+            data-tour="members"
             href={`/workspace/${board.workspaceId}/members`}
             className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium text-text-muted hover:text-text hover:bg-surface-2 transition-colors whitespace-nowrap"
           >
@@ -514,7 +519,7 @@ export function BoardView({ boardId }: { boardId: string }) {
             Members
           </Link>
 
-          <UserMenu />
+          <UserMenu onShowMeAround={() => setTourOpen(true)} />
         </div>
       </header>
 
@@ -595,7 +600,7 @@ export function BoardView({ boardId }: { boardId: string }) {
               )}
             </div>
           ) : (
-          <div className="flex items-start gap-3.5 h-full">
+          <div className="flex items-start gap-3.5 h-full" data-tour="columns">
             {board.columns.map((column, i) => (
               <BoardColumn
                 key={column.id}
@@ -604,6 +609,7 @@ export function BoardView({ boardId }: { boardId: string }) {
                 disabled={!connected}
                 canEdit={canEdit}
                 startAdding={autoAddFirstCard && i === 0}
+                tourAnchors={i === 0}
                 onAddCard={handleAddCard}
                 onRenameColumn={handleRenameColumn}
                 onDeleteColumn={handleDeleteColumn}
@@ -705,6 +711,8 @@ export function BoardView({ boardId }: { boardId: string }) {
           onDelete={() => handleDeleteCard(selectedCard.id)}
         />
       )}
+
+      {tourOpen && <Walkthrough steps={BOARD_TOUR} onFinish={() => setTourOpen(false)} />}
 
       {dialog}
     </div>

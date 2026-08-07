@@ -43,9 +43,9 @@ property of this app a screenshot cannot convey.
 | C3 | ~~Card detail~~ **done** | Unsaved-change guard on every exit, Cmd/Ctrl+Enter save, a confirmation before delete, labelled fields. Brought jsdom in so this is covered by tests |
 | C4 | ~~Auth pages~~ **done** | Session-checking state, labelled fields, the password rule ticked live, and the untrue "offline-tolerant sync" claim replaced |
 | C1 | ~~Onboarding~~ **done** | A phantom teammate adds a card and drags it across, then says what you just saw. Machinery (`useSeenOnce`, `useSequence`, reduced-motion) built reusable for C6 |
-| C6 | Guided walkthrough | **After C2/C3 — see below** |
+| C6 | ~~Guided walkthrough~~ **done** | On demand from the account menu. Steps whose anchor is missing are dropped rather than left pointing at nothing |
 
-### C6 — guided walkthrough, deliberately deferred
+### C6 — guided walkthrough, deferred then built
 
 A step-through tour of the UI. Deferred until after C2 and C3 for three reasons, recorded
 so the decision isn't relitigated:
@@ -66,6 +66,14 @@ actually arises, and it doesn't rot when the UI moves.
 
 **Dependency:** build C1's machinery — step sequencing, spotlight, and "has this user seen
 it" persistence — to be reusable, so C6 is assembly rather than invention.
+
+**Outcome.** The dependency held. `useSequence` carried the walkthrough unchanged: a `null`
+hold already meant "wait for the user", so the manual mode *was* the timed mode with a
+different clock. `Spotlight` was the only genuinely new piece.
+
+Reason 1 above did not stop applying once C6 existed, so the tour is **on demand only** —
+"Show me around" in the account menu. It is a refresher for someone who asks, not a claim
+on anyone's first minute.
 
 ## Phase 2 — features
 

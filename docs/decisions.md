@@ -487,6 +487,39 @@ in one jump only fires the first. Each subsequent timer is scheduled by an effec
 that cannot run until React has re-rendered, by which point the whole window has
 already elapsed. Advance one beat per `act`.
 
+## v2 phase 1, scope C6 — guided walkthrough
+
+Built last, as planned, and the dependency recorded when it was deferred paid
+off: `useSequence` carried it unchanged, because a `null` hold already meant
+"wait for the user" — the manual mode *is* the timed mode with a different
+clock. `Spotlight` was the only new piece.
+
+- **On demand only, from the account menu.** The reason it was deferred — that a
+  tour and a self-assembling first board are two answers to the same question
+  about someone's first minute — did not stop applying once it existed. It is a
+  refresher for whoever asks.
+- **Steps with no anchor are dropped, not shown.** The board's contents vary: no
+  cards yet, a viewer with no add button. A step spotlighting nothing reads as a
+  broken feature, and an empty tour dismisses itself instead of opening.
+- **The step count reflects what will actually be shown**, so "1 of 3" never
+  becomes "1 of 5" with two steps skipped silently.
+- **The cut-out is one outward `box-shadow`**, not four panels or an SVG mask —
+  no seams to line up, and it moves as a unit with its target.
+- **Scroll is captured, not bubbled.** The columns scroll independently of the
+  window, so a spotlight listening only for window scroll would drift off its
+  target the moment a column moved.
+- **The panel flips above its target when there is no room below**, and is
+  clamped on both axes, so a step anchored near an edge stays readable.
+- **The tour is *not* offered on the members page.** `UserMenu` takes the handler
+  as an optional prop and simply omits the item — a tour that leads nowhere is
+  worse than none.
+
+A note on the tests: `document.body.innerHTML = …` survives Testing Library's
+cleanup, which only removes containers it created. Doing that in one test left
+anchors behind and made three later tests fail against a DOM they never
+rendered. `availableSteps` takes a root parameter partly so that test can use a
+detached node.
+
 ### Divergences and known debt from Slice 4a
 
 - **The test suite needs `Firebase:ProjectId` from the environment or user-secrets.**

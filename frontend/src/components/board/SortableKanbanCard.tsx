@@ -8,10 +8,13 @@ import type { CardResponse } from "@/lib/api";
 export function SortableKanbanCard({
   card,
   canDrag,
+  tourAnchor = false,
   onClick,
 }: {
   card: CardResponse;
   canDrag: boolean;
+  /** Marks this as the card the walkthrough points at. Exactly one board-wide. */
+  tourAnchor?: boolean;
   onClick: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -29,6 +32,7 @@ export function SortableKanbanCard({
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
+      data-tour={tourAnchor ? "card" : undefined}
       className={isDragging ? "opacity-40" : undefined}
     >
       {/* A real <button>, not a div with onClick, so the card is tabbable and

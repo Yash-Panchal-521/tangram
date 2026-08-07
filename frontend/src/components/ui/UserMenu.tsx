@@ -5,7 +5,12 @@ import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import { Avatar } from "@/components/ui/Avatar";
 
-export function UserMenu() {
+/**
+ * `onShowMeAround` is optional because only the board has a walkthrough. The
+ * members page passes nothing and the item simply isn't there — offering a tour
+ * that leads nowhere would be worse than not offering one.
+ */
+export function UserMenu({ onShowMeAround }: { onShowMeAround?: () => void } = {}) {
   const { user, signOut } = useAuth();
   const { mode, toggleMode } = useTheme();
   const [open, setOpen] = useState(false);
@@ -103,6 +108,29 @@ export function UserMenu() {
               <p className="text-xs text-text-muted truncate mt-0.5">{user.email}</p>
             )}
           </div>
+
+          {onShowMeAround && (
+            <button
+              role="menuitem"
+              onClick={() => {
+                close();
+                onShowMeAround();
+              }}
+              className="w-full flex items-center gap-2 px-3.5 py-2.5 text-[13px] text-text hover:bg-surface-2 transition-colors cursor-pointer border-b border-border"
+            >
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <circle cx="7" cy="7" r="5.75" stroke="currentColor" strokeWidth="1.2" />
+                <path
+                  d="M5.4 5.3a1.65 1.65 0 113.1.8c-.35.5-1 .7-1.3 1.2-.15.25-.2.5-.2.8"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  strokeLinecap="round"
+                />
+                <circle cx="7" cy="10.4" r="0.75" fill="currentColor" />
+              </svg>
+              Show me around
+            </button>
+          )}
 
           {/* Theme is a personal preference, not a board action, so it belongs
               with the account rather than taking a slot in a header that was

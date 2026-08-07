@@ -21,6 +21,7 @@ export function BoardColumn({
   disabled,
   canEdit,
   startAdding = false,
+  tourAnchors = false,
   onAddCard,
   onRenameColumn,
   onDeleteColumn,
@@ -39,6 +40,8 @@ export function BoardColumn({
   // to action. Only acted on when it turns true, so cancelling the form doesn't
   // reopen it on the next render.
   startAdding?: boolean;
+  /** True for the first column only, so the walkthrough has one of each anchor. */
+  tourAnchors?: boolean;
   onAddCard: (columnId: string, title: string) => Promise<void>;
   onRenameColumn: (columnId: string, name: string) => Promise<void>;
   onDeleteColumn: (columnId: string) => Promise<void>;
@@ -179,11 +182,12 @@ export function BoardColumn({
         className="flex-1 overflow-y-auto flex flex-col gap-2 min-h-0 pb-3"
       >
         <SortableContext items={column.cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-          {column.cards.map((card) => (
+          {column.cards.map((card, i) => (
             <SortableKanbanCard
               key={card.id}
               card={card}
               canDrag={canEdit}
+              tourAnchor={tourAnchors && i === 0}
               onClick={() => onCardClick(card)}
             />
           ))}
@@ -238,6 +242,7 @@ export function BoardColumn({
         <button
           onClick={() => setAdding(true)}
           disabled={disabled}
+          data-tour={tourAnchors ? "add-card" : undefined}
           className="flex items-center gap-1.5 w-full py-2 px-2.5 rounded-lg border-[1.5px] border-dashed border-border text-text-dim text-xs font-medium transition-colors shrink-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:border-accent hover:text-accent"
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
