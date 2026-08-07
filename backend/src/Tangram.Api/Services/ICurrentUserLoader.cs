@@ -31,34 +31,65 @@ public class CurrentUserLoader(AppDbContext db, ICurrentUserService currentUserS
         var email = EmailAddress.NormalizeOrNull(
             principal.FindFirstValue(ClaimTypes.Email) ?? principal.FindFirstValue("email"));
 
+        // Both spellings, for the same reason as email: JwtBearer's default
+        // inbound map may rewrite "name" to ClaimTypes.Name, in which case
+        // looking only for the raw name silently finds nothing and every user
+        // ends up named after their email's local part.
+        var claimedName = Trimmed(principal.FindFirstValue("name"))
+            ?? Trimmed(principal.FindFirstValue(ClaimTypes.Name));
+
         var user = await db.Users.IgnoreQueryFilters().SingleOrDefaultAsync(u => u.FirebaseUid == firebaseUid, ct);
 
         if (user is null)
         {
-            var displayName = principal.FindFirstValue("name")
-                ?? email?.Split('@')[0]
-                ?? "New user";
-
             user = new User
             {
                 Id = Guid.NewGuid(),
                 FirebaseUid = firebaseUid,
                 Email = email,
-                DisplayName = displayName,
+                // The email local part is a last resort, not a preference --
+                // see the refresh below, which replaces it as soon as a token
+                // carrying a real name arrives.
+                DisplayName = claimedName ?? email?.Split('@')[0] ?? "New user",
                 CreatedAt = DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow
             };
             db.Users.Add(user);
             await db.SaveChangesAsync(ct);
         }
-        else if (email is not null && user.Email != email)
+        else
         {
+            var changed = false;
+
             // Backfills rows created before invitations existed (they have no
             // email and so could never be invited) and tracks address changes
             // made in Firebase.
-            user.Email = email;
-            user.UpdatedAt = DateTimeOffset.UtcNow;
-            await db.SaveChangesAsync(ct);
+            if (email is not null && user.Email != email)
+            {
+                user.Email = email;
+                changed = true;
+            }
+
+            // Firebase is the only place a display name can be set, so its
+            // token wins. This matters most right after sign-up: the profile
+            // update and the first API call race, so the row is often created
+            // from the email fallback and only a later token carries the real
+            // name. Without this the wrong name is permanent.
+            //
+            // Guarded on the claim actually being present -- a token without a
+            // name must never downgrade a good stored name back to the
+            // email-local-part fallback.
+            if (claimedName is not null && user.DisplayName != claimedName)
+            {
+                user.DisplayName = claimedName;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                user.UpdatedAt = DateTimeOffset.UtcNow;
+                await db.SaveChangesAsync(ct);
+            }
         }
 
         // Must run before workspace ids are read below -- claiming after that
@@ -79,6 +110,9 @@ public class CurrentUserLoader(AppDbContext db, ICurrentUserService currentUserS
 
         return user;
     }
+
+    private static string? Trimmed(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     // Turns invitations addressed to this user's email into real memberships.
     // Runs on every authenticated call, so the common "nothing pending" case

@@ -55,13 +55,20 @@ public class TangramWebApplicationFactory : WebApplicationFactory<Program>
     // Pass an email to simulate a user whose Firebase address the test chose
     // (so an invitation can be addressed to it); omit it for the deterministic
     // "{uid}@test.tangram" default.
-    public HttpClient CreateClientAs(string testUserId, string? email = null)
+    // Pass `name` to simulate the display name carried by the token; the
+    // literal "-" simulates a token with no name claim at all, which is what
+    // Firebase sends before a profile has been set.
+    public HttpClient CreateClientAs(string testUserId, string? email = null, string? name = null)
     {
         var client = CreateClient();
         client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, testUserId);
         if (email is not null)
         {
             client.DefaultRequestHeaders.Add(TestAuthHandler.EmailHeader, email);
+        }
+        if (name is not null)
+        {
+            client.DefaultRequestHeaders.Add(TestAuthHandler.NameHeader, name);
         }
         return client;
     }

@@ -18,6 +18,7 @@ public class TestAuthHandler(
     public const string SchemeName = "Test";
     public const string UserHeader = "X-Test-User";
     public const string EmailHeader = "X-Test-Email";
+    public const string NameHeader = "X-Test-Name";
 
     // Real Firebase tokens carry an email claim, and invitations are matched on
     // it, so simulated users need one too. Defaults to a deterministic address
@@ -36,12 +37,24 @@ public class TestAuthHandler(
             ? overrideEmail.ToString()
             : DefaultEmailFor(firebaseUid!);
 
-        var claims = new[]
+        var claims = new List<Claim>
         {
-            new Claim("user_id", firebaseUid!),
-            new Claim("name", $"Test User {firebaseUid}"),
-            new Claim(ClaimTypes.Email, email),
+            new("user_id", firebaseUid!),
+            new(ClaimTypes.Email, email),
         };
+
+        // A real Firebase token omits `name` until the user has a display name
+        // set, so tests need to reproduce both a named and an unnamed token.
+        // X-Test-Name supplies one; the literal "-" means "send no name claim".
+        var name = Request.Headers.TryGetValue(NameHeader, out var overrideName) && !string.IsNullOrEmpty(overrideName)
+            ? overrideName.ToString()
+            : $"Test User {firebaseUid}";
+
+        if (name != "-")
+        {
+            claims.Add(new Claim("name", name));
+        }
+
         var identity = new ClaimsIdentity(claims, SchemeName);
         var principal = new ClaimsPrincipal(identity);
         var ticket = new AuthenticationTicket(principal, SchemeName);

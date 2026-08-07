@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!--
+    The TangramMark glyph on the brand accent. Colours are hardcoded rather
+    than using the theme tokens: a favicon is rendered by browser chrome, which
+    has no access to the page's CSS custom properties. #cc4e3e is the dark-mode
+    accent, chosen over the light one because it stays legible against both
+    light and dark tab strips.
+  -->
+  <rect width="32" height="32" rx="7" fill="#cc4e3e" />
+  <rect x="6" y="7" width="5" height="18" rx="2" fill="#ffffff" />
+  <rect x="13.5" y="7" width="5" height="18" rx="2" fill="#ffffff" />
+  <rect x="21" y="7" width="5" height="18" rx="2" fill="#ffffff" />
+</svg>

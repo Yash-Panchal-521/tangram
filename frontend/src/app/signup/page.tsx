@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
@@ -21,7 +21,18 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Set synchronously at the top of handleSubmit, before any await, so it is
+  // already true by the time Firebase notifies the auth listener below.
+  const signingUpRef = useRef(false);
+
   useEffect(() => {
+    // Bounce visitors who are already signed in -- but not mid-sign-up.
+    // `user` becomes non-null the instant the account is created, which is
+    // *before* updateProfile has run. Redirecting there sends the first API
+    // call with a token that carries no `name` claim, and the backend then
+    // names the user after their email local part. handleSubmit navigates
+    // itself once the profile is set and the token refreshed.
+    if (signingUpRef.current) return;
     if (!loading && user) {
       router.replace("/board");
     }
@@ -46,6 +57,7 @@ export default function SignupPage() {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
+    signingUpRef.current = true;
     try {
       const credential = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(credential.user, { displayName: displayName.trim() });
