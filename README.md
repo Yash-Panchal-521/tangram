@@ -223,33 +223,54 @@ Two consequences of the free tier worth knowing:
 
 Render's own free Postgres is deliberately unused: it is deleted after 90 days.
 
-### Release flow — three branches
-
-| Branch | Meaning | Who moves it |
-|---|---|---|
-| `main` | latest work | you |
-| `deploy` | last commit that passed CI | CI, automatically |
-| `release` | what production serves | you, deliberately |
-
-CI advances `deploy` only after the backend and frontend jobs pass
-([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). Neither host watches `main`, so
-nothing red can reach production, and **no deploy tokens exist in the repository** — the
-gate is the branch rather than the trigger.
-
-Both deploys are manual, and the order matters. **Backend first**: an API returning extra
-fields does not break an old frontend, whereas a frontend reading a field the deployed API
-does not yet send does break.
+### Releasing
 
 ```bash
-# 1. backend — Render dashboard → Manual Deploy → Deploy latest commit
-# 2. frontend
-git push origin deploy:release
+git push origin main        # CI runs; if green it advances `deploy`
 ```
 
-Render's free plan has no auto-deploy, which forces the manual step there. The frontend is
-manual by choice, so the two can be released in the right order — with Vercel tracking
-`deploy` directly it would always deploy first, since Render can only build a commit that
-is already on `deploy`.
+Then, once CI is green:
+
+1. **Backend** — Render → **Manual Deploy → Deploy latest commit**
+2. **Frontend** — `git ship`
+
+`git ship` is a repo-local alias that moves `release` to whatever `deploy` points at;
+Vercel deploys `release` automatically. It promotes the last CI-verified commit, not your
+working tree, so it can only ever release code that passed.
+
+**Backend first.** An API returning extra fields does not break an old frontend, but a
+frontend reading a field the deployed API does not send yet does break. Skip step 1
+entirely when the change is frontend-only.
+
+**Wait for CI before clicking Render**, or you will deploy the previous green commit.
+
+#### How the three branches work
+
+| Branch | Meaning | Moved by | Built by |
+|---|---|---|---|
+| `main` | latest work | you | nothing |
+| `deploy` | last commit that passed CI | CI | Render |
+| `release` | what production serves | `git ship` | Vercel |
+
+Neither host watches `main`, so nothing red reaches production and **no deploy tokens exist
+in the repository** — the gate is the branch rather than the trigger.
+
+The two hosts deliberately watch *different* branches: that is what makes ordering
+possible. Render's free plan has no auto-deploy, so the backend is manual regardless. Were
+Vercel also pointed at `deploy`, the frontend would always deploy first — Render can only
+build a commit already on `deploy`, by which time Vercel would have shipped.
+
+> Do **not** use Vercel's *Ignored Build Step* to make the frontend manual. Setting it to
+> "Don't build anything" also cancels manually created deployments, leaving no way to
+> deploy at all. Verified: a Create Deployment from `deploy` returned
+> `Build Canceled — as a result of running the command defined in the "Ignored Build Step"
+> setting`.
+
+If `git ship` is missing (fresh clone), recreate it:
+
+```bash
+git config --local alias.ship '!git fetch origin --quiet && git push origin origin/deploy:release'
+```
 
 > Do **not** use Vercel's *Ignored Build Step* to make the frontend manual. Setting it to
 > "Don't build anything" also cancels manually created deployments, leaving no way to

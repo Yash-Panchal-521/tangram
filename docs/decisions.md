@@ -211,8 +211,11 @@ the implementation diverged from the original plan.
   and Vercel on auto, the frontend always won the race — Render can only build a
   commit that is already on `deploy`, which means CI has run, which means Vercel
   has already shipped. Ordering was unobtainable until the frontend became
-  manual. Hence the third branch: CI advances `deploy`, and
-  `git push origin deploy:release` promotes the frontend afterwards.
+  manual. Hence the third branch, and the fact that the two hosts watch
+  *different* ones: CI advances `deploy` (Render's branch), and `git ship`
+  promotes it to `release` (Vercel's branch) afterwards. Pointing Render at
+  `release` too would collapse the distinction and put the frontend back in
+  front.
 - **Vercel's Ignored Build Step is not a way to make deploys manual.** Setting
   it to "Don't build anything" also cancels manually created deployments —
   confirmed by testing rather than by documentation, which does not say so

@@ -105,13 +105,23 @@ needing a DOM were verified in a real browser instead.
 
 ## Deploying
 
-Three branches: `main` (work) → `deploy` (last CI-green commit, advanced by CI) → `release`
-(what production serves, pushed by hand). Render builds `deploy`; Vercel builds `release`.
-Never point a host at `main` — the gate is the branch, so there is no deploy token.
+`git push origin main` → CI advances `deploy` if green. Then, in this order:
 
-Both deploys are manual and **backend goes first**: an API returning extra fields won't
-break an old frontend, but a frontend reading a field the deployed API doesn't send yet
-will. Render → Manual Deploy, then `git push origin deploy:release`.
+1. Render → **Manual Deploy** (builds `deploy`)
+2. `git ship` — repo-local alias; moves `release` to `deploy`, Vercel follows
+
+| Branch | Moved by | Built by |
+|---|---|---|
+| `main` | you | nothing |
+| `deploy` | CI, when green | Render |
+| `release` | `git ship` | Vercel |
+
+**Backend first**, because an API returning extra fields won't break an old frontend but a
+frontend reading a field the deployed API doesn't send yet will. Frontend-only changes can
+skip step 1. Wait for CI before clicking Render, or it deploys the previous green commit.
+
+The hosts watch *different* branches on purpose — that is what makes ordering possible.
+Never point either at `main`; the gate is the branch, so there is no deploy token.
 
 Do not use Vercel's *Ignored Build Step* to make the frontend manual — "Don't build
 anything" cancels manually created deployments too, leaving no way to deploy.
