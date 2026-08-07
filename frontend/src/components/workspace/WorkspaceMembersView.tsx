@@ -22,6 +22,7 @@ import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { UserMenu } from "@/components/ui/UserMenu";
 import { TangramMark } from "@/components/ui/TangramMark";
 import { useConfirm, type ConfirmOptions } from "@/components/ui/ConfirmDialog";
+import { friendlyError } from "@/lib/errorMessage";
 import { InvitePanel } from "@/components/workspace/InvitePanel";
 import { CopyInviteButton } from "@/components/workspace/CopyInviteButton";
 
@@ -186,7 +187,7 @@ export function WorkspaceMembersView({ workspaceId }: { workspaceId: string }) {
         setLoadError(
           err instanceof ApiError && err.status === 404
             ? "That workspace doesn't exist, or you're not a member of it."
-            : "Couldn't load members. Is the backend running?"
+            : friendlyError(err, "load the member list").message
         );
       } finally {
         if (!cancelled) setReady(true);
@@ -226,7 +227,7 @@ export function WorkspaceMembersView({ workspaceId }: { workspaceId: string }) {
       await load();
       if (successNotice) setNotice(successNotice);
     } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : "Something went wrong.");
+      setActionError(friendlyError(err, "save that change").message);
     }
   }
 
@@ -284,7 +285,7 @@ export function WorkspaceMembersView({ workspaceId }: { workspaceId: string }) {
         await api.delete(`/workspaces/${workspaceId}/members/${member.userId}`, token);
         router.replace("/board");
       } catch (err) {
-        setActionError(err instanceof ApiError ? err.message : "Something went wrong.");
+        setActionError(friendlyError(err, "save that change").message);
         setBusyUserId(null);
       }
       return;

@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { api, ApiError, type MembershipRole, type MemberResponse, type PendingInvitationResponse } from "@/lib/api";
+import { api, type MembershipRole, type MemberResponse, type PendingInvitationResponse } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { friendlyError } from "@/lib/errorMessage";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { CopyInviteButton } from "@/components/workspace/CopyInviteButton";
@@ -113,7 +114,8 @@ export function InvitePanel({
           email: recipient.email,
           role: recipient.role,
           outcome: "failed",
-          detail: err instanceof ApiError ? err.message : "Unknown error",
+          // S3.3: the raw ApiError message can be "POST /… failed with 502".
+          detail: friendlyError(err, "invite them").message,
         });
       }
       setProgress({ done: index + 1, total: recipients.length });

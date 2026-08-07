@@ -78,7 +78,7 @@ describe("request", () => {
 
     await api.get("/me", "abc123");
 
-    const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>;
+    const headers = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer abc123");
   });
 
@@ -88,7 +88,7 @@ describe("request", () => {
 
     await api.get("/health", null);
 
-    const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>;
+    const headers = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].headers as Record<string, string>;
     expect(headers).not.toHaveProperty("Authorization");
   });
 

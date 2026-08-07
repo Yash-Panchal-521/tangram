@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
+import { friendlyError } from "@/lib/errorMessage";
 import {
   api,
   WorkspaceResponse,
@@ -22,6 +23,7 @@ export default function BoardBootstrapPage() {
   const router = useRouter();
   const { user, loading, getToken } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const [slow, setSlow] = useState(false);
   const started = useRef(false);
 
   useEffect(() => {
@@ -32,6 +34,8 @@ export default function BoardBootstrapPage() {
     }
     if (started.current) return;
     started.current = true;
+
+    const slowTimer = setTimeout(() => setSlow(true), 4000);
 
     (async () => {
       try {
@@ -70,15 +74,29 @@ export default function BoardBootstrapPage() {
 
         localStorage.setItem(BOARD_ID_KEY, board.id);
         router.replace(`/board/${board.id}`);
-      } catch {
-        setError("Couldn't set up your workspace. Is the backend running?");
+      } catch (err) {
+        setError(friendlyError(err, "open your board").message);
+      } finally {
+        clearTimeout(slowTimer);
       }
     })();
   }, [loading, user, router, getToken]);
 
   return (
     <div className="flex-1 flex items-center justify-center">
-      <p className="text-sm text-text-muted">{error ?? "Setting up your workspace…"}</p>
+      {error ? (
+        <p className="text-sm text-danger max-w-sm text-center">{error}</p>
+      ) : (
+        <div className="flex flex-col items-center gap-2 text-center">
+          <p className="text-sm text-text-muted">Setting up your workspace…</p>
+          {slow && (
+            <p className="text-xs text-text-dim max-w-xs">
+              The server sleeps when it hasn&apos;t been used for a while. Waking it takes up to a
+              minute — this will continue on its own.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

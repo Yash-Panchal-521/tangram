@@ -24,12 +24,14 @@ import {
   type ResyncResult,
 } from "@/lib/signalr";
 import { applyOperation, moveCardOptimistic } from "@/lib/boardReducer";
+import { friendlyError } from "@/lib/errorMessage";
 import { BoardColumn } from "@/components/board/BoardColumn";
 import { KanbanCard } from "@/components/board/KanbanCard";
 import { CardDetailPanel } from "@/components/board/CardDetailPanel";
 import { PresenceAvatars } from "@/components/board/PresenceAvatars";
 import { RemoteCursors } from "@/components/board/RemoteCursors";
 import { ReconnectingBanner } from "@/components/board/ReconnectingBanner";
+import { Button } from "@/components/ui/Button";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { UserMenu } from "@/components/ui/UserMenu";
 import { TangramMark } from "@/components/ui/TangramMark";
@@ -62,7 +64,17 @@ export function BoardView({ boardId }: { boardId: string }) {
   const [board, setBoard] = useState<BoardDetailResponse | null>(null);
   const [connected, setConnected] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Fatal: the board could not be loaded at all. Blocks the surface.
+  const [loadError, setLoadError] = useState<{ message: string; canRetry: boolean } | null>(null);
+  // Non-fatal: one action failed. Shown inline, dismissible, never blocks (S3.6).
+  const [actionError, setActionError] = useState<{ message: string; retry?: () => void } | null>(
+    null
+  );
+  // Drives the "still waking" copy below (S2.4).
+  const [slowLoad, setSlowLoad] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [addingColumn, setAddingColumn] = useState(false);
+  const [newColumnName, setNewColumnName] = useState("");
   const [activeCard, setActiveCard] = useState<CardResponse | null>(null);
   const [selectedCard, setSelectedCard] = useState<CardResponse | null>(null);
   const [presentUsers, setPresentUsers] = useState<PresenceUser[]>([]);
@@ -86,6 +98,15 @@ export function BoardView({ boardId }: { boardId: string }) {
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
   }, [loading, user, router]);
+
+  // The hosted API sleeps after 15 minutes idle and takes 30-60s to wake. A
+  // bare "Loading board…" sitting there reads as frozen, so after a few seconds
+  // say what is actually happening (S2.4).
+  useEffect(() => {
+    if (board || loadError) return;
+    const timer = setTimeout(() => setSlowLoad(true), 4000);
+    return () => clearTimeout(timer);
+  }, [board, loadError]);
 
   useEffect(() => {
     if (!user) return;
@@ -164,8 +185,8 @@ export function BoardView({ boardId }: { boardId: string }) {
         if (cancelled) return;
         setPresentUsers(initialPresence);
         setConnected(true);
-      } catch {
-        if (!cancelled) setError("Couldn't connect to the board. Is the backend running?");
+      } catch (err) {
+        if (!cancelled) setLoadError(friendlyError(err, "open this board"));
       }
     }
 
@@ -177,7 +198,7 @@ export function BoardView({ boardId }: { boardId: string }) {
         connectionRef.current.stop();
       }
     };
-  }, [boardId, user, getToken]);
+  }, [boardId, user, getToken, reloadKey]);
 
   function handlePointerMove(e: React.MouseEvent<HTMLDivElement>) {
     // Gated on `connected` (set only once JoinBoard resolves), not just the
@@ -196,29 +217,67 @@ export function BoardView({ boardId }: { boardId: string }) {
     const rect = boardAreaRef.current.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
-    connection.invoke("UpdateCursor", x, y).catch(() => {});
+    // A dropped cursor frame is not worth interrupting anyone over, but a
+    // connection that can no longer accept invokes is: previously both looked
+    // identical and the header kept claiming "Synced" (S3.6).
+    connection.invoke("UpdateCursor", x, y).catch(() => {
+      if (connectionRef.current?.state !== HubConnectionState.Connected) setConnected(false);
+    });
+  }
+
+  /**
+   * Every board mutation goes through here (S3.6). Before this, all seven
+   * handlers had no catch at all: a rejected request went nowhere, the user saw
+   * their change simply not happen, and nothing said why.
+   *
+   * `optimistic` applies the change immediately and is rolled back to the
+   * snapshot on failure (S7.1, S7.2) -- the authoritative broadcast reconciles
+   * it moments later either way.
+   */
+  async function runMutation(
+    description: string,
+    send: () => Promise<unknown>,
+    optimistic?: (current: BoardDetailResponse) => BoardDetailResponse
+  ) {
+    const snapshot = board;
+    if (optimistic && snapshot) setBoard(optimistic(snapshot));
+    setActionError(null);
+
+    try {
+      await send();
+    } catch (err) {
+      if (optimistic && snapshot) setBoard(snapshot);
+      const { message, canRetry } = friendlyError(err, description);
+      setActionError({
+        message,
+        // Only offer a retry when repeating the request could plausibly work
+        // (S3.5) -- a 403 will fail identically every time.
+        retry: canRetry ? () => runMutation(description, send, optimistic) : undefined,
+      });
+    }
   }
 
   async function handleAddCard(columnId: string, title: string) {
-    const token = await getToken();
-    await api.post(`/boards/${boardId}/columns/${columnId}/cards`, token, { title });
+    await runMutation("add that card", async () =>
+      api.post(`/boards/${boardId}/columns/${columnId}/cards`, await getToken(), { title })
+    );
   }
 
-  async function handleAddColumn() {
-    // KNOWN VIOLATION of S4.1, scheduled as B5 in docs/roadmap-v2.md. The last
-    // native dialog in the app; replaced by an inline form in v2 phase 1.
-    // Suppressed rather than fixed here so adding the rule didn't smuggle in
-    // unrelated UI work.
-    // eslint-disable-next-line no-restricted-properties
-    const name = window.prompt("Column name?");
-    if (!name?.trim()) return;
-    const token = await getToken();
-    await api.post(`/boards/${boardId}/columns`, token, { name: name.trim() });
+  async function handleAddColumn(name: string) {
+    await runMutation("add that column", async () =>
+      api.post(`/boards/${boardId}/columns`, await getToken(), { name })
+    );
   }
 
   async function handleRenameColumn(columnId: string, name: string) {
-    const token = await getToken();
-    await api.patch(`/boards/${boardId}/columns/${columnId}`, token, { name });
+    await runMutation(
+      "rename that column",
+      async () => api.patch(`/boards/${boardId}/columns/${columnId}`, await getToken(), { name }),
+      (current) => ({
+        ...current,
+        columns: current.columns.map((c) => (c.id === columnId ? { ...c, name } : c)),
+      })
+    );
   }
 
   async function handleDeleteColumn(columnId: string) {
@@ -236,19 +295,41 @@ export function BoardView({ boardId }: { boardId: string }) {
     });
     if (!confirmed) return;
 
-    const token = await getToken();
-    await api.delete(`/boards/${boardId}/columns/${columnId}`, token);
+    await runMutation(
+      "delete that column",
+      async () => api.delete(`/boards/${boardId}/columns/${columnId}`, await getToken()),
+      (current) => ({ ...current, columns: current.columns.filter((c) => c.id !== columnId) })
+    );
   }
 
   async function handleRenameCard(cardId: string, title: string, description: string | null) {
-    const token = await getToken();
-    await api.patch(`/boards/${boardId}/cards/${cardId}`, token, { title, description });
+    await runMutation(
+      "save that card",
+      async () =>
+        api.patch(`/boards/${boardId}/cards/${cardId}`, await getToken(), { title, description }),
+      (current) => ({
+        ...current,
+        columns: current.columns.map((col) => ({
+          ...col,
+          cards: col.cards.map((c) => (c.id === cardId ? { ...c, title, description } : c)),
+        })),
+      })
+    );
   }
 
   async function handleDeleteCard(cardId: string) {
-    const token = await getToken();
-    await api.delete(`/boards/${boardId}/cards/${cardId}`, token);
     setSelectedCard(null);
+    await runMutation(
+      "delete that card",
+      async () => api.delete(`/boards/${boardId}/cards/${cardId}`, await getToken()),
+      (current) => ({
+        ...current,
+        columns: current.columns.map((col) => ({
+          ...col,
+          cards: col.cards.filter((c) => c.id !== cardId),
+        })),
+      })
+    );
   }
 
   function handleDragStart(event: DragStartEvent) {
@@ -276,23 +357,44 @@ export function BoardView({ boardId }: { boardId: string }) {
         targetColumnId: move.targetColumnId,
         beforeCardId: move.beforeCardId,
       });
-    } catch {
+    } catch (err) {
       setBoard(snapshot);
+      const { message, canRetry } = friendlyError(err, "move that card");
+      setActionError({ message, retry: canRetry ? () => handleDragEnd(event) : undefined });
     }
   }
 
-  if (error) {
+  if (loadError) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <p className="text-sm text-danger">{error}</p>
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8 text-center">
+        <p className="text-sm text-danger max-w-sm">{loadError.message}</p>
+        {loadError.canRetry && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              setLoadError(null);
+              setSlowLoad(false);
+              setReloadKey((k) => k + 1);
+            }}
+          >
+            Try again
+          </Button>
+        )}
       </div>
     );
   }
 
   if (!board) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex flex-col items-center justify-center gap-2 p-8 text-center">
         <p className="text-sm text-text-muted">Loading board…</p>
+        {slowLoad && (
+          <p className="text-xs text-text-dim max-w-xs">
+            The server sleeps when it hasn&apos;t been used for a while. Waking it takes up to a
+            minute — this will continue on its own.
+          </p>
+        )}
       </div>
     );
   }
@@ -385,6 +487,36 @@ export function BoardView({ boardId }: { boardId: string }) {
         </div>
       </header>
 
+      {actionError && (
+        <div
+          role="alert"
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 rounded-lg border border-danger bg-surface px-3.5 py-2.5 text-[13px] text-danger shadow-lg animate-[fade-up_0.2s_ease-out] max-w-[min(90vw,32rem)]"
+        >
+          <span className="flex-1">{actionError.message}</span>
+          {actionError.retry && (
+            <button
+              onClick={() => {
+                const again = actionError.retry!;
+                setActionError(null);
+                again();
+              }}
+              className="shrink-0 font-medium underline hover:no-underline cursor-pointer"
+            >
+              Try again
+            </button>
+          )}
+          <button
+            onClick={() => setActionError(null)}
+            aria-label="Dismiss"
+            className="shrink-0 opacity-60 hover:opacity-100 cursor-pointer"
+          >
+            <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M1 1L11 11M11 1L1 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -413,19 +545,64 @@ export function BoardView({ boardId }: { boardId: string }) {
               />
             ))}
 
-            {canEdit && (
-              <button
-                onClick={handleAddColumn}
-                disabled={!connected}
-                className="flex-none w-[180px] flex items-center gap-1.5 px-3 py-2 rounded-lg border-[1.5px] border-dashed border-border text-text-dim text-xs font-medium hover:border-accent hover:text-accent cursor-pointer disabled:opacity-50"
-              >
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <line x1="6" y1="2" x2="6" y2="10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  <line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-                Add column
-              </button>
-            )}
+            {canEdit &&
+              (addingColumn ? (
+                // S4.1: replaces window.prompt, the last native dialog in the app.
+                // Escape cancels and blur commits, matching the add-card form.
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const name = newColumnName.trim();
+                    setNewColumnName("");
+                    setAddingColumn(false);
+                    if (name) handleAddColumn(name);
+                  }}
+                  className="flex-none w-[180px] flex flex-col gap-2"
+                >
+                  <input
+                    autoFocus
+                    value={newColumnName}
+                    onChange={(e) => setNewColumnName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") {
+                        setNewColumnName("");
+                        setAddingColumn(false);
+                      }
+                    }}
+                    placeholder="Column name"
+                    aria-label="New column name"
+                    className="w-full py-2 px-3 bg-surface border border-border rounded-lg text-[13px] text-text placeholder:text-text-dim transition-colors focus-visible:border-accent"
+                  />
+                  <div className="flex gap-2">
+                    <Button type="submit" size="sm" disabled={!newColumnName.trim()}>
+                      Add
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setNewColumnName("");
+                        setAddingColumn(false);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </form>
+              ) : (
+                <button
+                  onClick={() => setAddingColumn(true)}
+                  disabled={!connected}
+                  className="flex-none w-[180px] flex items-center gap-1.5 px-3 py-2 rounded-lg border-[1.5px] border-dashed border-border text-text-dim text-xs font-medium hover:border-accent hover:text-accent cursor-pointer disabled:opacity-50"
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                    <line x1="6" y1="2" x2="6" y2="10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    <line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                  Add column
+                </button>
+              ))}
           </div>
         </div>
 
