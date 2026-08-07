@@ -258,8 +258,10 @@ deployments, which is a useful side effect: a URL for the change before it is pr
    `CONNECTIONSTRINGS__POSTGRES` binds to `ConnectionStrings:Postgres`. Verified by
    running the image with only these names — it booted, migrated a fresh database, and
    returned the configured origin on a CORS preflight.
-5. Vercel: import the repo with root directory `frontend`, and set **Settings → Git →
-   Production Branch** to `deploy`. Set the six `NEXT_PUBLIC_FIREBASE_*` values plus
+5. Vercel: import the repo with root directory `frontend`, then point production at the
+   gated branch — **Settings → Environments → Production → Branch Tracking → `deploy`**.
+   (This lived under Settings → Git in older versions of the dashboard.) Set the six
+   `NEXT_PUBLIC_FIREBASE_*` values plus
    `NEXT_PUBLIC_API_BASE_URL` pointing at the Render URL — again **no trailing slash**, or
    every request becomes `//health` and 404s.
 6. Firebase console → Authentication → Settings → Authorized domains → add the Vercel
