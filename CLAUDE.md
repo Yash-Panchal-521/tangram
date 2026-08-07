@@ -9,8 +9,14 @@ Live: <https://tangram-mu.vercel.app> · API <https://tangram-hk8a.onrender.com>
 rationale live elsewhere and should not be duplicated here:
 
 - [`docs/decisions.md`](docs/decisions.md) — why each decision was made, per slice
+- [`docs/roadmap-v2.md`](docs/roadmap-v2.md) — what v2 is, in two phases
 - [`README.md`](README.md) — architecture, setup, deployment, known gaps
 - `git log` — commit messages are written as decision records; search them first
+
+**v2 phase 1 defines a UI/UX standard in `docs/ui-standards.md`.** Once that file exists,
+new or changed UI must satisfy it, and the change should state which rules apply and how
+each is met. Until it exists, the members page and `components/ui` are the working
+reference for the intended bar.
 
 ## Invariants — violating these breaks correctness
 

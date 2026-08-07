@@ -15,7 +15,9 @@ after 15 minutes idle on the free tier, so the first request after a quiet spell
 
 ## Status
 
-All five slices are in, and the app is deployed.
+All five slices are in, deployed, and verified in production with two real accounts —
+presence, cursors, invites, RBAC and the read-only viewer UI all confirmed working end to
+end. [`docs/roadmap-v2.md`](docs/roadmap-v2.md) covers what comes next.
 
 | Slice | Scope | State |
 |---|---|---|
