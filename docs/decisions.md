@@ -435,6 +435,58 @@ So jsdom is now opt-in per file. Two things cost real time to discover:
   queued mutations made while offline. Now "Replays what you missed on
   reconnect", which is accurate and describes the harder thing anyway.
 
+## v2 phase 1, scope C1 — onboarding
+
+The board demonstrates itself. A phantom teammate adds a card, drags it to the
+next column, and then says what you just saw. The one property of this app a
+screenshot cannot convey is that someone else's edits arrive while you watch, so
+the introduction *shows* it rather than describing it.
+
+- **Nothing it draws is real.** The card and cursor live on an overlay and never
+  reach the API, so a first run leaves no rows behind and a reload midway has
+  nothing to clean up. The alternative — actually creating and moving a card —
+  would have meant deleting it afterwards, and a failed delete would leave
+  someone's board seeded with fake work.
+- **Positions are measured, not derived.** The demonstration reads
+  `[data-intro-dropzone]` rather than recomputing the column width and gap, which
+  would desynchronise the moment either constant changed in `BoardColumn`, with
+  nothing failing loudly.
+- **It bails out rather than guessing.** Fewer than two measurable columns means
+  there is nowhere to move a card *to*, and a demonstration landing in the wrong
+  place is worse than none.
+- **Reduced motion gets the ending, not the animation** (S6.1). A self-playing
+  sequence is exactly what the preference asks not to see, so it jumps straight
+  to the closing panel. `usePrefersReducedMotion` uses `useSyncExternalStore` so
+  there is no first paint at the wrong value.
+- **Skip is present from the first frame.** An introduction you have to sit
+  through is a worse first impression than no introduction.
+- **It ends by handing you the control it was about**, opening the first column's
+  add-card form rather than closing on a dialog and leaving you to find it.
+- **Shown only on a board with columns and no cards**, and never to a viewer. On
+  a board with real work the phantom card reads as a bug, and a viewer cannot act
+  on anything it suggests.
+
+### Machinery built for C6
+
+The walkthrough was deferred on the condition that C1's parts be reusable. They
+are, and they are separately tested:
+
+- **`useSeenOnce`** — per-browser "has this been shown", starting at `unknown`
+  rather than `unseen`, because guessing `unseen` would flash the introduction at
+  someone who dismissed it months ago. Blocked storage is treated as *seen*: of
+  the two wrong answers, replaying forever is the more annoying one.
+- **`useSequence`** — one state machine for both clocks. A `null` hold means
+  "wait for `next()`", which is what makes a manual, user-driven walkthrough fall
+  out of the timed version for free.
+- **`usePrefersReducedMotion`** — for the cases CSS cannot reach. The global rule
+  in `globals.css` makes declarative animation instant; a scripted sequence on
+  timers has to be told not to run at all.
+
+A note for whoever writes the C6 tests: advancing fake timers past several beats
+in one jump only fires the first. Each subsequent timer is scheduled by an effect
+that cannot run until React has re-rendered, by which point the whole window has
+already elapsed. Advance one beat per `act`.
+
 ### Divergences and known debt from Slice 4a
 
 - **The test suite needs `Firebase:ProjectId` from the environment or user-secrets.**

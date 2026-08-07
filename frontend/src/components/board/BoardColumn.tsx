@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { KanbanCard } from "@/components/board/KanbanCard";
@@ -20,6 +20,7 @@ export function BoardColumn({
   colorIndex,
   disabled,
   canEdit,
+  startAdding = false,
   onAddCard,
   onRenameColumn,
   onDeleteColumn,
@@ -34,6 +35,10 @@ export function BoardColumn({
   // controls are removed rather than disabled -- a greyed-out button implies
   // "not right now" when the truth is "not you".
   canEdit: boolean;
+  // Opens the add-card form from outside, for the first-run introduction's call
+  // to action. Only acted on when it turns true, so cancelling the form doesn't
+  // reopen it on the next render.
+  startAdding?: boolean;
   onAddCard: (columnId: string, title: string) => Promise<void>;
   onRenameColumn: (columnId: string, name: string) => Promise<void>;
   onDeleteColumn: (columnId: string) => Promise<void>;
@@ -52,6 +57,11 @@ export function BoardColumn({
   const escapedRef = useRef(false);
 
   const { setNodeRef } = useDroppable({ id: `column:${column.id}` });
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (startAdding) setAdding(true);
+  }, [startAdding]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -160,7 +170,14 @@ export function BoardColumn({
         )}
       </div>
 
-      <div ref={setNodeRef} className="flex-1 overflow-y-auto flex flex-col gap-2 min-h-0 pb-3">
+      {/* Anchors the first-run demonstration. It measures these rather than
+          recomputing the column width and gap, which would desynchronise the
+          moment either changes here. */}
+      <div
+        ref={setNodeRef}
+        data-intro-dropzone
+        className="flex-1 overflow-y-auto flex flex-col gap-2 min-h-0 pb-3"
+      >
         <SortableContext items={column.cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
           {column.cards.map((card) => (
             <SortableKanbanCard

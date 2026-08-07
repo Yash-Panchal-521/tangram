@@ -42,7 +42,7 @@ property of this app a screenshot cannot convey.
 | C2 | ~~Board view~~ **done** | Empty states for board and column, clamped cards with a drag grip, pending placeholders for creates, theme moved into the account menu |
 | C3 | ~~Card detail~~ **done** | Unsaved-change guard on every exit, Cmd/Ctrl+Enter save, a confirmation before delete, labelled fields. Brought jsdom in so this is covered by tests |
 | C4 | ~~Auth pages~~ **done** | Session-checking state, labelled fields, the password rule ticked live, and the untrue "offline-tolerant sync" claim replaced |
-| C1 | Onboarding | Last, so it showcases a board that is already excellent |
+| C1 | ~~Onboarding~~ **done** | A phantom teammate adds a card and drags it across, then says what you just saw. Machinery (`useSeenOnce`, `useSequence`, reduced-motion) built reusable for C6 |
 | C6 | Guided walkthrough | **After C2/C3 — see below** |
 
 ### C6 — guided walkthrough, deliberately deferred

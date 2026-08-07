@@ -27,7 +27,9 @@ import {
 } from "@/lib/signalr";
 import { applyOperation, moveCardOptimistic } from "@/lib/boardReducer";
 import { friendlyError } from "@/lib/errorMessage";
+import { useSeenOnce } from "@/lib/useSeenOnce";
 import { BoardColumn } from "@/components/board/BoardColumn";
+import { BoardIntro } from "@/components/board/BoardIntro";
 import { BoardSkeleton } from "@/components/board/BoardSkeleton";
 import { KanbanCard } from "@/components/board/KanbanCard";
 import { CardDetailPanel } from "@/components/board/CardDetailPanel";
@@ -95,6 +97,10 @@ export function BoardView({ boardId }: { boardId: string }) {
   const [newColumnName, setNewColumnName] = useState("");
   // The name of a column whose create is still in flight, or null.
   const [pendingColumn, setPendingColumn] = useState<string | null>(null);
+  // Set once, by the introduction's call to action. Latching rather than
+  // toggling: if the user opens the form and cancels, it must not spring open
+  // again on the next render.
+  const [autoAddFirstCard, setAutoAddFirstCard] = useState(false);
   const [activeCard, setActiveCard] = useState<CardResponse | null>(null);
   const [selectedCard, setSelectedCard] = useState<CardResponse | null>(null);
   const [presentUsers, setPresentUsers] = useState<PresenceUser[]>([]);
@@ -117,6 +123,18 @@ export function BoardView({ boardId }: { boardId: string }) {
   // cursors and live updates -- they just can't originate a mutation, so the
   // controls that would 403 are removed rather than shown and rejected.
   const canEdit = board !== null && board.role !== "Viewer";
+
+  const intro = useSeenOnce("board-intro");
+  // Narrow on purpose. A board with columns but no cards is the state the
+  // bootstrap leaves behind, and only there does a demonstration of collaboration
+  // make sense: on a board with real work on it the phantom card reads as a bug,
+  // and a viewer can't act on anything it suggests.
+  const showIntro =
+    intro.state === "unseen" &&
+    canEdit &&
+    board !== null &&
+    board.columns.length >= 2 &&
+    board.columns.every((c) => c.cards.length === 0);
 
   // Signing out navigates away on its own, so this covers the other way a
   // session ends: a token revoked or expired elsewhere. Without it the board
@@ -544,6 +562,20 @@ export function BoardView({ boardId }: { boardId: string }) {
         >
           <RemoteCursors cursors={remoteCursors} />
 
+          {showIntro && (
+            <BoardIntro
+              boardAreaRef={boardAreaRef}
+              onDismiss={intro.markSeen}
+              onAddCard={() => {
+                intro.markSeen();
+                // Hands the user straight into the thing the demonstration was
+                // about, rather than ending on a dialog and leaving them to
+                // find the control themselves.
+                setAutoAddFirstCard(true);
+              }}
+            />
+          )}
+
           {/* S2.3: a board with no columns rendered as a lone dashed button in
               the top-left, which reads as a broken layout rather than a
               starting point. Viewers get the same explanation without the
@@ -571,6 +603,7 @@ export function BoardView({ boardId }: { boardId: string }) {
                 colorIndex={i}
                 disabled={!connected}
                 canEdit={canEdit}
+                startAdding={autoAddFirstCard && i === 0}
                 onAddCard={handleAddCard}
                 onRenameColumn={handleRenameColumn}
                 onDeleteColumn={handleDeleteColumn}
