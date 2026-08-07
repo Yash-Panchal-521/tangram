@@ -40,7 +40,7 @@ property of this app a screenshot cannot convey.
 | C0 | ~~Accessibility violations~~ **done** | `useDialog` now backs both overlays; column rename and delete are real buttons; cards are buttons with Space-to-lift, Enter-to-open. See `docs/decisions.md` |
 | C5 | ~~Loading states~~ **done** | `Skeleton` primitive, board silhouette on both loading routes, `prefers-reduced-motion`. Board and column *empty* states stayed with C2, where they belong next to card visuals |
 | C2 | ~~Board view~~ **done** | Empty states for board and column, clamped cards with a drag grip, pending placeholders for creates, theme moved into the account menu |
-| C3 | Card detail | Dialog semantics, Cmd+Enter save, unsaved-change guard, layout |
+| C3 | ~~Card detail~~ **done** | Unsaved-change guard on every exit, Cmd/Ctrl+Enter save, a confirmation before delete, labelled fields. Brought jsdom in so this is covered by tests |
 | C4 | Auth pages | Auth-checking state, password requirements shown before submit |
 | C1 | Onboarding | Last, so it showcases a board that is already excellent |
 | C6 | Guided walkthrough | **After C2/C3 — see below** |

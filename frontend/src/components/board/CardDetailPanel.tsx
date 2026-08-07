@@ -2,8 +2,17 @@
 
 import { useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { useDialog } from "@/lib/useDialog";
 import type { CardResponse } from "@/lib/api";
+
+// Read once, during the first render rather than in an effect. Safe from
+// hydration mismatch because this panel only ever mounts in response to a
+// click -- it is never part of the server-rendered markup.
+function shortcutLabel() {
+  if (typeof navigator === "undefined") return "Ctrl + Enter";
+  return /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘ + Enter" : "Ctrl + Enter";
+}
 
 export function CardDetailPanel({
   card,
@@ -19,21 +28,49 @@ export function CardDetailPanel({
   onDelete: () => Promise<void>;
 }) {
   const headingId = useId();
+  const titleId = useId();
+  const descriptionId = useId();
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const { confirm, dialog } = useConfirm();
+  const [shortcut] = useState(shortcutLabel);
+
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description ?? "");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirming, setConfirming] = useState(false);
 
   const dirty = title !== card.title || description !== (card.description ?? "");
+  const canSave = dirty && !saving && title.trim().length > 0;
 
-  // Escape closes without warning about unsaved edits, matching the existing
-  // click-outside. Guarding both is C3's job -- adding it to only one would
-  // make the panel inconsistent about when it protects your work.
-  useDialog({ containerRef: panelRef, onClose });
+  useDialog({ containerRef: panelRef, onClose: requestClose, paused: confirming });
+
+  /**
+   * Every route out of the panel goes through here — Escape, the close button
+   * and the overlay. Guarding only one of them would make the panel
+   * inconsistent about when it protects your work, which is worse than
+   * guarding none: you would learn to trust it and then lose an edit.
+   */
+  async function requestClose() {
+    if (!dirty || saving) {
+      onClose();
+      return;
+    }
+
+    setConfirming(true);
+    const discard = await confirm({
+      title: "Discard your changes?",
+      body: "This card has edits that haven't been saved. Closing now loses them.",
+      confirmLabel: "Discard changes",
+      cancelLabel: "Keep editing",
+      tone: "danger",
+    });
+    setConfirming(false);
+    if (discard) onClose();
+  }
 
   async function handleSave() {
-    if (!title.trim()) return;
+    if (!canSave) return;
     setSaving(true);
     try {
       await onSave(title.trim(), description.trim() || null);
@@ -44,6 +81,18 @@ export function CardDetailPanel({
   }
 
   async function handleDelete() {
+    // Deleting used to happen on the first click, with no confirmation at all
+    // -- the one destructive action in the app that skipped it (S4.2).
+    setConfirming(true);
+    const confirmed = await confirm({
+      title: `Delete "${card.title}"?`,
+      body: "Everyone on the board sees this immediately, and it can't be undone.",
+      confirmLabel: "Delete card",
+      tone: "danger",
+    });
+    setConfirming(false);
+    if (!confirmed) return;
+
     setDeleting(true);
     try {
       await onDelete();
@@ -54,64 +103,101 @@ export function CardDetailPanel({
 
   return (
     <>
-      <div className="absolute inset-0 bg-black/20 z-30" onClick={onClose} aria-hidden="true" />
+      <div
+        className="absolute inset-0 bg-black/20 z-30"
+        onClick={requestClose}
+        aria-hidden="true"
+      />
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={headingId}
+        onKeyDown={(e) => {
+          // The panel is two multi-line-ish fields, so a bare Enter can't mean
+          // save. Cmd/Ctrl+Enter is the convention for committing from inside
+          // one, and it saves from either field.
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            handleSave();
+          }
+        }}
         className="absolute top-0 right-0 bottom-0 w-[420px] bg-surface border-l border-border flex flex-col z-40 animate-[fade-up_0.2s_ease-out] overflow-hidden"
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+        <div className="flex items-center justify-between gap-2 px-5 py-4 border-b border-border shrink-0">
           <h2
             id={headingId}
             className="text-xs font-semibold uppercase tracking-wider text-text-dim"
           >
             {readOnly ? "Card · read-only" : "Card"}
           </h2>
-          <button
-            onClick={onClose}
-            className="w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:bg-surface-2 cursor-pointer"
-            aria-label="Close"
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12">
-              <path d="M1 1L11 11M11 1L1 11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Says the panel is holding something, so closing it isn't a
+                no-op. Without it the guard's confirmation is the first hint
+                anything was unsaved. */}
+            {dirty && !saving && (
+              <span className="text-[11px] font-medium text-warn">Unsaved</span>
+            )}
+            <button
+              onClick={requestClose}
+              className="w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:bg-surface-2 cursor-pointer"
+              aria-label="Close"
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+                <path d="M1 1L11 11M11 1L1 11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
-          {/* readOnly rather than disabled: the text stays selectable and
-              copyable at full contrast, instead of greying out content the
-              viewer is entitled to read. */}
-          <input
-            value={title}
-            readOnly={readOnly}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Card title"
-            aria-label="Card title"
-            className={`w-full text-base font-medium bg-transparent outline-none border border-transparent rounded-md -mx-1 px-1 py-0.5 ${
-              readOnly ? "cursor-default" : "focus-visible:border-accent focus-visible:bg-surface-2"
-            }`}
-          />
-          {readOnly && !card.description ? (
-            <p className="text-sm text-text-dim italic">No description.</p>
-          ) : (
-            <textarea
-              value={description}
+        <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor={titleId} className="text-[11px] font-semibold uppercase tracking-wider text-text-dim">
+              Title
+            </label>
+            {/* readOnly rather than disabled: the text stays selectable and
+                copyable at full contrast, instead of greying out content the
+                viewer is entitled to read. */}
+            <input
+              id={titleId}
+              value={title}
               readOnly={readOnly}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Add a description…"
-              aria-label="Card description"
-              rows={5}
-              className={`w-full text-sm text-text-muted bg-surface-2 border border-border rounded-lg p-3 outline-none resize-none ${
-                readOnly ? "cursor-default" : "focus-visible:border-accent"
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Card title"
+              className={`w-full text-base font-medium bg-transparent outline-none border rounded-md px-2 py-1 -mx-2 ${
+                readOnly
+                  ? "border-transparent cursor-default"
+                  : "border-transparent focus-visible:border-accent focus-visible:bg-surface-2"
               }`}
             />
-          )}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label
+              htmlFor={descriptionId}
+              className="text-[11px] font-semibold uppercase tracking-wider text-text-dim"
+            >
+              Description
+            </label>
+            {readOnly && !card.description ? (
+              <p className="text-sm text-text-dim italic">No description.</p>
+            ) : (
+              <textarea
+                id={descriptionId}
+                value={description}
+                readOnly={readOnly}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Add a description…"
+                rows={7}
+                className={`w-full text-sm text-text-muted bg-surface-2 border border-border rounded-lg p-3 outline-none resize-none ${
+                  readOnly ? "cursor-default" : "focus-visible:border-accent"
+                }`}
+              />
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center justify-between px-5 py-4 border-t border-border shrink-0">
+        <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-border shrink-0">
           {readOnly ? (
             // States why the actions are absent. Without it the footer just
             // looks empty and the panel reads as broken.
@@ -120,18 +206,23 @@ export function CardDetailPanel({
             <>
               <button
                 onClick={handleDelete}
-                disabled={deleting}
-                className="text-xs font-medium text-danger hover:opacity-80 disabled:opacity-50 cursor-pointer"
+                disabled={deleting || saving}
+                className="text-xs font-medium text-danger hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 {deleting ? "Deleting…" : "Delete card"}
               </button>
-              <Button size="sm" onClick={handleSave} disabled={!dirty || saving || !title.trim()}>
-                {saving ? "Saving…" : "Save"}
-              </Button>
+              <div className="flex items-center gap-2.5 shrink-0">
+                {canSave && <span className="text-[11px] text-text-dim">{shortcut}</span>}
+                <Button size="sm" onClick={handleSave} disabled={!canSave}>
+                  {saving ? "Saving…" : "Save"}
+                </Button>
+              </div>
             </>
           )}
         </div>
       </div>
+
+      {dialog}
     </>
   );
 }

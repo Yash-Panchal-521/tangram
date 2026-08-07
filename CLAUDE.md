@@ -108,7 +108,7 @@ dev server holding port 3000, still running the old environment.
 
 ```bash
 cd backend && dotnet test    # 26 integration tests, needs tangram_test on :5433
-cd frontend && npm test      # 76 Vitest tests, node environment
+cd frontend && npm test      # 112 Vitest tests, node by default
 ```
 
 Backend tests are self-sufficient — a module initializer in `TestEnvironment.cs` seeds
@@ -116,8 +116,17 @@ Backend tests are self-sufficient — a module initializer in `TestEnvironment.c
 than `WebApplicationFactory` can inject configuration. `TANGRAM_TEST_POSTGRES` overrides
 the connection string; that is how CI points at its service container.
 
-Frontend tests run in **node, not jsdom** — everything covered is pure logic. Components
-needing a DOM were verified in a real browser instead.
+Frontend tests default to **node**, because most of what they cover is pure logic and jsdom
+costs real startup time. Files that need a DOM opt in per file with
+`// @vitest-environment jsdom` on the first line, and use Testing Library.
+
+Two things bite in the DOM tests:
+
+- **`afterEach(cleanup)` is mandatory.** Testing Library only auto-registers cleanup when
+  Vitest globals are on, and they aren't here. Without it, an unmounted-in-name-only dialog
+  keeps its `document` keydown listener and fights the next test for the Tab key.
+- **The pool is `threads`, not the default `forks`.** Booting jsdom inside a forked child
+  exceeded the worker startup timeout on Windows and the run died before any test executed.
 
 ## Deploying
 

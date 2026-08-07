@@ -366,6 +366,49 @@ returns faster than a 40 ms poll, and the first attempt wrongly showed nothing.
 That same run confirmed the failure path end to end: placeholder, then "You
 don't have permission to add that card", then no card added.
 
+## v2 phase 1, scope C3 — card detail
+
+- **Deleting a card now asks first.** It was the one destructive action in the
+  app that committed on the first click, while deleting a *column* — strictly
+  less destructive — already confirmed (S4.2).
+- **The unsaved guard covers every exit.** Escape, the close button and the
+  overlay all route through one `requestClose`. Guarding only one of them is
+  worse than guarding none: you learn to trust it, then lose an edit through the
+  route that wasn't covered.
+- **`useDialog` gained a `paused` flag.** Both the panel and its confirmation
+  listen on `document`, so a single Escape would have dismissed the
+  confirmation *and* the panel underneath — discarding the exact edit the
+  confirmation existed to protect. Paused rather than unmounted, because tearing
+  the effect down runs its cleanup and hands focus back to the trigger
+  mid-confirmation.
+- **Cmd/Ctrl+Enter saves.** The panel is two text fields, so a bare Enter can't
+  mean save.
+- **The shortcut label is read during the first render, not in an effect.** Safe
+  from hydration mismatch because the panel only ever mounts in response to a
+  click, and the lint rule against `setState` in an effect is right to object.
+
+### jsdom, and why the rule changed
+
+Frontend tests were node-only, with "components needing a DOM were verified in a
+real browser instead" as the justification. That justification held only while a
+browser was actually available. It stopped holding: focus traps and Escape
+handling need a *focused window*, and both an unattended browser and this
+project's in-app one report `document.hasFocus() === false` — real keystrokes
+never arrive and focus styling never paints. The browser could confirm structure
+but not behaviour, which is the half that breaks.
+
+So jsdom is now opt-in per file. Two things cost real time to discover:
+
+- **`afterEach(cleanup)` is not optional.** Testing Library auto-registers
+  cleanup only when Vitest globals are on, and they are not here. Emptying
+  `document.body` by hand leaves the React root mounted, so a previous test's
+  dialog keeps its `document` keydown listener and fights the next test for Tab.
+  This produced a genuinely confusing failure: interior Tab landed on the wrong
+  control, and the hook was innocent.
+- **The pool had to move from `forks` to `threads`.** Booting jsdom inside a
+  forked child exceeded the worker startup timeout on Windows, and the run died
+  before a single test executed.
+
 ### Divergences and known debt from Slice 4a
 
 - **The test suite needs `Firebase:ProjectId` from the environment or user-secrets.**

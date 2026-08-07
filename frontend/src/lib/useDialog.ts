@@ -26,17 +26,30 @@ export function useDialog({
   containerRef,
   onClose,
   initialFocusRef,
+  paused = false,
 }: {
   containerRef: RefObject<HTMLElement | null>;
   onClose: () => void;
   initialFocusRef?: RefObject<HTMLElement | null>;
+  /**
+   * Stand down while something is stacked on top. Both dialogs listen on
+   * `document`, so without this an Escape meant for a confirmation would also
+   * close the panel underneath it — dismissing the very thing the confirmation
+   * was protecting.
+   *
+   * A pause rather than an unmount: tearing the effect down would run its
+   * cleanup and hand focus back to the trigger mid-confirmation.
+   */
+  paused?: boolean;
 }) {
-  // Held in a ref so a caller passing an inline arrow doesn't re-run the effect
+  // Held in refs so a caller passing an inline arrow doesn't re-run the effect
   // on every render — that would re-fire the initial focus and yank the caret
   // back to the top of the dialog on every keystroke.
   const onCloseRef = useRef(onClose);
+  const pausedRef = useRef(paused);
   useEffect(() => {
     onCloseRef.current = onClose;
+    pausedRef.current = paused;
   });
 
   useEffect(() => {
@@ -52,6 +65,8 @@ export function useDialog({
     (initialFocusRef?.current ?? focusable()[0])?.focus();
 
     function onKeyDown(e: KeyboardEvent) {
+      if (pausedRef.current) return;
+
       if (e.key === "Escape") {
         e.preventDefault();
         onCloseRef.current();

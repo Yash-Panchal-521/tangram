@@ -8,10 +8,19 @@ export default defineConfig({
     tsconfigPaths: true,
   },
   test: {
-    // Node, not jsdom: everything covered here is pure logic. The components
-    // that genuinely need a DOM were verified in a real browser instead, and
-    // adding jsdom for their sake would buy a worse approximation of it.
+    // Node by default: most of what is covered here is pure logic, and jsdom
+    // costs real startup time for tests that never touch a DOM. The files that
+    // do -- focus traps, keyboard handling -- opt in per file with
+    // `// @vitest-environment jsdom` on the first line.
+    //
+    // jsdom earns its place for exactly the behaviour a browser cannot be
+    // relied on to demonstrate on demand: Escape and Tab through a focus trap
+    // need a focused window, and a headless or unattended browser has none.
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.{ts,tsx}"],
+    // Threads, not the default forks. Booting jsdom inside a forked child
+    // exceeded the worker startup timeout on Windows and the run died before a
+    // single test executed.
+    pool: "threads",
   },
 });
