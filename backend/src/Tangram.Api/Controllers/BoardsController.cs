@@ -190,7 +190,7 @@ public class BoardsController(
                 c.Rank,
                 c.Cards
                     .OrderBy(card => card.Rank, StringComparer.Ordinal)
-                    .Select(card => new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank))
+                    .Select(card => new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId))
                     .ToList()))
             .ToList();
 

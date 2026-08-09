@@ -79,6 +79,26 @@ export interface CardResponse {
   title: string;
   description: string | null;
   rank: string;
+  /** UTC midnight on the due day. A due date is a day, not a moment. */
+  dueAt: string | null;
+  /** May name someone who has since left the workspace; treat unresolved as unassigned. */
+  assigneeId: string | null;
+}
+
+/**
+ * Every field-level edit to a card, in one request.
+ *
+ * `clearDueAt` / `clearAssignee` exist because JSON cannot distinguish "absent"
+ * from "null" — without them, an edit that only changed the title would wipe
+ * whatever it failed to mention.
+ */
+export interface UpdateCardRequest {
+  title?: string | null;
+  description?: string | null;
+  dueAt?: string | null;
+  assigneeId?: string | null;
+  clearDueAt?: boolean;
+  clearAssignee?: boolean;
 }
 
 export interface ColumnWithCardsResponse {

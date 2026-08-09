@@ -1,0 +1,192 @@
+using System.Net;
+using System.Net.Http.Json;
+using Tangram.Api.Dtos;
+using Tangram.Api.Tests.Infrastructure;
+using Xunit;
+
+namespace Tangram.Api.Tests;
+
+public class CardDepthTests(TangramWebApplicationFactory factory)
+    : IClassFixture<TangramWebApplicationFactory>, IAsyncLifetime
+{
+    public Task InitializeAsync() => factory.ResetDatabaseAsync();
+    public Task DisposeAsync() => Task.CompletedTask;
+
+    private async Task<(HttpClient Client, Guid WorkspaceId, BoardResponse Board, CardResponse Card)>
+        SeedAsync(string uid)
+    {
+        var client = factory.CreateClientAs(uid);
+        var workspace = await (await client.PostAsJsonAsync("/workspaces", new CreateWorkspaceRequest("Depth")))
+            .Content.ReadFromJsonAsync<WorkspaceResponse>();
+        var board = await (await client.PostAsJsonAsync(
+            $"/workspaces/{workspace!.Id}/boards", new CreateBoardRequest("Depth board")))
+            .Content.ReadFromJsonAsync<BoardResponse>();
+        var column = await (await client.PostAsJsonAsync(
+            $"/boards/{board!.Id}/columns", new CreateColumnRequest("Doing")))
+            .Content.ReadFromJsonAsync<ColumnResponse>();
+        var card = await (await client.PostAsJsonAsync(
+            $"/boards/{board.Id}/columns/{column!.Id}/cards", new CreateCardRequest("Task", "Details")))
+            .Content.ReadFromJsonAsync<CardResponse>();
+        return (client, workspace.Id, board, card!);
+    }
+
+    private static async Task<CardResponse> ReadCardAsync(HttpClient client, Guid boardId, Guid cardId)
+    {
+        var detail = await client.GetFromJsonAsync<BoardDetailResponse>($"/boards/{boardId}");
+        return detail!.Columns.SelectMany(c => c.Cards).Single(c => c.Id == cardId);
+    }
+
+    private async Task<Guid> AddMemberAsync(HttpClient owner, Guid workspaceId, string uid, string role)
+    {
+        var client = factory.CreateClientAs(uid);
+        await owner.PostAsJsonAsync($"/workspaces/{workspaceId}/members",
+            new InviteMemberRequest(TestAuthHandler.DefaultEmailFor(uid), role));
+        var me = await (await client.GetAsync("/me")).Content.ReadFromJsonAsync<MeResponse>();
+        return me!.Id;
+    }
+
+    [Fact]
+    public async Task A_due_date_is_stored_as_the_day_not_the_moment()
+    {
+        // Otherwise two people in different zones can disagree about whether the
+        // same card is overdue.
+        var (client, _, board, card) = await SeedAsync("due-date-uid");
+        var submitted = new DateTimeOffset(2026, 8, 20, 17, 45, 0, TimeSpan.FromHours(5.5));
+
+        await client.PatchAsJsonAsync($"/boards/{board.Id}/cards/{card.Id}",
+            new UpdateCardRequest(null, "Details", submitted, null));
+
+        var updated = await ReadCardAsync(client, board.Id, card.Id);
+        Assert.Equal(new DateTimeOffset(2026, 8, 20, 0, 0, 0, TimeSpan.Zero), updated.DueAt);
+    }
+
+    [Fact]
+    public async Task Omitting_a_field_leaves_it_alone_but_clearing_it_is_explicit()
+    {
+        // JSON cannot distinguish "absent" from "null" on a plain property, so
+        // clearing needs its own flag -- without it, every partial edit would
+        // wipe the fields it didn't mention.
+        var (client, _, board, card) = await SeedAsync("clear-flag-uid");
+        await client.PatchAsJsonAsync($"/boards/{board.Id}/cards/{card.Id}",
+            new UpdateCardRequest(null, "Details", DateTimeOffset.UtcNow, null));
+
+        await client.PatchAsJsonAsync($"/boards/{board.Id}/cards/{card.Id}",
+            new UpdateCardRequest("Renamed only", "Details", null, null));
+        var afterRename = await ReadCardAsync(client, board.Id, card.Id);
+
+        await client.PatchAsJsonAsync($"/boards/{board.Id}/cards/{card.Id}",
+            new UpdateCardRequest(null, "Details", null, null, ClearDueAt: true));
+        var afterClear = await ReadCardAsync(client, board.Id, card.Id);
+
+        Assert.NotNull(afterRename.DueAt);
+        Assert.Equal("Renamed only", afterRename.Title);
+        Assert.Null(afterClear.DueAt);
+    }
+
+    [Fact]
+    public async Task A_card_can_be_assigned_to_a_workspace_member()
+    {
+        var (owner, workspaceId, board, card) = await SeedAsync("assign-uid");
+        var editorId = await AddMemberAsync(owner, workspaceId, "assign-editor", "Editor");
+
+        var response = await owner.PatchAsJsonAsync($"/boards/{board.Id}/cards/{card.Id}",
+            new UpdateCardRequest(null, "Details", null, editorId));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var updated = await ReadCardAsync(owner, board.Id, card.Id);
+        Assert.Equal(editorId, updated.AssigneeId);
+    }
+
+    [Fact]
+    public async Task Assigning_someone_outside_the_workspace_is_refused()
+    {
+        // Storing it would put a name on the card that nobody in the workspace
+        // can resolve, and it would render as a blank avatar forever.
+        var (owner, _, board, card) = await SeedAsync("assign-outsider-uid");
+        var outsiderClient = factory.CreateClientAs("assign-outsider-other");
+        await outsiderClient.PostAsJsonAsync("/workspaces", new CreateWorkspaceRequest("Elsewhere"));
+        var outsider = await (await outsiderClient.GetAsync("/me")).Content.ReadFromJsonAsync<MeResponse>();
+
+        var response = await owner.PatchAsJsonAsync($"/boards/{board.Id}/cards/{card.Id}",
+            new UpdateCardRequest(null, "Details", null, outsider!.Id));
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Null((await ReadCardAsync(owner, board.Id, card.Id)).AssigneeId);
+    }
+
+    [Fact]
+    public async Task An_assignment_can_be_cleared()
+    {
+        var (owner, workspaceId, board, card) = await SeedAsync("unassign-uid");
+        var editorId = await AddMemberAsync(owner, workspaceId, "unassign-editor", "Editor");
+        await owner.PatchAsJsonAsync($"/boards/{board.Id}/cards/{card.Id}",
+            new UpdateCardRequest(null, "Details", null, editorId));
+
+        await owner.PatchAsJsonAsync($"/boards/{board.Id}/cards/{card.Id}",
+            new UpdateCardRequest(null, "Details", null, null, ClearAssignee: true));
+
+        Assert.Null((await ReadCardAsync(owner, board.Id, card.Id)).AssigneeId);
+    }
+
+    [Fact]
+    public async Task Undoing_an_edit_restores_the_whole_card_not_just_its_text()
+    {
+        // The inverse is a full CardResponse, so undo has to put the due date and
+        // assignee back exactly as they were -- including back to nothing.
+        var (owner, workspaceId, board, card) = await SeedAsync("undo-depth-uid");
+        var editorId = await AddMemberAsync(owner, workspaceId, "undo-depth-editor", "Editor");
+
+        await owner.PatchAsJsonAsync($"/boards/{board.Id}/cards/{card.Id}",
+            new UpdateCardRequest("With depth", "Details", new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero), editorId));
+
+        await owner.PostAsync($"/boards/{board.Id}/undo", null);
+
+        var restored = await ReadCardAsync(owner, board.Id, card.Id);
+        Assert.Equal("Task", restored.Title);
+        Assert.Null(restored.DueAt);
+        Assert.Null(restored.AssigneeId);
+    }
+
+    [Fact]
+    public async Task Restoring_a_deleted_card_brings_its_due_date_and_assignee_back()
+    {
+        var (owner, workspaceId, board, card) = await SeedAsync("restore-depth-uid");
+        var editorId = await AddMemberAsync(owner, workspaceId, "restore-depth-editor", "Editor");
+        var due = new DateTimeOffset(2026, 10, 5, 0, 0, 0, TimeSpan.Zero);
+        await owner.PatchAsJsonAsync($"/boards/{board.Id}/cards/{card.Id}",
+            new UpdateCardRequest(null, "Details", due, editorId));
+
+        await owner.DeleteAsync($"/boards/{board.Id}/cards/{card.Id}");
+        await owner.PostAsync($"/boards/{board.Id}/undo", null);
+
+        var restored = await ReadCardAsync(owner, board.Id, card.Id);
+        Assert.Equal(due, restored.DueAt);
+        Assert.Equal(editorId, restored.AssigneeId);
+    }
+
+    [Fact]
+    public async Task A_present_but_blank_title_is_rejected()
+    {
+        var (client, _, board, card) = await SeedAsync("blank-title-uid");
+
+        var response = await client.PatchAsJsonAsync($"/boards/{board.Id}/cards/{card.Id}",
+            new UpdateCardRequest("   ", "Details", null, null));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_viewer_cannot_set_a_due_date()
+    {
+        var (owner, workspaceId, board, card) = await SeedAsync("viewer-depth-owner");
+        var viewerClient = factory.CreateClientAs("viewer-depth-viewer");
+        await owner.PostAsJsonAsync($"/workspaces/{workspaceId}/members",
+            new InviteMemberRequest(TestAuthHandler.DefaultEmailFor("viewer-depth-viewer"), "Viewer"));
+        await viewerClient.GetAsync("/me");
+
+        var response = await viewerClient.PatchAsJsonAsync($"/boards/{board.Id}/cards/{card.Id}",
+            new UpdateCardRequest(null, "Details", DateTimeOffset.UtcNow, null));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+}

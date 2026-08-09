@@ -59,7 +59,7 @@ public class ActivityAndUndoTests(TangramWebApplicationFactory factory)
             .Content.ReadFromJsonAsync<CardResponse>();
 
         await client.PatchAsJsonAsync($"/boards/{board.Id}/cards/{card!.Id}",
-            new RenameCardRequest("Changed", "Second description"));
+            new UpdateCardRequest("Changed", "Second description", null, null));
 
         await client.PostAsync($"/boards/{board.Id}/undo", null);
 
@@ -215,7 +215,7 @@ public class ActivityAndUndoTests(TangramWebApplicationFactory factory)
             $"/boards/{board.Id}/columns/{columnA.Id}/cards", new CreateCardRequest("Doomed", null)))
             .Content.ReadFromJsonAsync<CardResponse>();
         await owner.PatchAsJsonAsync($"/boards/{board.Id}/cards/{card!.Id}",
-            new RenameCardRequest("Renamed", null));
+            new UpdateCardRequest("Renamed", null, null, null));
 
         // Someone else removes the card the owner's undo would have edited.
         await editorClient.DeleteAsync($"/boards/{board.Id}/cards/{card.Id}");

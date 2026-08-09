@@ -13,6 +13,8 @@ const CARD: CardResponse = {
   title: "Ship the thing",
   description: "With tests",
   rank: "a0",
+  dueAt: null,
+  assigneeId: null,
 };
 
 function renderPanel(overrides: Partial<Parameters<typeof CardDetailPanel>[0]> = {}) {
@@ -23,6 +25,7 @@ function renderPanel(overrides: Partial<Parameters<typeof CardDetailPanel>[0]> =
     <CardDetailPanel
       card={CARD}
       readOnly={false}
+      members={[]}
       onClose={onClose}
       onSave={onSave}
       onDelete={onDelete}
@@ -112,7 +115,63 @@ describe("CardDetailPanel — saving", () => {
     await user.type(description, " and docs");
     await user.keyboard("{Control>}{Enter}{/Control}");
 
-    expect(onSave).toHaveBeenCalledWith("Ship the thing", "With tests and docs");
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Ship the thing", description: "With tests and docs" })
+    );
+  });
+
+  it("sends a due date as the day it was picked", async () => {
+    const user = userEvent.setup();
+    const { onSave } = renderPanel();
+
+    await user.type(screen.getByLabelText("Due"), "2026-09-15");
+    await user.keyboard("{Control>}{Enter}{/Control}");
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ dueAt: "2026-09-15T00:00:00.000Z", clearDueAt: false })
+    );
+  });
+
+  it("distinguishes clearing a due date from leaving it alone", async () => {
+    // Without the flag, the server cannot tell "no change" from "remove it" --
+    // and every partial edit would wipe whatever it failed to mention.
+    const user = userEvent.setup();
+    const { onSave } = renderPanel({
+      card: { ...CARD, dueAt: "2026-09-15T00:00:00.000Z" },
+    });
+
+    await user.clear(screen.getByLabelText("Due"));
+    await user.keyboard("{Control>}{Enter}{/Control}");
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ dueAt: null, clearDueAt: true })
+    );
+  });
+
+  it("assigns to a workspace member", async () => {
+    const user = userEvent.setup();
+    const { onSave } = renderPanel({
+      members: [
+        { userId: "u-2", displayName: "Sara R.", email: "sara@example.com", role: "Editor" },
+      ],
+    });
+
+    await user.selectOptions(screen.getByLabelText("Assignee"), "u-2");
+    await user.keyboard("{Control>}{Enter}{/Control}");
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ assigneeId: "u-2", clearAssignee: false })
+    );
+  });
+
+  it("keeps an assignee who has left the workspace visible rather than silently dropping them", async () => {
+    // They are no longer in `members`, so a plain select would fall back to
+    // "Unassigned" and the next save would quietly clear the assignment.
+    renderPanel({ card: { ...CARD, assigneeId: "gone" }, members: [] });
+
+    const select = screen.getByLabelText("Assignee") as HTMLSelectElement;
+    expect(select.value).toBe("gone");
+    expect(screen.getByText("Someone who has left the workspace")).toBeTruthy();
   });
 
   it("ignores the shortcut when nothing has changed", async () => {

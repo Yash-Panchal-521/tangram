@@ -24,7 +24,7 @@ public interface IBoardOperationService
     Task<ColumnResponse> MoveColumnAsync(Guid boardId, Guid columnId, Guid? beforeColumnId, CancellationToken ct);
 
     Task<CardResponse> CreateCardAsync(Guid boardId, Guid columnId, string title, string? description, CancellationToken ct);
-    Task<CardResponse> RenameCardAsync(Guid boardId, Guid cardId, string title, string? description, CancellationToken ct);
+    Task<CardResponse> UpdateCardAsync(Guid boardId, Guid cardId, UpdateCardRequest request, CancellationToken ct);
     Task DeleteCardAsync(Guid boardId, Guid cardId, CancellationToken ct);
     Task<CardResponse> MoveCardAsync(Guid boardId, Guid cardId, Guid targetColumnId, Guid? beforeCardId, CancellationToken ct);
 
@@ -106,7 +106,7 @@ public class BoardOperationService(
         var cards = await db.Cards
             .Where(c => c.ColumnId == columnId)
             .OrderBy(c => c.Rank)
-            .Select(c => new CardResponse(c.Id, c.ColumnId, c.Title, c.Description, c.Rank))
+            .Select(c => new CardResponse(c.Id, c.ColumnId, c.Title, c.Description, c.Rank, c.DueAt, c.AssigneeId))
             .ToListAsync(ct);
 
         db.Columns.Remove(column); // DB FK cascade removes contained cards.
@@ -170,23 +170,71 @@ public class BoardOperationService(
         };
         db.Cards.Add(card);
 
-        var response = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank);
+        var response = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId);
         await SaveAsync(boardId, new Pending("card.create", response, "card.remove", new CardDeletedPayload(card.Id, card.ColumnId)), ct);
         return response;
     }
 
-    public async Task<CardResponse> RenameCardAsync(Guid boardId, Guid cardId, string title, string? description, CancellationToken ct)
+    public async Task<CardResponse> UpdateCardAsync(
+        Guid boardId, Guid cardId, UpdateCardRequest request, CancellationToken ct)
     {
         await EnsureCanMutateAsync(boardId, ct);
 
         var card = await LoadCardOnBoardAsync(boardId, cardId, ct);
-        var before = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank);
+        var before = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId);
 
-        card.Title = title;
-        card.Description = description;
+        if (request.Title is not null)
+        {
+            card.Title = request.Title;
+        }
+
+        // Description has always been nullable and the panel always sends it,
+        // so an omitted description keeps meaning "no description" here.
+        card.Description = request.Description;
+
+        if (request.ClearDueAt)
+        {
+            card.DueAt = null;
+        }
+        else if (request.DueAt is not null)
+        {
+            // Normalized to UTC midnight. A due date is a day, not a moment;
+            // keeping the submitted time would let two people in different
+            // zones disagree about whether the same card is overdue.
+            card.DueAt = new DateTimeOffset(request.DueAt.Value.UtcDateTime.Date, TimeSpan.Zero);
+        }
+
+        if (request.ClearAssignee)
+        {
+            card.AssigneeId = null;
+        }
+        else if (request.AssigneeId is not null)
+        {
+            // Assigning someone outside the workspace would put a name on the
+            // card that nobody there can resolve, so it is refused rather than
+            // stored and rendered as a blank avatar.
+            var workspaceId = await db.Boards
+                .Where(b => b.Id == boardId)
+                .Select(b => b.WorkspaceId)
+                .FirstAsync(ct);
+
+            var isMember = await memberships.GetRoleAsync(workspaceId, request.AssigneeId.Value, ct) is not null;
+            if (!isMember)
+            {
+                throw new BoardOperationConflictException(
+                    "That person isn't a member of this workspace any more.");
+            }
+
+            card.AssigneeId = request.AssigneeId;
+        }
+
         card.UpdatedAt = DateTimeOffset.UtcNow;
 
-        var response = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank);
+        var response = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId);
+        // Still emitted as "card.rename" rather than a new op type: the
+        // operations log holds historical card.rename rows that resync replays,
+        // so introducing card.update would mean every client had to understand
+        // both forever. The payload is a whole card either way.
         await SaveAsync(boardId, new Pending("card.rename", response, "card.rename", before), ct);
         return response;
     }
@@ -197,7 +245,7 @@ public class BoardOperationService(
 
         var card = await LoadCardOnBoardAsync(boardId, cardId, ct);
         var columnId = card.ColumnId;
-        var snapshot = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank);
+        var snapshot = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId);
         db.Cards.Remove(card);
 
         await SaveAsync(
@@ -211,7 +259,7 @@ public class BoardOperationService(
         await EnsureCanMutateAsync(boardId, ct);
 
         var card = await LoadCardOnBoardAsync(boardId, cardId, ct);
-        var before = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank);
+        var before = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId);
         var targetColumn = await LoadColumnOnBoardAsync(boardId, targetColumnId, ct);
 
         var siblings = await db.Cards
@@ -227,7 +275,7 @@ public class BoardOperationService(
         card.Rank = RankService.GenerateBetween(lower, upper);
         card.UpdatedAt = DateTimeOffset.UtcNow;
 
-        var response = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank);
+        var response = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId);
         await SaveAsync(boardId, new Pending("card.move", response, "card.move", before), ct);
         return response;
     }
@@ -344,6 +392,8 @@ public class BoardOperationService(
                     Title = p.Title,
                     Description = p.Description,
                     Rank = p.Rank,
+                    DueAt = p.DueAt,
+                    AssigneeId = p.AssigneeId,
                     CreatedAt = now,
                     UpdatedAt = now
                 });
@@ -356,8 +406,12 @@ public class BoardOperationService(
                 var card = await LoadCardOrConflictAsync(boardId, p.Id, ct);
                 card.Title = p.Title;
                 card.Description = p.Description;
+                // The whole card, not just its text: undoing an edit that set a
+                // due date has to clear it again.
+                card.DueAt = p.DueAt;
+                card.AssigneeId = p.AssigneeId;
                 card.UpdatedAt = DateTimeOffset.UtcNow;
-                return [new Pending("card.rename", new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank))];
+                return [new Pending("card.rename", new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId))];
             }
 
             case "card.move":
@@ -374,7 +428,7 @@ public class BoardOperationService(
                 card.ColumnId = p.ColumnId;
                 card.Rank = p.Rank;
                 card.UpdatedAt = DateTimeOffset.UtcNow;
-                return [new Pending("card.move", new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank))];
+                return [new Pending("card.move", new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId))];
             }
 
             case "column.remove":
@@ -418,6 +472,8 @@ public class BoardOperationService(
                         Title = card.Title,
                         Description = card.Description,
                         Rank = card.Rank,
+                        DueAt = card.DueAt,
+                        AssigneeId = card.AssigneeId,
                         CreatedAt = now,
                         UpdatedAt = now
                     });

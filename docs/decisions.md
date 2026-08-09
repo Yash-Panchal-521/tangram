@@ -613,6 +613,55 @@ tests were briefly unrunnable — the fix was `wsl --shutdown` followed by
 restarting Docker Desktop, which is worth knowing the next time `tangram-pg`
 refuses to start with a 500 from the engine API.
 
+## v2 phase 2, feature 3 — card depth (due dates and assignees)
+
+Scoped deliberately. The roadmap listed labels, due dates, assignees and
+comments; this delivers **due dates and assignees**, which are two columns on
+`Card` and flow through the existing update path. Labels and comments each need
+their own table and lifecycle and are recorded below as not started.
+
+- **A due date is a day, not a moment.** Stored as UTC midnight and read back in
+  UTC everywhere. Keeping the submitted time would let two people in different
+  zones disagree about whether the same card is overdue -- and reading it back
+  through the local timezone is how a card starts claiming it was due yesterday.
+- **One request shape for every field-level edit.** Splitting due date and
+  assignee into their own endpoints would mean three operations, and three
+  inverses, for what a user experiences as one edit in one panel.
+- **Clearing needs its own flag.** JSON cannot distinguish "absent" from "null"
+  on a plain property, so `clearDueAt` / `clearAssignee` carry the difference.
+  Without them every partial edit would wipe the fields it did not mention. The
+  client's optimistic update mirrors the rule exactly, or the optimistic view
+  would disagree with the broadcast that follows it.
+- **Still emitted as `card.rename`.** The operations log holds historical
+  `card.rename` rows that resync replays, so a new op type would mean every
+  client understanding both forever. The payload was always a whole card.
+- **The inverse now restores the whole card.** Undoing an edit that set a due
+  date has to clear it again, and restoring a deleted card has to bring its due
+  date and assignee back with it.
+- **`AssigneeId` has no foreign key, on purpose.** Memberships change, and a
+  removed member must neither block their own removal nor cascade-delete the
+  cards they were assigned. Assigning someone outside the workspace is refused
+  outright -- storing it would put a name on the card that nobody there can
+  resolve.
+- **An assignee who has left stays visible in the picker.** They are absent from
+  `members`, so a plain select would fall back to "Unassigned" and the next save
+  would silently clear the assignment. A placeholder option makes the state
+  visible instead.
+- **The roster fetch is non-fatal.** Without it the picker has no options and
+  cards show no avatar; nothing else on the board depends on it, so failing the
+  whole surface over it would be worse.
+- **Due status is said, not only coloured.** "2d late" reads the same to
+  everyone, including anyone who cannot tell the danger token from the warning
+  one.
+
+### Not started: labels and comments
+
+Both need a new table and their own operation types on the sync spine, each with
+an inverse. Comments additionally raise questions this codebase has not had to
+answer yet -- whether a comment is undoable, whether editing one is, and what
+happens to comments when their card is deleted and later restored. Left
+unstarted rather than half-built.
+
 ### Divergences and known debt from Slice 4a
 
 - **The test suite needs `Firebase:ProjectId` from the environment or user-secrets.**

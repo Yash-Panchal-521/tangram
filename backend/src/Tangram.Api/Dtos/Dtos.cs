@@ -28,9 +28,32 @@ public record ColumnResponse(Guid Id, Guid BoardId, string Name, string Rank);
 public record ColumnDeletedPayload(Guid Id);
 
 public record CreateCardRequest(string Title, string? Description);
-public record RenameCardRequest(string Title, string? Description);
+
+// One request shape for every field-level edit on a card. Splitting due date and
+// assignee into their own endpoints would mean three operations -- and three
+// inverses -- for what a user experiences as one edit in one panel.
+//
+// Every field is optional, and `null` is a real value: clearing a due date and
+// leaving it alone have to be distinguishable, which is what the Clear* flags
+// are for. JSON cannot express "absent" and "null" through a non-nullable
+// record property.
+public record UpdateCardRequest(
+    string? Title,
+    string? Description,
+    DateTimeOffset? DueAt,
+    Guid? AssigneeId,
+    bool ClearDueAt = false,
+    bool ClearAssignee = false);
+
 public record MoveCardRequest(Guid TargetColumnId, Guid? BeforeCardId);
-public record CardResponse(Guid Id, Guid ColumnId, string Title, string? Description, string Rank);
+public record CardResponse(
+    Guid Id,
+    Guid ColumnId,
+    string Title,
+    string? Description,
+    string Rank,
+    DateTimeOffset? DueAt = null,
+    Guid? AssigneeId = null);
 public record CardDeletedPayload(Guid Id, Guid ColumnId);
 
 public record ColumnWithCardsResponse(Guid Id, string Name, string Rank, List<CardResponse> Cards);

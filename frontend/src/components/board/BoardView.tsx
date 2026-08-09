@@ -17,7 +17,14 @@ import {
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { useAuth } from "@/lib/auth";
-import { api, BoardDetailResponse, CardResponse } from "@/lib/api";
+import {
+  api,
+  type BoardDetailResponse,
+  type CardResponse,
+  type MemberResponse,
+  type UpdateCardRequest,
+  type WorkspaceMembersResponse,
+} from "@/lib/api";
 import {
   createBoardHubConnection,
   type CursorUpdate,
@@ -109,6 +116,9 @@ export function BoardView({ boardId }: { boardId: string }) {
   const [activityOpen, setActivityOpen] = useState(false);
   const [activeCard, setActiveCard] = useState<CardResponse | null>(null);
   const [selectedCard, setSelectedCard] = useState<CardResponse | null>(null);
+  // Workspace roster, for the assignee picker and for putting a name on the
+  // avatar a card shows. Fetched once the board is known.
+  const [members, setMembers] = useState<MemberResponse[]>([]);
   const [presentUsers, setPresentUsers] = useState<PresenceUser[]>([]);
   const [remoteCursors, setRemoteCursors] = useState<Record<string, CursorUpdate>>({});
 
@@ -164,6 +174,36 @@ export function BoardView({ boardId }: { boardId: string }) {
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [canEdit]);
+
+  // Assignee names, keyed by user id. Anyone who has left the workspace is
+  // simply absent, and the card falls back to showing no assignee rather than a
+  // blank avatar nobody can identify.
+  const memberNames = new Map(members.map((m) => [m.userId, m.displayName]));
+
+  const workspaceId = board?.workspaceId;
+  useEffect(() => {
+    if (!workspaceId) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const token = await getToken();
+        const roster = await api.get<WorkspaceMembersResponse>(
+          `/workspaces/${workspaceId}/members`,
+          token
+        );
+        if (!cancelled) setMembers(roster.members);
+      } catch {
+        // Non-fatal by design: without the roster the assignee picker has no
+        // options and cards show no avatar, but nothing else on the board
+        // depends on it. Failing the whole surface over it would be worse.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId, getToken]);
 
   // Signing out navigates away on its own, so this covers the other way a
   // session ends: a token revoked or expired elsewhere. Without it the board
@@ -380,16 +420,28 @@ export function BoardView({ boardId }: { boardId: string }) {
     );
   }
 
-  async function handleRenameCard(cardId: string, title: string, description: string | null) {
+  async function handleUpdateCard(cardId: string, update: UpdateCardRequest) {
     await runMutation(
       "save that card",
-      async () =>
-        api.patch(`/boards/${boardId}/cards/${cardId}`, await getToken(), { title, description }),
+      async () => api.patch(`/boards/${boardId}/cards/${cardId}`, await getToken(), update),
       (current) => ({
         ...current,
         columns: current.columns.map((col) => ({
           ...col,
-          cards: col.cards.map((c) => (c.id === cardId ? { ...c, title, description } : c)),
+          cards: col.cards.map((c) =>
+            c.id === cardId
+              ? {
+                  ...c,
+                  title: update.title ?? c.title,
+                  description: update.description ?? null,
+                  // Mirrors the server's rule exactly: a clear flag wins, an
+                  // omitted field is left alone. Diverging here would make the
+                  // optimistic view disagree with the broadcast that follows.
+                  dueAt: update.clearDueAt ? null : update.dueAt ?? c.dueAt,
+                  assigneeId: update.clearAssignee ? null : update.assigneeId ?? c.assigneeId,
+                }
+              : c
+          ),
         })),
       })
     );
@@ -662,6 +714,7 @@ export function BoardView({ boardId }: { boardId: string }) {
                 canEdit={canEdit}
                 startAdding={autoAddFirstCard && i === 0}
                 tourAnchors={i === 0}
+                memberNames={memberNames}
                 onAddCard={handleAddCard}
                 onRenameColumn={handleRenameColumn}
                 onDeleteColumn={handleDeleteColumn}
@@ -758,8 +811,9 @@ export function BoardView({ boardId }: { boardId: string }) {
         <CardDetailPanel
           card={selectedCard}
           readOnly={!canEdit}
+          members={members}
           onClose={() => setSelectedCard(null)}
-          onSave={(title, description) => handleRenameCard(selectedCard.id, title, description)}
+          onSave={(update) => handleUpdateCard(selectedCard.id, update)}
           onDelete={() => handleDeleteCard(selectedCard.id)}
         />
       )}

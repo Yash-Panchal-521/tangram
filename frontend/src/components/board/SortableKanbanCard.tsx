@@ -9,12 +9,14 @@ export function SortableKanbanCard({
   card,
   canDrag,
   tourAnchor = false,
+  assigneeName = null,
   onClick,
 }: {
   card: CardResponse;
   canDrag: boolean;
   /** Marks this as the card the walkthrough points at. Exactly one board-wide. */
   tourAnchor?: boolean;
+  assigneeName?: string | null;
   onClick: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -48,7 +50,7 @@ export function SortableKanbanCard({
           canDrag ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
         }`}
       >
-        <KanbanCard card={card} draggable={canDrag} />
+        <KanbanCard card={card} draggable={canDrag} assigneeName={assigneeName} />
       </button>
     </div>
   );

@@ -1,4 +1,13 @@
+import { Avatar } from "@/components/ui/Avatar";
+import { dueLabel, dueStatus } from "@/lib/dueDate";
 import type { CardResponse } from "@/lib/api";
+
+const DUE_TONE: Record<string, string> = {
+  overdue: "bg-danger/10 text-danger border-danger/30",
+  today: "bg-warn/10 text-warn border-warn/30",
+  soon: "bg-surface-2 text-text-muted border-border",
+  later: "bg-surface-2 text-text-dim border-border",
+};
 
 /**
  * `draggable` only controls the grip — the drag itself is wired up by
@@ -9,10 +18,15 @@ export function KanbanCard({
   card,
   draggable = false,
   pending = false,
+  assigneeName = null,
 }: {
-  card: Pick<CardResponse, "title" | "description">;
+  card: Pick<CardResponse, "title" | "description"> &
+    Partial<Pick<CardResponse, "dueAt" | "assigneeId">>;
   draggable?: boolean;
   pending?: boolean;
+  /** Resolves an assignee id to a name. Anyone who has left the workspace
+   *  simply doesn't resolve, and the card reads as unassigned. */
+  assigneeName?: string | null;
 }) {
   return (
     <div
@@ -51,6 +65,28 @@ export function KanbanCard({
       </p>
       {card.description && (
         <p className="text-xs text-text-muted leading-snug line-clamp-2">{card.description}</p>
+      )}
+
+      {(card.dueAt || assigneeName) && (
+        <div className="flex items-center gap-2 pt-0.5">
+          {card.dueAt && (
+            <span
+              className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-medium ${
+                DUE_TONE[dueStatus(card.dueAt)]
+              }`}
+            >
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <rect x="1.5" y="2.5" width="9" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+                <path d="M1.5 5h9M4 1.5v2M8 1.5v2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+              {/* The status is carried by colour, so it is also said in words --
+                  "2d late" reads the same to everyone. */}
+              {dueLabel(card.dueAt)}
+            </span>
+          )}
+          <div className="flex-1" />
+          {assigneeName && <Avatar name={assigneeName} size="sm" />}
+        </div>
       )}
 
       {pending && <span className="text-[11px] text-text-dim">Adding…</span>}

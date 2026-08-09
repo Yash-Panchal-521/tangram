@@ -5,7 +5,7 @@ import type { BoardDetailResponse, CardResponse } from "@/lib/api";
 // Ranks are fractional/lexicographic strings, so ordering is by string compare,
 // never by array position. "a" < "b" < "c" throughout.
 function card(id: string, columnId: string, rank: string, title = id): CardResponse {
-  return { id, columnId, title, description: null, rank };
+  return { id, columnId, title, description: null, rank, dueAt: null, assigneeId: null };
 }
 
 function board(): BoardDetailResponse {
@@ -67,7 +67,7 @@ describe("applyOperation", () => {
       id: "backlog",
       boardId: "board-1",
       name: "Backlog",
-      rank: "aa",
+      rank: "aa", dueAt: null, assigneeId: null,
     });
 
     expect(next.columns.map((c) => c.id)).toEqual(["todo", "backlog", "doing"]);
@@ -80,7 +80,7 @@ describe("applyOperation", () => {
       id: "todo",
       boardId: "board-1",
       name: "Up Next",
-      rank: "a",
+      rank: "a", dueAt: null, assigneeId: null,
     });
 
     expect(next.columns[0].name).toBe("Up Next");
@@ -92,7 +92,7 @@ describe("applyOperation", () => {
       id: "todo",
       boardId: "board-1",
       name: "To Do",
-      rank: "c",
+      rank: "c", dueAt: null, assigneeId: null,
     });
 
     expect(next.columns.map((c) => c.id)).toEqual(["doing", "todo"]);

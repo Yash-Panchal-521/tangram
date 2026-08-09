@@ -112,14 +112,20 @@ be unable to put anything on it.
 
 Verified: 53 backend tests and 169 frontend tests green.
 
-### 3. Card depth — labels, due dates, assignees, comments
+### 3. Card depth — **partly done**: due dates and assignees
 
 Coloured labels, due dates with overdue styling, assignment to a member, and a comment
 thread per card.
 
 Largest schema surface of the three: new tables, and new operation types on the sync spine —
-each must go through `SaveWithOperationAsync` like every other mutation, and each needs a
-matching case in the frontend reducer.
+each must go through `SaveAsync` like every other mutation, and each needs a matching case
+in the frontend reducer.
+
+**Outcome.** Due dates and assignees are done — two columns on `Card`, flowing through the
+existing update path, so no new operation type and no new reducer case were needed at all.
+The prediction was right about the other two: **labels and comments each need their own
+table**, and comments raise undo questions this codebase has not had to answer. Both are
+recorded as not started rather than half-built. See `docs/decisions.md`.
 
 *Not selected: command palette and keyboard shortcuts.*
 

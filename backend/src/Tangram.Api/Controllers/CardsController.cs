@@ -23,15 +23,34 @@ public class CardsController(IBoardOperationService boardOperations) : Controlle
     }
 
     [HttpPatch("cards/{cardId:guid}")]
-    public async Task<ActionResult<CardResponse>> RenameCard(
-        Guid boardId, Guid cardId, RenameCardRequest request, CancellationToken ct)
+    public async Task<ActionResult<CardResponse>> UpdateCard(
+        Guid boardId, Guid cardId, UpdateCardRequest request, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(request.Title))
+        // A title may be omitted -- an edit that only sets a due date shouldn't
+        // have to resend it -- but a title that is *present* and blank is a
+        // request to erase the only thing identifying the card.
+        if (request.Title is not null && string.IsNullOrWhiteSpace(request.Title))
         {
             return ValidationProblem("Card title is required.");
         }
 
-        return await Run(() => boardOperations.RenameCardAsync(boardId, cardId, request.Title.Trim(), request.Description, ct));
+        try
+        {
+            return Ok(await boardOperations.UpdateCardAsync(
+                boardId, cardId, request with { Title = request.Title?.Trim() }, ct));
+        }
+        catch (BoardOperationNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (BoardOperationForbiddenException)
+        {
+            return Forbid();
+        }
+        catch (BoardOperationConflictException ex)
+        {
+            return Problem(detail: ex.Message, statusCode: StatusCodes.Status409Conflict);
+        }
     }
 
     [HttpDelete("cards/{cardId:guid}")]

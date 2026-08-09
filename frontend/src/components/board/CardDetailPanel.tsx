@@ -3,8 +3,10 @@
 import { useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { Select } from "@/components/ui/Select";
 import { useDialog } from "@/lib/useDialog";
-import type { CardResponse } from "@/lib/api";
+import { fromDateInputValue, toDateInputValue } from "@/lib/dueDate";
+import type { CardResponse, MemberResponse, UpdateCardRequest } from "@/lib/api";
 
 // Read once, during the first render rather than in an effect. Safe from
 // hydration mismatch because this panel only ever mounts in response to a
@@ -17,31 +19,48 @@ function shortcutLabel() {
 export function CardDetailPanel({
   card,
   readOnly,
+  members,
   onClose,
   onSave,
   onDelete,
 }: {
   card: CardResponse;
   readOnly: boolean;
+  /** Workspace members, for the assignee picker. Empty until they load, which
+   *  only costs the picker its options -- never the rest of the panel. */
+  members: MemberResponse[];
   onClose: () => void;
-  onSave: (title: string, description: string | null) => Promise<void>;
+  onSave: (update: UpdateCardRequest) => Promise<void>;
   onDelete: () => Promise<void>;
 }) {
   const headingId = useId();
   const titleId = useId();
   const descriptionId = useId();
+  const dueId = useId();
+  const assigneeId = useId();
   const panelRef = useRef<HTMLDivElement | null>(null);
   const { confirm, dialog } = useConfirm();
   const [shortcut] = useState(shortcutLabel);
 
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description ?? "");
+  const [due, setDue] = useState(toDateInputValue(card.dueAt));
+  const [assignee, setAssignee] = useState(card.assigneeId ?? "");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
-  const dirty = title !== card.title || description !== (card.description ?? "");
+  const dirty =
+    title !== card.title ||
+    description !== (card.description ?? "") ||
+    due !== toDateInputValue(card.dueAt) ||
+    assignee !== (card.assigneeId ?? "");
   const canSave = dirty && !saving && title.trim().length > 0;
+
+  // An assignee who has left the workspace no longer appears in `members`, so
+  // the select would silently fall back to "Unassigned" and a save would clear
+  // them. Keeping a placeholder option makes the state visible instead.
+  const assigneeMissing = assignee !== "" && !members.some((m) => m.userId === assignee);
 
   useDialog({ containerRef: panelRef, onClose: requestClose, paused: confirming });
 
@@ -73,7 +92,16 @@ export function CardDetailPanel({
     if (!canSave) return;
     setSaving(true);
     try {
-      await onSave(title.trim(), description.trim() || null);
+      await onSave({
+        title: title.trim(),
+        description: description.trim() || null,
+        // Clearing and leaving alone are different requests. Without the flags
+        // an edit that only changed the title would wipe the rest.
+        dueAt: fromDateInputValue(due),
+        clearDueAt: due === "",
+        assigneeId: assignee || null,
+        clearAssignee: assignee === "",
+      });
       onClose();
     } finally {
       setSaving(false);
@@ -170,6 +198,51 @@ export function CardDetailPanel({
                   : "border-transparent focus-visible:border-accent focus-visible:bg-surface-2"
               }`}
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label
+                htmlFor={dueId}
+                className="text-[11px] font-semibold uppercase tracking-wider text-text-dim"
+              >
+                Due
+              </label>
+              <input
+                id={dueId}
+                type="date"
+                value={due}
+                readOnly={readOnly}
+                disabled={readOnly}
+                onChange={(e) => setDue(e.target.value)}
+                className="w-full text-[13px] bg-surface-2 border border-border rounded-lg px-2.5 py-1.5 outline-none focus-visible:border-accent disabled:opacity-70 disabled:cursor-default"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label
+                htmlFor={assigneeId}
+                className="text-[11px] font-semibold uppercase tracking-wider text-text-dim"
+              >
+                Assignee
+              </label>
+              <Select
+                id={assigneeId}
+                value={assignee}
+                disabled={readOnly}
+                onChange={(e) => setAssignee(e.target.value)}
+              >
+                <option value="">Unassigned</option>
+                {assigneeMissing && (
+                  <option value={assignee}>Someone who has left the workspace</option>
+                )}
+                {members.map((m) => (
+                  <option key={m.userId} value={m.userId}>
+                    {m.displayName}
+                  </option>
+                ))}
+              </Select>
+            </div>
           </div>
 
           <div className="flex flex-col gap-1.5">

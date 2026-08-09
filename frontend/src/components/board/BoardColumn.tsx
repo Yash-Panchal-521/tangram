@@ -22,6 +22,7 @@ export function BoardColumn({
   canEdit,
   startAdding = false,
   tourAnchors = false,
+  memberNames,
   onAddCard,
   onRenameColumn,
   onDeleteColumn,
@@ -42,6 +43,8 @@ export function BoardColumn({
   startAdding?: boolean;
   /** True for the first column only, so the walkthrough has one of each anchor. */
   tourAnchors?: boolean;
+  /** Assignee id -> display name. Anyone absent reads as unassigned. */
+  memberNames?: Map<string, string>;
   onAddCard: (columnId: string, title: string) => Promise<void>;
   onRenameColumn: (columnId: string, name: string) => Promise<void>;
   onDeleteColumn: (columnId: string) => Promise<void>;
@@ -188,6 +191,7 @@ export function BoardColumn({
               card={card}
               canDrag={canEdit}
               tourAnchor={tourAnchors && i === 0}
+              assigneeName={(card.assigneeId && memberNames?.get(card.assigneeId)) || null}
               onClick={() => onCardClick(card)}
             />
           ))}
