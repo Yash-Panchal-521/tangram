@@ -31,7 +31,13 @@ public class WorkspacesController(AppDbContext db, ICurrentUserService currentUs
                 w.Id,
                 w.Name,
                 w.Memberships.Where(m => m.UserId == userId).Select(m => m.Role).FirstOrDefault(),
-                w.Boards.OrderBy(b => b.CreatedAt).Select(b => new WorkspaceBoardSummary(b.Id, b.Name)).ToList()))
+                // Archived boards are returned, flagged, rather than filtered
+                // out: the home screen needs them to offer a way back, and a
+                // board that vanishes with no trace looks like data loss.
+                w.Boards
+                    .OrderByDescending(b => b.UpdatedAt)
+                    .Select(b => new WorkspaceBoardSummary(b.Id, b.Name, b.ArchivedAt != null, b.UpdatedAt))
+                    .ToList()))
             .ToListAsync(ct);
 
         // Role is stringified here rather than in the query -- Enum.ToString()

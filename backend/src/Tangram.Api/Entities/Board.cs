@@ -10,6 +10,12 @@ public class Board
     // Incremented transactionally each time a mutating op is assigned a seq.
     public long Seq { get; set; }
 
+    // Archiving hides a board from the workspace's default listing without
+    // destroying it. Deliberately not a delete: a board holds every card anyone
+    // has written on it, and "put it away" is what people almost always mean.
+    // Its rows, operations and undo history stay intact and reversible.
+    public DateTimeOffset? ArchivedAt { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 

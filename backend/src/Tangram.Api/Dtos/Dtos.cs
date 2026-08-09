@@ -4,7 +4,8 @@ public record MeResponse(Guid Id, string DisplayName, string? AvatarUrl);
 
 public record CreateWorkspaceRequest(string Name);
 public record WorkspaceResponse(Guid Id, string Name, DateTimeOffset CreatedAt);
-public record WorkspaceBoardSummary(Guid Id, string Name);
+public record WorkspaceBoardSummary(Guid Id, string Name, bool Archived, DateTimeOffset UpdatedAt);
+public record RenameBoardRequest(string Name);
 public record WorkspaceSummaryResponse(Guid Id, string Name, string Role, List<WorkspaceBoardSummary> Boards);
 
 public record InviteMemberRequest(string Email, string Role);

@@ -471,9 +471,23 @@ export function BoardView({ boardId }: { boardId: string }) {
 
       <header className="h-[52px] shrink-0 flex items-center px-4.5 border-b border-border bg-surface">
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <div className="w-6.5 h-6.5 rounded-md bg-accent flex items-center justify-center shrink-0">
+          {/* The way back out. Before the home screen existed a board was a
+              dead end -- you could reach one board and never a second. */}
+          <Link
+            href="/boards"
+            aria-label="All boards"
+            title="All boards"
+            className="w-6.5 h-6.5 rounded-md bg-accent flex items-center justify-center shrink-0 hover:opacity-85 transition-opacity"
+          >
             <TangramMark size={14} color="var(--accent-fg)" />
-          </div>
+          </Link>
+          <Link
+            href="/boards"
+            className="text-xs text-text-dim hover:text-text-muted shrink-0"
+          >
+            Boards
+          </Link>
+          <span className="text-sm text-text-dim shrink-0">/</span>
           <span className="text-sm font-semibold truncate">{board.name}</span>
         </div>
 

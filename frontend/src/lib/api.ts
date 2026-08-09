@@ -109,6 +109,10 @@ export type MembershipRole = "Owner" | "Editor" | "Viewer";
 export interface WorkspaceBoardSummary {
   id: string;
   name: string;
+  /** Archived boards are still returned, flagged — a board that vanished with
+   *  no trace would read as data loss and offer no way back. */
+  archived: boolean;
+  updatedAt: string;
 }
 
 export interface WorkspaceSummaryResponse {

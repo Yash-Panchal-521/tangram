@@ -576,6 +576,44 @@ On the client:
 own copy, and two implementations of "how long ago" drift invisibly until two
 surfaces disagree about one timestamp.
 
+## v2 phase 2, feature 2 — workspace and board management
+
+`/board` opened your first board and there was no way to have or reach a second,
+so the multi-tenant model the backend already enforced was invisible from the
+app. `/boards` is the surface that makes it real.
+
+- **Archive, not delete.** A board holds every card anyone wrote on it, and "put
+  it away" is what people almost always mean. Archived boards keep their rows,
+  their operations and their undo history, and stay reachable by URL.
+- **Archived boards are returned flagged, not filtered out.** A board that
+  vanished from the listing with no trace would read as data loss and offer no
+  way back. The home screen files them behind one disclosure.
+- **The last active board cannot be archived.** Otherwise the home screen's only
+  option is "create a board", with no route back to the work that was there.
+  Same shape as the last-owner rule.
+- **Archiving is owner-only; renaming is not.** Renaming is a board-level edit,
+  so it follows the same rule as renaming a column. Archiving changes what the
+  whole workspace sees on its home screen, which puts it with the other
+  membership-shaped decisions.
+- **Creating a board was previously unchecked.** Any member could do it,
+  including a viewer who then could not put anything on the board they had just
+  made. Now the same owner/editor rule as every other content mutation.
+- **Boards are listed most-recently-touched first**, which is what makes the
+  home screen useful rather than merely chronological.
+- **A new board opens immediately.** Creating one and then being left on a list
+  to go and find it is a step nobody wants.
+- **The board header gained a breadcrumb back to `/boards`.** Before this a
+  board was a dead end.
+
+### Unverified at time of writing
+
+`BoardManagementTests` (10 tests) is written and compiles, but **has not been
+run**: Docker Desktop's Linux engine stopped partway through this work and would
+not restart unattended, so `tangram-pg` was unreachable and every integration
+test fails at the fixture. The frontend is fully verified — 169 tests, lint and
+build green. Run `dotnet test` once Docker is back before treating the backend
+half as done.
+
 ### Divergences and known debt from Slice 4a
 
 - **The test suite needs `Firebase:ProjectId` from the environment or user-secrets.**

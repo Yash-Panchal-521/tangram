@@ -69,6 +69,15 @@ public class BoardsController(
             return NotFound();
         }
 
+        // Previously unchecked: any member could create a board, including a
+        // viewer who cannot then put anything on it. Same rule as every other
+        // content mutation.
+        if (await memberships.GetRoleAsync(workspaceId, currentUser.UserId, ct)
+            is null or MembershipRole.Viewer)
+        {
+            return Forbid();
+        }
+
         var now = DateTimeOffset.UtcNow;
         var board = new Board
         {
@@ -84,6 +93,80 @@ public class BoardsController(
 
         return CreatedAtAction(nameof(GetBoard), new { boardId = board.Id },
             new BoardResponse(board.Id, board.WorkspaceId, board.Name, board.CreatedAt));
+    }
+
+    [HttpPatch("boards/{boardId:guid}")]
+    public async Task<ActionResult<BoardResponse>> RenameBoard(
+        Guid boardId, RenameBoardRequest request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Name))
+        {
+            return ValidationProblem("Board name is required.");
+        }
+
+        var board = await db.Boards.FirstOrDefaultAsync(b => b.Id == boardId, ct);
+        if (board is null) return NotFound();
+
+        // Renaming a board is a board-level edit, so it follows the same rule as
+        // renaming a column: editors and owners, not viewers.
+        if (await memberships.GetRoleAsync(board.WorkspaceId, currentUser.UserId, ct)
+            is null or MembershipRole.Viewer)
+        {
+            return Forbid();
+        }
+
+        board.Name = request.Name.Trim();
+        board.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(ct);
+
+        return Ok(new BoardResponse(board.Id, board.WorkspaceId, board.Name, board.CreatedAt));
+    }
+
+    [HttpPost("boards/{boardId:guid}/archive")]
+    public Task<IActionResult> ArchiveBoard(Guid boardId, CancellationToken ct) =>
+        SetArchivedAsync(boardId, archived: true, ct);
+
+    [HttpPost("boards/{boardId:guid}/unarchive")]
+    public Task<IActionResult> UnarchiveBoard(Guid boardId, CancellationToken ct) =>
+        SetArchivedAsync(boardId, archived: false, ct);
+
+    /// <remarks>
+    /// Owner-only, unlike renaming. Archiving changes what the whole workspace
+    /// sees on its home screen rather than editing content inside one board,
+    /// which puts it with the other membership-shaped decisions.
+    /// </remarks>
+    private async Task<IActionResult> SetArchivedAsync(Guid boardId, bool archived, CancellationToken ct)
+    {
+        var board = await db.Boards.FirstOrDefaultAsync(b => b.Id == boardId, ct);
+        if (board is null) return NotFound();
+
+        if (await memberships.GetRoleAsync(board.WorkspaceId, currentUser.UserId, ct) != MembershipRole.Owner)
+        {
+            return Forbid();
+        }
+
+        if (archived)
+        {
+            // A workspace must keep somewhere to work, the same way it must keep
+            // an owner. Archiving the last active board leaves a home screen
+            // whose only option is to create one, and no way back into the work
+            // that was there.
+            var otherActive = await db.Boards
+                .AnyAsync(b => b.WorkspaceId == board.WorkspaceId && b.Id != boardId && b.ArchivedAt == null, ct);
+
+            if (!otherActive)
+            {
+                return Problem(
+                    detail: "This is the workspace's only active board. Create another one before archiving this.",
+                    statusCode: StatusCodes.Status400BadRequest);
+            }
+        }
+
+        board.ArchivedAt = archived ? DateTimeOffset.UtcNow : null;
+        board.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(ct);
+
+        return NoContent();
     }
 
     [HttpGet("boards/{boardId:guid}")]
