@@ -520,6 +520,62 @@ anchors behind and made three later tests fail against a DOM they never
 rendered. `availableSteps` takes a root parameter partly so that test can use a
 detached node.
 
+## v2 phase 2, feature 1 — activity feed and undo
+
+The leverage was real: the append-only `operations` table already carried
+`ActorId`, `OpType`, the payload and a per-board `Seq`. The feed is a projection
+of it. Undo was not free, and the reason is worth recording.
+
+**The stored payload cannot produce an inverse.** It records the state a
+mutation produced, never the state it replaced. A rename stores the title it
+changed *to*; nothing anywhere held the title it changed *from*. So the inverse
+is now computed and stored at write time, in `inverse_op_type` /
+`inverse_payload`, captured before the mutation is applied.
+
+- **Deleting a column snapshots its cards.** The database cascade takes them,
+  and the operation payload holds only the column id — so without the snapshot,
+  undo would restore an empty column and silently lose the work inside it, which
+  is precisely the deletion people most want back.
+- **The inverse vocabulary is internal.** `card.restore` and `column.restore`
+  never reach a client. Restores are broadcast as ordinary `create` operations
+  carrying the original id, and the reducer already replaces state by id — so
+  undo added no new case to the frontend at all.
+- **Restoring a column emits several operations in one transaction**, column
+  first and then each card. A client receiving a card for a column it doesn't
+  know about would drop it, so the order is load-bearing, and a failure halfway
+  would otherwise leave the column back but its cards gone.
+- **An undo is recorded without an inverse.** That is what stops undo becoming
+  redo, and then a loop.
+- **You can only undo your own operations.** Reversing someone else's edit out
+  from under them is a different feature with a different conversation attached.
+  The feed marks other people's entries as not undoable rather than hiding them.
+- **A stale target is a 409, not a 404.** The request was well-formed; the board
+  moved on. `friendlyError` already maps 409 to "Someone else changed this
+  first", which is exactly what happened.
+- **Viewers can read the feed but not undo.** Watching the board is what the
+  role is for, and its history is part of watching it.
+- **Summaries are composed server-side**, because the client cannot: a delete's
+  payload carries only ids, and the name worth showing lives in the inverse
+  recorded beside it.
+
+On the client:
+
+- **Cmd/Ctrl+Z opens the panel rather than undoing outright.** Undo here is a
+  server round trip everyone else sees immediately; a keystroke that fires it
+  blind, with no chance to see what it caught, is the wrong trade. The panel
+  names the change first. The shortcut also stands down inside text fields,
+  where the browser's own undo is what the user means.
+- **The feed follows `board.seq`.** Every mutation from anyone advances it, so
+  the panel refreshes without polling. The fetch is cancellation-guarded: a
+  burst of operations starts several requests, and without the guard the slowest
+  one wins and paints a feed older than the board.
+- **"Undone" is said, not only struck through.** A strikethrough reads
+  identically to a screen reader.
+
+`relativeTime` moved to `lib/` on the way past — the members page had grown its
+own copy, and two implementations of "how long ago" drift invisibly until two
+surfaces disagree about one timestamp.
+
 ### Divergences and known debt from Slice 4a
 
 - **The test suite needs `Firebase:ProjectId` from the environment or user-secrets.**

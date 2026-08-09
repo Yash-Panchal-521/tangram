@@ -30,10 +30,18 @@ than review.
 
 ## Invariants — violating these breaks correctness
 
-**Every board mutation goes through `BoardOperationService.SaveWithOperationAsync`.**
-It assigns the next per-board `seq` in one atomic `UPDATE … RETURNING`, persists,
-appends to the `operations` log, then broadcasts. Conflicts resolve by server `seq`,
-never wall-clock time. Adding a mutation path that skips it silently breaks sync.
+**Every board mutation goes through `BoardOperationService.SaveAsync`.**
+It assigns the next per-board `seq` per operation in one atomic `UPDATE … RETURNING`,
+persists, appends to the `operations` log, then broadcasts — after the commit, never
+inside it. Conflicts resolve by server `seq`, never wall-clock time. Adding a mutation
+path that skips it silently breaks sync.
+
+**Every mutation must also record its inverse.** The payload stores the state an
+operation *produced*, never the state it replaced, so undo cannot be reconstructed
+afterwards — a rename that doesn't capture the old title before assigning the new one is
+permanently un-undoable. Deletes must snapshot enough to rebuild what the cascade takes:
+`column.delete` stores its cards. An operation with a null `InverseOpType` is silently
+not undoable, which is correct for undos themselves and a bug anywhere else.
 
 **Writes are REST-only; the hub is broadcast-only.** `BoardHub` exposes no mutations.
 One write path means one place enforcing authorization and assigning `seq`.
@@ -107,8 +115,8 @@ dev server holding port 3000, still running the old environment.
 ## Tests
 
 ```bash
-cd backend && dotnet test    # 26 integration tests, needs tangram_test on :5433
-cd frontend && npm test      # 146 Vitest tests, node by default
+cd backend && dotnet test    # 43 integration tests, needs tangram_test on :5433
+cd frontend && npm test      # 159 Vitest tests, node by default
 ```
 
 Backend tests are self-sufficient — a module initializer in `TestEnvironment.cs` seeds

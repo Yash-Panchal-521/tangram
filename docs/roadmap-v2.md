@@ -79,7 +79,7 @@ on anyone's first minute.
 
 Chosen for v2:
 
-### 1. Activity feed + undo
+### 1. Activity feed + undo — **done**
 
 Per-board timeline of who changed what and when, plus undo for the last operation.
 
@@ -88,6 +88,13 @@ with a per-board `seq`, written by `BoardOperationService.SaveWithOperationAsync
 already carrying `ActorId`, `OpType` and the full payload. This needs an endpoint and a UI,
 not new architecture — no other feature here has that leverage. The real work is
 inverse-operation logic for undo.
+
+**Outcome.** The leverage held for the feed; the prediction about undo was right and then
+some. The stored payload records the state a mutation *produced*, never the state it
+replaced, so no inverse could be reconstructed after the fact — inverses are now captured
+at write time in two new nullable columns. Deleting a column additionally snapshots its
+cards, since the cascade takes them and undo would otherwise restore an empty column.
+Undo is scoped to your own operations. See `docs/decisions.md`.
 
 ### 2. Workspace and board management
 

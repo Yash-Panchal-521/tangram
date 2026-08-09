@@ -89,7 +89,13 @@ public class AppDbContext : DbContext
         {
             e.HasQueryFilter(o => _currentUser.WorkspaceIds.Contains(o.Board.WorkspaceId));
             e.HasIndex(o => new { o.BoardId, o.Seq }).IsUnique();
+
+            // Backs "the newest thing this person did that is still undoable",
+            // which runs on every undo and every activity fetch.
+            e.HasIndex(o => new { o.BoardId, o.ActorId, o.Seq });
+
             e.Property(o => o.Payload).HasColumnType("jsonb");
+            e.Property(o => o.InversePayload).HasColumnType("jsonb");
             e.HasOne(o => o.Board).WithMany(b => b.Operations).HasForeignKey(o => o.BoardId);
         });
     }

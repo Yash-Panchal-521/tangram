@@ -13,8 +13,48 @@ namespace Tangram.Api.Controllers;
 public class BoardsController(
     AppDbContext db,
     IMembershipService memberships,
-    ICurrentUserService currentUser) : ControllerBase
+    ICurrentUserService currentUser,
+    IBoardOperationService boardOperations) : ControllerBase
 {
+    [HttpGet("boards/{boardId:guid}/activity")]
+    public async Task<ActionResult<ActivityResponse>> GetActivity(
+        Guid boardId, CancellationToken ct, [FromQuery] int limit = 50)
+    {
+        try
+        {
+            return Ok(await boardOperations.GetActivityAsync(boardId, limit, ct));
+        }
+        catch (BoardOperationNotFoundException)
+        {
+            return NotFound();
+        }
+    }
+
+    [HttpPost("boards/{boardId:guid}/undo")]
+    public async Task<IActionResult> Undo(Guid boardId, CancellationToken ct)
+    {
+        try
+        {
+            await boardOperations.UndoLastAsync(boardId, ct);
+            return NoContent();
+        }
+        catch (BoardOperationNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (BoardOperationForbiddenException)
+        {
+            return Forbid();
+        }
+        catch (BoardOperationConflictException ex)
+        {
+            // 409 rather than 404: the request was well-formed, the board just
+            // moved on underneath it. The client maps this onto "someone else
+            // changed this first", which is exactly what happened.
+            return Problem(detail: ex.Message, statusCode: StatusCodes.Status409Conflict);
+        }
+    }
+
     [HttpPost("workspaces/{workspaceId:guid}/boards")]
     public async Task<ActionResult<BoardResponse>> CreateBoard(Guid workspaceId, CreateBoardRequest request, CancellationToken ct)
     {

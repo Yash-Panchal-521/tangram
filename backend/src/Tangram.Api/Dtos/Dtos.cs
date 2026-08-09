@@ -40,6 +40,26 @@ public record ColumnWithCardsResponse(Guid Id, string Name, string Rank, List<Ca
 public record BoardDetailResponse(
     Guid Id, Guid WorkspaceId, string Name, string Role, long Seq, List<ColumnWithCardsResponse> Columns);
 
+// The full prior state of a deleted column, including the cards the database
+// cascade removed with it. Without the cards, undoing a column deletion would
+// silently restore an empty column and lose the work it contained -- which is
+// precisely the deletion people most want back.
+public record ColumnSnapshot(Guid Id, Guid BoardId, string Name, string Rank, List<CardResponse> Cards);
+
+// `Summary` is composed server-side because the client cannot: a delete's
+// payload carries only ids, and the name it needs lives in the inverse.
+public record ActivityEntry(
+    long Seq,
+    string OpType,
+    Guid ActorId,
+    string ActorName,
+    string Summary,
+    DateTimeOffset CreatedAt,
+    bool Undone,
+    bool CanUndo);
+
+public record ActivityResponse(List<ActivityEntry> Entries, long? UndoableSeq);
+
 public record OperationBroadcast(long Seq, string OpType, object Payload);
 public record ResyncResult(bool NeedsSnapshot, List<OperationBroadcast> Operations);
 public record CursorUpdate(Guid UserId, string DisplayName, double X, double Y);
