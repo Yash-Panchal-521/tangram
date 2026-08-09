@@ -96,7 +96,7 @@ at write time in two new nullable columns. Deleting a column additionally snapsh
 cards, since the cascade takes them and undo would otherwise restore an empty column.
 Undo is scoped to your own operations. See `docs/decisions.md`.
 
-### 2. Workspace and board management — **done** (backend tests unrun)
+### 2. Workspace and board management — **done**
 
 A home screen listing workspaces and their boards; create, rename and archive boards;
 switch between them.
@@ -110,9 +110,7 @@ than vanishing. Archive is owner-only and refuses the workspace's last active bo
 Creating a board turned out to be unauthorized entirely — a viewer could make one and then
 be unable to put anything on it.
 
-**Caveat:** `BoardManagementTests` is written and compiles but has not been run — Docker
-stopped mid-session and Postgres was unreachable. Run `dotnet test` before trusting the
-backend half.
+Verified: 53 backend tests and 169 frontend tests green.
 
 ### 3. Card depth — labels, due dates, assignees, comments
 

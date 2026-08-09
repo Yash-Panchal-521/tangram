@@ -605,14 +605,13 @@ app. `/boards` is the surface that makes it real.
 - **The board header gained a breadcrumb back to `/boards`.** Before this a
   board was a dead end.
 
-### Unverified at time of writing
+Verified: 53 backend tests (10 new) and 169 frontend tests (10 new), lint and
+build green.
 
-`BoardManagementTests` (10 tests) is written and compiles, but **has not been
-run**: Docker Desktop's Linux engine stopped partway through this work and would
-not restart unattended, so `tangram-pg` was unreachable and every integration
-test fails at the fixture. The frontend is fully verified — 169 tests, lint and
-build green. Run `dotnet test` once Docker is back before treating the backend
-half as done.
+Docker Desktop's Linux engine stopped partway through this work and the backend
+tests were briefly unrunnable — the fix was `wsl --shutdown` followed by
+restarting Docker Desktop, which is worth knowing the next time `tangram-pg`
+refuses to start with a 500 from the engine API.
 
 ### Divergences and known debt from Slice 4a
 
