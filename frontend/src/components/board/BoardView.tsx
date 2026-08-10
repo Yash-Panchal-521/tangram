@@ -140,7 +140,11 @@ export function BoardView({ boardId }: { boardId: string }) {
   // controls that would 403 are removed rather than shown and rejected.
   const canEdit = board !== null && board.role !== "Viewer";
 
-  const intro = useSeenOnce("board-intro");
+  // Keyed by user, not just by browser. It was per-browser, and the
+  // consequence was concrete: signing up a second account in a browser that had
+  // already seen the introduction meant the new person got nothing -- which is
+  // exactly how this app gets demonstrated.
+  const intro = useSeenOnce(`board-intro:${user?.uid ?? "anon"}`);
   // Narrow on purpose. A board with columns but no cards is the state the
   // bootstrap leaves behind, and only there does a demonstration of collaboration
   // make sense: on a board with real work on it the phantom card reads as a bug,

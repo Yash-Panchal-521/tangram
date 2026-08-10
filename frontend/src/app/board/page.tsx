@@ -13,7 +13,6 @@ import {
 } from "@/lib/api";
 
 const BOARD_ID_KEY = "tangram-board-id";
-const DEFAULT_COLUMNS = ["To Do", "In Progress", "Done"];
 
 // Decides which board to open on login. Membership is the source of truth --
 // asking the server first is what lets someone who was *invited* land on the
@@ -64,14 +63,16 @@ export default function BoardBootstrapPage() {
           workspaces[0]?.id ??
           (await api.post<WorkspaceResponse>("/workspaces", token, { name: "My Workspace" })).id;
 
+        // The server seeds the columns inside the same transaction. Doing it
+        // here meant three extra round trips, a window where the board existed
+        // with one column of three if any of them failed, and -- worse -- three
+        // operations in the log attributed to a user who had just arrived and
+        // done nothing. See CreateBoardRequest.
         const board = await api.post<BoardResponse>(
           `/workspaces/${workspaceId}/boards`,
           token,
-          { name: "My Board" }
+          { name: "My Board", seedDefaultColumns: true }
         );
-        for (const name of DEFAULT_COLUMNS) {
-          await api.post(`/boards/${board.id}/columns`, token, { name });
-        }
 
         localStorage.setItem(BOARD_ID_KEY, board.id);
         router.replace(`/board/${board.id}`);

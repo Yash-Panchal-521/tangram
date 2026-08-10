@@ -16,6 +16,10 @@ public class BoardsController(
     ICurrentUserService currentUser,
     IBoardOperationService boardOperations) : ControllerBase
 {
+    // The stages nearly every board starts with. Seeded only for the board the
+    // bootstrap creates unasked -- see CreateBoardRequest.
+    private static readonly string[] DefaultColumnNames = ["To Do", "In Progress", "Done"];
+
     [HttpGet("boards/{boardId:guid}/activity")]
     public async Task<ActionResult<ActivityResponse>> GetActivity(
         Guid boardId, CancellationToken ct, [FromQuery] int limit = 50)
@@ -89,6 +93,38 @@ public class BoardsController(
             UpdatedAt = now
         };
         db.Boards.Add(board);
+
+        if (request.SeedDefaultColumns)
+        {
+            // Written directly, with no operations rows, and deliberately so.
+            //
+            // These used to be three ordinary API calls made by the client on
+            // the user's behalf, which meant the log recorded them as work the
+            // user did. Two things followed: the activity feed opened by
+            // claiming someone added columns they had never touched, and undo
+            // offered to reverse them. Since an undo carries no inverse, three
+            // curious presses of Ctrl+Z stripped a brand-new board to nothing
+            // with no way back.
+            //
+            // Scaffolding is not user work, so it does not go in the log. Board
+            // seq stays 0 and resync is unaffected -- nobody can be connected to
+            // a board that did not exist a moment ago.
+            string? previous = null;
+            foreach (var name in DefaultColumnNames)
+            {
+                previous = RankService.GenerateBetween(previous, null);
+                db.Columns.Add(new Column
+                {
+                    Id = Guid.NewGuid(),
+                    BoardId = board.Id,
+                    Name = name,
+                    Rank = previous,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                });
+            }
+        }
+
         await db.SaveChangesAsync(ct);
 
         return CreatedAtAction(nameof(GetBoard), new { boardId = board.Id },

@@ -695,6 +695,48 @@ gerund: *"undid adding “Live sync probe”"*.
   nullable and old rows have no value, so they fall back to the ordinary
   summary — visible in local dev as older rows still reading "deleted a card".
 
+## v2 — the first-run experience, corrected
+
+Two problems surfaced when a real person signed up rather than a test fixture.
+
+**The introduction never played for a new account.** Seen-state was keyed per
+browser (`tangram-seen:board-intro`), so the second person to sign up in the
+same browser got nothing. The original note argued a per-account field wasn't
+worth a migration and an endpoint — which was true, and beside the point: the
+key just needed the user's id in it. It is now `board-intro:{uid}`, still
+localStorage, still no server change. This project is demonstrated by signing up
+fresh accounts in one browser, which is precisely the case that was broken.
+
+**The three starter columns were undoable, and undoing them was a dead end.**
+The bootstrap created them with three ordinary API calls carrying the user's
+token, so the log recorded them as work that user did. Two consequences: the
+activity feed opened by claiming someone added columns they had never touched,
+and undo offered to reverse them. Since an undo carries no inverse — deliberately,
+to stop undo becoming redo — three curious presses of Ctrl+Z stripped a
+brand-new board to nothing with no way back. A new user's very first interaction
+could destroy their board irreversibly.
+
+The fix is not to make undo cleverer. Undo behaved correctly on the operations it
+was given; the defect was recording scaffolding as user work. Seeding now happens
+server-side inside the board-create transaction, writing no `operations` rows.
+
+- **Nothing to undo, nothing to misattribute.** A fresh board's feed is genuinely
+  empty, matching the empty state that was already written for it.
+- **Board `seq` stays 0.** Scaffolding is not an operation, so it must not
+  advance the sequence clients reconcile against. No broadcast is lost either —
+  nobody can be connected to a board that did not exist a moment ago.
+- **Four round trips became one**, removing a window where a board could exist
+  with one column of three if any call failed.
+- **Only the bootstrap seeds.** A board created deliberately stays empty: its
+  empty state already names the next action, and someone who chose to make a
+  board may want a different shape of work. One flag on the request keeps both
+  behaviours intentional rather than accidental.
+
+Verified end to end in a browser, in the reported scenario: a fresh sign-up
+landed on a seeded three-column board with zero operations and `seq` 0, and the
+introduction played — while the old global seen-flag was still set in that same
+browser, which is what proves the per-user key is the one being read.
+
 ### Divergences and known debt from Slice 4a
 
 - **The test suite needs `Firebase:ProjectId` from the environment or user-secrets.**

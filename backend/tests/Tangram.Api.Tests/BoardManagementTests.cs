@@ -37,6 +37,109 @@ public class BoardManagementTests(TangramWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task A_seeded_board_arrives_with_the_three_default_columns()
+    {
+        var client = factory.CreateClientAs("seed-uid");
+        var workspace = await (await client.PostAsJsonAsync("/workspaces", new CreateWorkspaceRequest("Seeded")))
+            .Content.ReadFromJsonAsync<WorkspaceResponse>();
+
+        var board = await (await client.PostAsJsonAsync(
+            $"/workspaces/{workspace!.Id}/boards", new CreateBoardRequest("My Board", SeedDefaultColumns: true)))
+            .Content.ReadFromJsonAsync<BoardResponse>();
+
+        var detail = await client.GetFromJsonAsync<BoardDetailResponse>($"/boards/{board!.Id}");
+        Assert.Equal(["To Do", "In Progress", "Done"], detail!.Columns.Select(c => c.Name));
+    }
+
+    [Fact]
+    public async Task Seeded_columns_are_not_recorded_as_work_the_user_did()
+    {
+        // They used to be three ordinary API calls, so the feed opened by
+        // claiming the user had added columns they never touched -- and undo
+        // offered to reverse them. Since an undo carries no inverse, three
+        // presses of Ctrl+Z stripped a new board with no way back.
+        var client = factory.CreateClientAs("seed-noops-uid");
+        var workspace = await (await client.PostAsJsonAsync("/workspaces", new CreateWorkspaceRequest("Seeded")))
+            .Content.ReadFromJsonAsync<WorkspaceResponse>();
+        var board = await (await client.PostAsJsonAsync(
+            $"/workspaces/{workspace!.Id}/boards", new CreateBoardRequest("My Board", SeedDefaultColumns: true)))
+            .Content.ReadFromJsonAsync<BoardResponse>();
+
+        var activity = await client.GetFromJsonAsync<ActivityResponse>($"/boards/{board!.Id}/activity");
+
+        Assert.Empty(activity!.Entries);
+        Assert.Null(activity.UndoableSeq);
+    }
+
+    [Fact]
+    public async Task A_new_user_cannot_undo_their_way_to_an_empty_board()
+    {
+        var client = factory.CreateClientAs("seed-undo-uid");
+        var workspace = await (await client.PostAsJsonAsync("/workspaces", new CreateWorkspaceRequest("Seeded")))
+            .Content.ReadFromJsonAsync<WorkspaceResponse>();
+        var board = await (await client.PostAsJsonAsync(
+            $"/workspaces/{workspace!.Id}/boards", new CreateBoardRequest("My Board", SeedDefaultColumns: true)))
+            .Content.ReadFromJsonAsync<BoardResponse>();
+
+        var undo = await client.PostAsync($"/boards/{board!.Id}/undo", null);
+
+        Assert.Equal(HttpStatusCode.Conflict, undo.StatusCode);
+        var detail = await client.GetFromJsonAsync<BoardDetailResponse>($"/boards/{board.Id}");
+        Assert.Equal(3, detail!.Columns.Count);
+    }
+
+    [Fact]
+    public async Task Seeding_leaves_the_board_seq_untouched()
+    {
+        // Scaffolding is not an operation, so it must not advance the sequence
+        // clients reconcile against.
+        var client = factory.CreateClientAs("seed-seq-uid");
+        var workspace = await (await client.PostAsJsonAsync("/workspaces", new CreateWorkspaceRequest("Seeded")))
+            .Content.ReadFromJsonAsync<WorkspaceResponse>();
+        var board = await (await client.PostAsJsonAsync(
+            $"/workspaces/{workspace!.Id}/boards", new CreateBoardRequest("My Board", SeedDefaultColumns: true)))
+            .Content.ReadFromJsonAsync<BoardResponse>();
+
+        var detail = await client.GetFromJsonAsync<BoardDetailResponse>($"/boards/{board!.Id}");
+        Assert.Equal(0, detail!.Seq);
+    }
+
+    [Fact]
+    public async Task A_board_created_deliberately_stays_empty()
+    {
+        // Someone who chose to make a board may want a different shape of work,
+        // and its empty state already names the next action.
+        var (client, workspaceId, _) = await SeedAsync("no-seed-uid");
+
+        var board = await (await client.PostAsJsonAsync(
+            $"/workspaces/{workspaceId}/boards", new CreateBoardRequest("Deliberate")))
+            .Content.ReadFromJsonAsync<BoardResponse>();
+
+        var detail = await client.GetFromJsonAsync<BoardDetailResponse>($"/boards/{board!.Id}");
+        Assert.Empty(detail!.Columns);
+    }
+
+    [Fact]
+    public async Task Seeded_columns_are_ordered_and_independently_rankable()
+    {
+        // Written directly rather than through the rank service's usual caller,
+        // so this guards that they got distinct, ordered ranks rather than three
+        // identical ones.
+        var client = factory.CreateClientAs("seed-rank-uid");
+        var workspace = await (await client.PostAsJsonAsync("/workspaces", new CreateWorkspaceRequest("Seeded")))
+            .Content.ReadFromJsonAsync<WorkspaceResponse>();
+        var board = await (await client.PostAsJsonAsync(
+            $"/workspaces/{workspace!.Id}/boards", new CreateBoardRequest("My Board", SeedDefaultColumns: true)))
+            .Content.ReadFromJsonAsync<BoardResponse>();
+
+        var detail = await client.GetFromJsonAsync<BoardDetailResponse>($"/boards/{board!.Id}");
+        var ranks = detail!.Columns.Select(c => c.Rank).ToList();
+
+        Assert.Equal(3, ranks.Distinct().Count());
+        Assert.Equal(ranks.OrderBy(r => r, StringComparer.Ordinal), ranks);
+    }
+
+    [Fact]
     public async Task Renaming_a_board_changes_what_the_workspace_lists()
     {
         var (client, workspaceId, board) = await SeedAsync("rename-board-uid");

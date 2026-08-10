@@ -18,7 +18,11 @@ public record WorkspaceMembersResponse(List<MemberResponse> Members, List<Pendin
 // a user (joined immediately) or an invitation is now waiting to be claimed.
 public record InviteMemberResponse(bool Joined, MemberResponse? Member, PendingInvitationResponse? Invitation);
 
-public record CreateBoardRequest(string Name);
+// SeedDefaultColumns is for the board the bootstrap creates on someone's behalf:
+// they never asked for it, so it should arrive usable. A board created
+// explicitly stays empty, because its empty state names the next action and the
+// person choosing to make one may want a different shape of work.
+public record CreateBoardRequest(string Name, bool SeedDefaultColumns = false);
 public record BoardResponse(Guid Id, Guid WorkspaceId, string Name, DateTimeOffset CreatedAt);
 
 public record CreateColumnRequest(string Name);
