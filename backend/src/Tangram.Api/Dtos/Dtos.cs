@@ -18,11 +18,22 @@ public record WorkspaceMembersResponse(List<MemberResponse> Members, List<Pendin
 // a user (joined immediately) or an invitation is now waiting to be claimed.
 public record InviteMemberResponse(bool Joined, MemberResponse? Member, PendingInvitationResponse? Invitation);
 
-// SeedDefaultColumns is for the board the bootstrap creates on someone's behalf:
-// they never asked for it, so it should arrive usable. A board created
-// explicitly stays empty, because its empty state names the next action and the
-// person choosing to make one may want a different shape of work.
-public record CreateBoardRequest(string Name, bool SeedDefaultColumns = false);
+// Columns arrive with the board or not at all.
+//
+// SeedDefaultColumns is for a board created on someone's behalf: they never
+// asked for it, so it should arrive usable. Columns carries an explicit list,
+// which is what the welcome flow's template picker sends. Either way the columns
+// are written inside the same transaction with no operations rows -- scaffolding
+// is not work the user did, and recording it as such made it undoable into a
+// dead end.
+//
+// A board created from the board list stays empty: its empty state names the
+// next action, and someone who chose to make one may want a different shape of
+// work.
+public record CreateBoardRequest(
+    string Name,
+    bool SeedDefaultColumns = false,
+    List<string>? Columns = null);
 public record BoardResponse(Guid Id, Guid WorkspaceId, string Name, DateTimeOffset CreatedAt);
 
 public record CreateColumnRequest(string Name);

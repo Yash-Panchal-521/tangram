@@ -140,6 +140,86 @@ public class BoardManagementTests(TangramWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task A_template_can_name_the_starting_columns()
+    {
+        // What the welcome flow's picker sends.
+        var client = factory.CreateClientAs("template-uid");
+        var workspace = await (await client.PostAsJsonAsync("/workspaces", new CreateWorkspaceRequest("Templated")))
+            .Content.ReadFromJsonAsync<WorkspaceResponse>();
+
+        var board = await (await client.PostAsJsonAsync(
+            $"/workspaces/{workspace!.Id}/boards",
+            new CreateBoardRequest("Sprint board", Columns: ["Backlog", "In Progress", "Review", "Done"])))
+            .Content.ReadFromJsonAsync<BoardResponse>();
+
+        var detail = await client.GetFromJsonAsync<BoardDetailResponse>($"/boards/{board!.Id}");
+        Assert.Equal(["Backlog", "In Progress", "Review", "Done"], detail!.Columns.Select(c => c.Name));
+    }
+
+    [Fact]
+    public async Task Template_columns_are_scaffolding_too_and_leave_no_history()
+    {
+        var client = factory.CreateClientAs("template-noops-uid");
+        var workspace = await (await client.PostAsJsonAsync("/workspaces", new CreateWorkspaceRequest("Templated")))
+            .Content.ReadFromJsonAsync<WorkspaceResponse>();
+        var board = await (await client.PostAsJsonAsync(
+            $"/workspaces/{workspace!.Id}/boards",
+            new CreateBoardRequest("Sprint board", Columns: ["Backlog", "Done"])))
+            .Content.ReadFromJsonAsync<BoardResponse>();
+
+        var activity = await client.GetFromJsonAsync<ActivityResponse>($"/boards/{board!.Id}/activity");
+        Assert.Empty(activity!.Entries);
+    }
+
+    [Fact]
+    public async Task Blank_and_whitespace_column_names_are_dropped_rather_than_created()
+    {
+        var client = factory.CreateClientAs("template-blank-uid");
+        var workspace = await (await client.PostAsJsonAsync("/workspaces", new CreateWorkspaceRequest("Templated")))
+            .Content.ReadFromJsonAsync<WorkspaceResponse>();
+
+        var board = await (await client.PostAsJsonAsync(
+            $"/workspaces/{workspace!.Id}/boards",
+            new CreateBoardRequest("Board", Columns: ["  Real  ", "   ", ""])))
+            .Content.ReadFromJsonAsync<BoardResponse>();
+
+        var detail = await client.GetFromJsonAsync<BoardDetailResponse>($"/boards/{board!.Id}");
+        Assert.Equal(["Real"], detail!.Columns.Select(c => c.Name));
+    }
+
+    [Fact]
+    public async Task An_unreasonable_number_of_starting_columns_is_refused()
+    {
+        // Not a product rule -- columns can be added freely afterwards -- just a
+        // bound so one request cannot write an arbitrary number of rows.
+        var client = factory.CreateClientAs("template-many-uid");
+        var workspace = await (await client.PostAsJsonAsync("/workspaces", new CreateWorkspaceRequest("Templated")))
+            .Content.ReadFromJsonAsync<WorkspaceResponse>();
+
+        var response = await client.PostAsJsonAsync(
+            $"/workspaces/{workspace!.Id}/boards",
+            new CreateBoardRequest("Board", Columns: Enumerable.Range(1, 20).Select(i => $"C{i}").ToList()));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task An_explicit_column_list_wins_over_the_default_flag()
+    {
+        var client = factory.CreateClientAs("template-wins-uid");
+        var workspace = await (await client.PostAsJsonAsync("/workspaces", new CreateWorkspaceRequest("Templated")))
+            .Content.ReadFromJsonAsync<WorkspaceResponse>();
+
+        var board = await (await client.PostAsJsonAsync(
+            $"/workspaces/{workspace!.Id}/boards",
+            new CreateBoardRequest("Board", SeedDefaultColumns: true, Columns: ["Only this"])))
+            .Content.ReadFromJsonAsync<BoardResponse>();
+
+        var detail = await client.GetFromJsonAsync<BoardDetailResponse>($"/boards/{board!.Id}");
+        Assert.Equal(["Only this"], detail!.Columns.Select(c => c.Name));
+    }
+
+    [Fact]
     public async Task Renaming_a_board_changes_what_the_workspace_lists()
     {
         var (client, workspaceId, board) = await SeedAsync("rename-board-uid");

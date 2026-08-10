@@ -737,6 +737,60 @@ landed on a seeded three-column board with zero operations and `seq` 0, and the
 introduction played — while the old global seen-flag was still set in that same
 browser, which is what proves the per-user key is the one being read.
 
+## v2 — the welcome flow
+
+A single screen between signing up and having a board, at `/welcome`. The
+bootstrap used to manufacture a workspace and a board silently; now it hands
+over to a screen that asks.
+
+**Why one screen and not a wizard.** NN/g's position is that onboarding a person
+must get through before reaching the product reduces usability and should be
+avoided where possible — even skipping costs an interaction — and that tutorials
+do not improve task performance. Their carve-out is the case that applies here:
+onboarding earns its place when you genuinely need information to get started.
+Trello, the closest analogue, does not gate a new account either; you land on a
+board and templates are opt-in.
+
+So: everything pre-filled, nothing mandatory, skip always visible. Pressing
+Enter immediately produces exactly what the old automatic bootstrap produced.
+
+**What it buys, given that constraint:**
+
+- **Names somebody chose.** Every account previously got "My Workspace" and
+  "My Board" — placeholders. The workspace name is suggested from the display
+  name ("Ada's workspace"), which reads like a real place.
+- **A board shape that matches the work**, offered as templates showing the
+  columns they produce rather than a free-form "name your columns" field.
+  Someone who has not seen the product cannot design their own workflow, and
+  asking them to is exactly the mandatory step that turns setup into an
+  obstacle.
+- **The invite prompt at the moment of highest intent.** Collaboration is the
+  whole point of this app and was previously invisible until you went looking
+  for the members page.
+
+**Decisions inside it:**
+
+- **Template columns are scaffolding, like the seeded three** — written in the
+  board-create transaction with no operations rows, so a new user still cannot
+  undo their way to an empty board.
+- **A bad address warns, it does not block.** Invalid entries are named and
+  skipped; invites are attempted individually and never rethrow, because one
+  bad address must not cost someone the board they just made.
+- **Double submit is latched.** A second run would create a second workspace,
+  which is the mess the bootstrap was rewritten to avoid.
+- **Anyone who already has a board is redirected away.** An invited teammate has
+  nothing to set up.
+- **The workspace name field is hidden when it would be ignored.** Someone can
+  arrive owning an empty workspace; the board goes there rather than stacking a
+  second one, so the screen states which workspace instead of offering a name
+  field that silently does nothing. Found by using the flow rather than by
+  reading it.
+
+Verified in a browser end to end: a real sign-up reached `/welcome`, the Sprint
+template produced Backlog/In Progress/Review/Done in rank order with `seq` 0 and
+zero operations, the valid invite was written and the invalid one skipped, and
+Skip produced a Basic board and landed on it.
+
 ### Divergences and known debt from Slice 4a
 
 - **The test suite needs `Firebase:ProjectId` from the environment or user-secrets.**

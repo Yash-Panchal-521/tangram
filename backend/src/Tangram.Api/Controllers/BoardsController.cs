@@ -20,6 +20,11 @@ public class BoardsController(
     // bootstrap creates unasked -- see CreateBoardRequest.
     private static readonly string[] DefaultColumnNames = ["To Do", "In Progress", "Done"];
 
+    // A ceiling on what the welcome flow can seed. Not a product rule -- columns
+    // can be added freely afterwards -- just a bound so one request can't write
+    // an unreasonable number of rows.
+    private const int MaxSeededColumns = 8;
+
     [HttpGet("boards/{boardId:guid}/activity")]
     public async Task<ActionResult<ActivityResponse>> GetActivity(
         Guid boardId, CancellationToken ct, [FromQuery] int limit = 50)
@@ -94,7 +99,18 @@ public class BoardsController(
         };
         db.Boards.Add(board);
 
-        if (request.SeedDefaultColumns)
+        // An explicit list wins; SeedDefaultColumns is the "just give me the
+        // usual three" shorthand.
+        var seedNames = request.Columns is { Count: > 0 }
+            ? request.Columns.Select(n => n?.Trim() ?? string.Empty).Where(n => n.Length > 0).ToArray()
+            : request.SeedDefaultColumns ? DefaultColumnNames : [];
+
+        if (seedNames.Length > MaxSeededColumns)
+        {
+            return ValidationProblem($"A board can start with at most {MaxSeededColumns} columns.");
+        }
+
+        if (seedNames.Length > 0)
         {
             // Written directly, with no operations rows, and deliberately so.
             //
@@ -110,7 +126,7 @@ public class BoardsController(
             // seq stays 0 and resync is unaffected -- nobody can be connected to
             // a board that did not exist a moment ago.
             string? previous = null;
-            foreach (var name in DefaultColumnNames)
+            foreach (var name in seedNames)
             {
                 previous = RankService.GenerateBetween(previous, null);
                 db.Columns.Add(new Column

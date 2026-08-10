@@ -5,12 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { BoardSkeleton } from "@/components/board/BoardSkeleton";
 import { friendlyError } from "@/lib/errorMessage";
-import {
-  api,
-  WorkspaceResponse,
-  BoardResponse,
-  WorkspaceSummaryResponse,
-} from "@/lib/api";
+import { api, type WorkspaceSummaryResponse } from "@/lib/api";
 
 const BOARD_ID_KEY = "tangram-board-id";
 
@@ -57,25 +52,12 @@ export default function BoardBootstrapPage() {
           return;
         }
 
-        // Genuinely new: belongs to no workspace that has a board yet. Reuse an
-        // existing empty workspace rather than stacking a second one.
-        const workspaceId =
-          workspaces[0]?.id ??
-          (await api.post<WorkspaceResponse>("/workspaces", token, { name: "My Workspace" })).id;
-
-        // The server seeds the columns inside the same transaction. Doing it
-        // here meant three extra round trips, a window where the board existed
-        // with one column of three if any of them failed, and -- worse -- three
-        // operations in the log attributed to a user who had just arrived and
-        // done nothing. See CreateBoardRequest.
-        const board = await api.post<BoardResponse>(
-          `/workspaces/${workspaceId}/boards`,
-          token,
-          { name: "My Board", seedDefaultColumns: true }
-        );
-
-        localStorage.setItem(BOARD_ID_KEY, board.id);
-        router.replace(`/board/${board.id}`);
+        // Genuinely new: belongs to no workspace that has a board yet. Rather
+        // than silently manufacturing a workspace and a board called "My
+        // Workspace" and "My Board" -- placeholders nobody chose -- hand over to
+        // the welcome screen, which asks for names, a shape, and who else is
+        // coming. Skipping there lands exactly where this used to.
+        router.replace("/welcome");
       } catch (err) {
         setError(friendlyError(err, "open your board").message);
       } finally {
