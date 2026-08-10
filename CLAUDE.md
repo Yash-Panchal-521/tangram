@@ -68,6 +68,23 @@ just invited someone who was already here.
 **The invitation token is owner-only.** `GET /members` nulls it for everyone else — a viewer
 who could read it could hand out membership, which is the authority the role withholds.
 
+**Accepting is a POST the page makes, never a navigation.** Slack, Outlook Safe Links and
+corporate mail scanners fetch URLs to build previews, so a GET that joins is spent before
+the human clicks. Declining is a POST for the same reason — and is `[AllowAnonymous]`,
+because requiring an account to refuse means creating one to say no. Accepting stays
+`[Authorize]`: refusing costs the holder their own opportunity, joining puts someone into
+a tenant.
+
+**Only sign-up auto-accepts** (`/invite/{token}?accept=1`). Creating an account for an
+invitation is unambiguous consent; being signed in when you open a link is not, and
+`/login?invite=` is also how "use a different account" works — auto-accepting there would
+join whichever account someone switched to. There is no "leave workspace" yet, so a wrong
+join is not self-undoable.
+
+**The invited address never travels in a URL.** It comes back on the offer response and
+prefills sign-up from there. A query parameter would put it in browser history, Referer
+headers and every access log the link passes through.
+
 **Firebase is authoritative for display names, but a token without a `name` claim must
 never overwrite a stored name** with the email-local-part fallback. That fallback is for
 row creation only. Read both `"name"` and `ClaimTypes.Name` — JwtBearer's inbound map may

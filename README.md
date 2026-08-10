@@ -171,8 +171,10 @@ Open `http://localhost:3000`.
    ready-made message containing an `/invite/{token}` link, and send it yourself. That
    link is a credential — anyone who opens it can join — so send it directly rather
    than posting it somewhere public. It lasts seven days and works once.
-4. **They accept.** The link shows the workspace, the role and who invited them, and
-   they choose. Signing up first is a detour the page brings them back from.
+4. **They accept.** Someone without an account goes straight to sign-up, which shows
+   what they're joining, and lands on the board already a member. Someone already
+   signed in is asked first, and told which account would join. Either way they can
+   decline — which needs no account, because making one to say no is absurd.
 5. **Watch it sync.** With both of you on the board, cards, columns, presence avatars
    and cursors update live. Change someone to Viewer and their next edit is rejected.
 
@@ -182,9 +184,9 @@ To see real-time behaviour solo, open the same board URL in two tabs.
 
 | Route | Purpose |
 |---|---|
-| `/login`, `/signup` | Firebase email/password auth; `?next=` returns you mid-flow |
+| `/login`, `/signup` | Firebase email/password auth; `?next=` returns you mid-flow, `?invite=` shows the invitation |
 | `/welcome` | First-run setup — workspace name, column template, invites |
-| `/invite/[token]` | Accept or decline an invitation; readable signed out |
+| `/invite/[token]` | Accept or decline an invitation; `?accept=1` on the way back from sign-up |
 | `/board` | Resolves which board to open from your memberships |
 | `/boards` | Every workspace and board you belong to |
 | `/board/[boardId]` | The collaborative board |

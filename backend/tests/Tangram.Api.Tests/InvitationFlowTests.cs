@@ -80,18 +80,21 @@ public class InvitationFlowTests(TangramWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task The_offer_does_not_carry_the_invited_address()
+    public async Task The_offer_carries_the_invited_address_for_the_sign_up_prefill()
     {
-        // Anyone holding the link can read this, and the link travels through
-        // whatever channel the owner chose. The address is not theirs to leak.
+        // In the response, deliberately, and never in the link. A URL parameter
+        // would put the address into browser history, Referer headers and every
+        // access log the link passes through. Whoever holds the token could take
+        // the membership outright, so reading the address costs nothing extra.
         var owner = factory.CreateClientAs("owner-uid");
         var (workspace, _) = await SeedAsync(owner);
-        var invitation = await InviteAsync(owner, workspace.Id, "newcomer@example.com");
+        var invitation = await InviteAsync(owner, workspace.Id, "Newcomer@Example.com");
 
-        var body = await (await factory.CreateClient().GetAsync($"/invitations/{invitation.Token}"))
-            .Content.ReadAsStringAsync();
+        var offer = await (await factory.CreateClient().GetAsync($"/invitations/{invitation.Token}"))
+            .Content.ReadFromJsonAsync<InvitationOfferResponse>();
 
-        Assert.DoesNotContain("newcomer@example.com", body);
+        // Normalised, so the prefilled address matches what was actually invited.
+        Assert.Equal("newcomer@example.com", offer!.Email);
     }
 
     [Fact]
@@ -224,6 +227,39 @@ public class InvitationFlowTests(TangramWebApplicationFactory factory)
         // work on a second look.
         Assert.Equal(HttpStatusCode.Conflict,
             (await invitee.PostAsync($"/invitations/{invitation.Token}/accept", null)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Declining_needs_no_account()
+    {
+        // Otherwise saying no means creating an account first, which is absurd.
+        // The token already carries this authority -- anyone who could reach
+        // here could have taken the membership instead of refusing it.
+        var owner = factory.CreateClientAs("owner-uid");
+        var (workspace, _) = await SeedAsync(owner);
+        var invitation = await InviteAsync(owner, workspace.Id, "nothanks@example.com");
+
+        var anonymous = factory.CreateClient();
+        (await anonymous.PostAsync($"/invitations/{invitation.Token}/decline", null))
+            .EnsureSuccessStatusCode();
+
+        var offer = await (await anonymous.GetAsync($"/invitations/{invitation.Token}"))
+            .Content.ReadFromJsonAsync<InvitationOfferResponse>();
+        Assert.Equal("declined", offer!.Status);
+    }
+
+    [Fact]
+    public async Task Accepting_still_needs_an_account_even_though_declining_does_not()
+    {
+        // The asymmetry is the point: refusing costs the holder their own
+        // opportunity, joining puts somebody into a tenant. Only one of those
+        // needs to know who you are.
+        var owner = factory.CreateClientAs("owner-uid");
+        var (workspace, _) = await SeedAsync(owner);
+        var invitation = await InviteAsync(owner, workspace.Id, "newcomer@example.com");
+
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            (await factory.CreateClient().PostAsync($"/invitations/{invitation.Token}/accept", null)).StatusCode);
     }
 
     [Fact]

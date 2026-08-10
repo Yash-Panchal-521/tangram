@@ -164,6 +164,8 @@ export interface InvitationOfferResponse {
   workspaceName: string;
   role: MembershipRole;
   invitedByName: string;
+  /** Prefills sign-up. Carried in the response, never in the link — see the DTO. */
+  email: string;
   status: "pending" | "accepted" | "declined" | "expired";
   expiresAt: string;
 }

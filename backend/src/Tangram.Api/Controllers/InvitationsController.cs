@@ -58,6 +58,7 @@ public class InvitationsController(AppDbContext db, ICurrentUserService currentU
                 i.WorkspaceId,
                 WorkspaceName = i.Workspace.Name,
                 i.Role,
+                i.Email,
                 i.AcceptedAt,
                 i.DeclinedAt,
                 i.ExpiresAt,
@@ -79,6 +80,7 @@ public class InvitationsController(AppDbContext db, ICurrentUserService currentU
             offer.WorkspaceName,
             offer.Role.ToString(),
             invitedBy ?? "Someone",
+            offer.Email,
             StatusOf(offer.AcceptedAt, offer.DeclinedAt, offer.ExpiresAt),
             offer.ExpiresAt));
     }
@@ -145,8 +147,17 @@ public class InvitationsController(AppDbContext db, ICurrentUserService currentU
         return NoContent();
     }
 
+    /// <summary>Turn an invitation down, with or without an account.</summary>
+    /// <remarks>
+    /// Anonymous, unlike accept. Requiring a sign-in to refuse would mean
+    /// creating an account in order to say no, and the token already carries the
+    /// authority: declining only spends the holder's own opportunity, and
+    /// anybody who could reach this could have taken the membership outright
+    /// instead. A POST rather than a link, so a mail scanner or link-preview
+    /// fetcher can't refuse an invitation on someone's behalf.
+    /// </remarks>
     [HttpPost("{token}/decline")]
-    [Authorize]
+    [AllowAnonymous]
     public async Task<IActionResult> Decline(string token, CancellationToken ct)
     {
         var invitation = await db.Invitations

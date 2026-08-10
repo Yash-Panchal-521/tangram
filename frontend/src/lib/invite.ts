@@ -33,6 +33,45 @@ export function buildInviteUrl(token: string, origin: string): string {
 }
 
 /**
+ * Where the invite page sends someone who has no account yet.
+ *
+ * The token travels as `invite`, not as `next`: the sign-up page uses it to
+ * fetch the offer and show what is being joined, which a plain redirect target
+ * could not do. It implies the destination, so `next` stays free for every other
+ * flow. Deliberately no `email` parameter — the offer response carries that.
+ */
+export function buildInviteSignupPath(token: string): string {
+  return `/signup?invite=${encodeURIComponent(token)}`;
+}
+
+export function buildInviteLoginPath(token: string): string {
+  return `/login?invite=${encodeURIComponent(token)}`;
+}
+
+/**
+ * Coming back to accept, after the sign-in detour.
+ *
+ * The flag is what separates "signed up in order to join" — where accepting is
+ * what the whole trip was for — from someone who merely happens to be signed in
+ * when they open a link, who still gets asked.
+ */
+export function buildInviteReturnPath(token: string): string {
+  return `/invite/${encodeURIComponent(token)}?accept=1`;
+}
+
+/**
+ * What a role lets you do, in the second person.
+ *
+ * Lives here rather than on the invite page because the sign-up banner says the
+ * same thing, and two copies of "what an Editor can do" drift.
+ */
+export const ROLE_MEANS: Record<string, string> = {
+  Owner: "You'll be able to change the board and manage who else is in it.",
+  Editor: "You'll be able to add, edit, move and delete columns and cards.",
+  Viewer: "You'll be able to see the board and everyone on it live, but not change it.",
+};
+
+/**
  * How long an invitation has left, in words.
  *
  * `relativeTime` is deliberately past-only — it floors anything in the future at

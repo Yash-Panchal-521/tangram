@@ -819,8 +819,8 @@ guarded — a fallback that grants membership by email is the whole bug.
   The link is therefore a credential, and the copy an owner pastes says so.
 - **The offer is readable signed out.** Deciding whether to create an account is
   impossible if you cannot see what it would be for. It carries the workspace
-  name, the role and who invited you — and deliberately not the invited address,
-  which is not the link-holder's to read, nor anything about the board.
+  name, the role, who invited you, and the address it was sent to — and nothing
+  about the board.
 - **Re-inviting mints a fresh token.** The previous link may be sitting in a
   channel the owner no longer wants it in; re-inviting is their only control
   over that. Revoking kills it outright.
@@ -847,11 +847,52 @@ is no in-app alternative: listing someone's pending invitations by their
 unverified email would reintroduce the original vulnerability. That is a product
 decision.
 
-Verified by 16 new integration tests plus 15 component tests, and by rewriting
-the two tests that encoded the old behaviour to assert its opposite. Thirteen
-other tests turned out to depend on auto-claim by accident — they invited a user
-whose row did not exist yet — and now register that user first, via a named
-factory helper that says why.
+Verified by new integration tests plus component tests, and by rewriting the two
+tests that encoded the old behaviour to assert its opposite. Thirteen other tests
+turned out to depend on auto-claim by accident — they invited a user whose row
+did not exist yet — and now register that user first, via a named factory helper
+that says why.
+
+### The flow, revised
+
+The first build put an offer screen in front of everybody. Reviewing it turned up
+a screen that, for a signed-out visitor, existed to render a button meaning
+*continue*: they cannot join until there is an account to join as, so Accept was
+not a real choice there. Three arrivals, three behaviours:
+
+| Who | What happens |
+|---|---|
+| No account | Straight to sign-up, invitation shown as a banner; accepted on return; lands on the board |
+| Signed in, opened the link | Asked, and told which account would join |
+| Signed in, back from sign-up (`?accept=1`) | Accepted without asking again |
+
+- **Acceptance is a POST the page makes, never the navigation.** Slack, Outlook
+  Safe Links and corporate mail scanners fetch URLs to build previews; a GET that
+  joins would be spent before the human clicked. This is why "opening the link
+  accepts" is safe to say at all.
+- **Declining needs no account** and is anonymous on the server. Requiring
+  someone to register before they can refuse is the opposite of the point, and
+  the token already carries that authority — anyone who could reach the endpoint
+  could have taken the membership instead. Accepting stays authorized: refusing
+  spends the holder's own opportunity, joining puts a person into a tenant.
+- **Only sign-up auto-accepts.** `/login?invite=` is also the "use a different
+  account" route, and someone switching accounts *before* deciding must not find
+  they joined on the one they switched to.
+- **The banner replaced the screen, not the explanation.** Dropping a stranger
+  onto a bare sign-up form removes the reason they are filling it in. Same words,
+  no extra page.
+- **The address is never in a URL.** It comes back on the offer response and
+  prefills sign-up from there, so it stays out of browser history, Referer
+  headers and access logs. Rejected the original `?email=` parameter for that.
+- **Bad link exits by auth state** — signed in to the boards, signed out to sign
+  in. `/board` would bounce a signed-out visitor to `/login` anyway, one flash of
+  the wrong page later.
+
+Driven in a browser for everything that needs no password: a real pending
+invitation redirected to sign-up with the address prefilled from the API and
+absent from the URL, the banner named the workspace, role and inviter, Decline
+worked with no account and left `declined_at` set, the invite page then read the
+status back as turned down, and an unknown token exited to sign in.
 
 ### Divergences and known debt from Slice 4a
 

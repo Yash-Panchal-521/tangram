@@ -18,13 +18,21 @@ public record MemberResponse(Guid UserId, string DisplayName, string? Email, str
 public record PendingInvitationResponse(
     Guid Id, string Email, string Role, DateTimeOffset CreatedAt, string? Token, DateTimeOffset ExpiresAt);
 
-// What the invite page shows before anyone commits to anything. Deliberately
-// small: whoever holds the link learns the workspace name, the role offered and
-// who sent it -- enough to decide -- and nothing about the board's contents.
+// What the invite page and the sign-up banner show before anyone commits to
+// anything: the workspace name, the role offered, who sent it, and the address
+// it was sent to. Nothing about the board's contents.
+//
+// The email is here rather than in the link's query string on purpose. It is
+// needed to prefill sign-up, but a URL parameter would put a real person's
+// address into browser history, Referer headers and every access log the link
+// passes through, and it would travel with each forward. Whoever holds the
+// token can already take the membership, so learning the address costs nothing
+// they didn't already have.
 public record InvitationOfferResponse(
     string WorkspaceName,
     string Role,
     string InvitedByName,
+    string Email,
     string Status,
     DateTimeOffset ExpiresAt);
 public record WorkspaceMembersResponse(List<MemberResponse> Members, List<PendingInvitationResponse> PendingInvitations);

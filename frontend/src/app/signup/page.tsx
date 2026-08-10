@@ -7,7 +7,9 @@ import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
 import { authInputClasses, friendlyAuthError, MIN_PASSWORD_LENGTH } from "@/lib/authForm";
-import { safeNextPath } from "@/lib/invite";
+import { buildInviteLoginPath, buildInviteReturnPath, safeNextPath } from "@/lib/invite";
+import { InviteBanner } from "@/components/invite/InviteBanner";
+import { useInviteOffer } from "@/components/invite/useInviteOffer";
 import { AuthField, PasswordRule } from "@/components/auth/AuthField";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/Button";
@@ -30,6 +32,8 @@ export default function SignupPage() {
   // them on a board they aren't in yet loses the invitation entirely.
   const [next, setNext] = useState("/board");
 
+  const { token: inviteToken, offer } = useInviteOffer();
+
   // Set synchronously at the top of handleSubmit, before any await, so it is
   // already true by the time Firebase notifies the auth listener below.
   const signingUpRef = useRef(false);
@@ -45,26 +49,31 @@ export default function SignupPage() {
     // itself once the profile is set and the token refreshed.
     if (signingUpRef.current) return;
     if (!loading && user) {
-      router.replace(next);
+      // Already signed in and holding an invite: send them to decide, not to
+      // auto-accept. Creating an account for an invitation is unambiguous
+      // consent; arriving here with a session already open is not.
+      router.replace(inviteToken ? `/invite/${encodeURIComponent(inviteToken)}` : next);
     }
-  }, [loading, user, router, next]);
+  }, [loading, user, router, next, inviteToken]);
 
-  // Seeds the address from an invite link (/signup?email=…) — a convenience, no
-  // more: the invitation is granted by its token now, so signing up with a
-  // different address still works.
-  //
   // Read from window rather than useSearchParams() — the hook would force this
   // statically prerendered route to become dynamic, or demand a Suspense
   // boundary, neither of which is worth restructuring the page for. Costs one
   // tick of empty field.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const invited = params.get("email");
-    /* eslint-disable react-hooks/set-state-in-effect */
-    if (invited) setEmail(invited.trim().toLowerCase());
-    setNext(safeNextPath(params.get("next"), "/board"));
-    /* eslint-enable react-hooks/set-state-in-effect */
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNext(safeNextPath(new URLSearchParams(window.location.search).get("next"), "/board"));
   }, []);
+
+  // Seeds the address from the invitation itself rather than from the URL, so a
+  // real person's address never travels in a query string. A convenience only:
+  // the token grants membership, so signing up with a different address works.
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (seeded.current || !offer?.email) return;
+    seeded.current = true;
+    setEmail(offer.email);
+  }, [offer?.email]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -81,7 +90,11 @@ export default function SignupPage() {
       // is what presence avatars and cursor labels would then show forever.
       await credential.user.getIdToken(true);
 
-      router.replace(next);
+      // Straight back to the invitation, which accepts and then opens the board.
+      // Never /welcome: the first-run setup decides by asking "do you have a
+      // board?", and reaching it before the accept lands would offer to build a
+      // workspace to somebody who just joined one.
+      router.replace(inviteToken ? buildInviteReturnPath(inviteToken) : next);
     } catch (err) {
       setError(friendlyAuthError(err));
       signingUpRef.current = false;
@@ -110,8 +123,16 @@ export default function SignupPage() {
       // the error if account creation then failed.
       checking={loading || (user !== null && !submitting)}
     >
-      <h2 className="text-[26px] font-semibold tracking-tight mb-1.5">Create your account.</h2>
-      <p className="text-[13px] text-text-muted mb-8">Takes about ten seconds.</p>
+      <h2 className="text-[26px] font-semibold tracking-tight mb-1.5">
+        {offer ? "Create your account to join." : "Create your account."}
+      </h2>
+      <p className="text-[13px] text-text-muted mb-5">Takes about ten seconds.</p>
+
+      {/* The context the old invitation interstitial carried. Without it this is
+          a bare form, and nothing on screen says why anyone is filling it in. */}
+      {inviteToken && offer && (
+        <InviteBanner token={inviteToken} offer={offer} className="mb-5" />
+      )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 mb-4">
         <AuthField id={nameId} label="Full name">
@@ -185,7 +206,13 @@ export default function SignupPage() {
         {/* Carries the destination across, so switching form doesn't strand
             someone who came here from an invite link. */}
         <Link
-          href={next === "/board" ? "/login" : `/login?next=${encodeURIComponent(next)}`}
+          href={
+            inviteToken
+              ? buildInviteLoginPath(inviteToken)
+              : next === "/board"
+                ? "/login"
+                : `/login?next=${encodeURIComponent(next)}`
+          }
           className="text-accent font-medium hover:underline"
         >
           Sign in

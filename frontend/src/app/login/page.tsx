@@ -7,7 +7,9 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
 import { authInputClasses, friendlyAuthError } from "@/lib/authForm";
-import { safeNextPath } from "@/lib/invite";
+import { buildInviteSignupPath, safeNextPath } from "@/lib/invite";
+import { InviteBanner } from "@/components/invite/InviteBanner";
+import { useInviteOffer } from "@/components/invite/useInviteOffer";
 import { AuthField } from "@/components/auth/AuthField";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/Button";
@@ -27,16 +29,24 @@ export default function LoginPage() {
   // have to come back to it rather than being dropped on a board.
   const [next, setNext] = useState("/board");
 
+  const { token: inviteToken, offer } = useInviteOffer();
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setNext(safeNextPath(new URLSearchParams(window.location.search).get("next"), "/board"));
   }, []);
 
+  // Back to the invitation to *decide*, never to auto-accept -- unlike sign-up.
+  // This route is also how "use a different account" works, and someone
+  // switching accounts before choosing must not find they have joined on the
+  // one they switched to.
+  const destination = inviteToken ? `/invite/${encodeURIComponent(inviteToken)}` : next;
+
   useEffect(() => {
     if (!loading && user) {
-      router.replace(next);
+      router.replace(destination);
     }
-  }, [loading, user, router, next]);
+  }, [loading, user, router, destination]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -44,7 +54,7 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.replace(next);
+      router.replace(destination);
     } catch (err) {
       setError(friendlyAuthError(err));
     } finally {
@@ -68,7 +78,13 @@ export default function LoginPage() {
       checking={loading || user !== null}
     >
       <h2 className="text-[26px] font-semibold tracking-tight mb-1.5">Welcome back.</h2>
-      <p className="text-[13px] text-text-muted mb-8">Sign in to continue to Tangram.</p>
+      <p className="text-[13px] text-text-muted mb-5">
+        {offer ? "Sign in to accept your invitation." : "Sign in to continue to Tangram."}
+      </p>
+
+      {inviteToken && offer && (
+        <InviteBanner token={inviteToken} offer={offer} className="mb-5" />
+      )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 mb-4">
         <AuthField id={emailId} label="Email">
@@ -113,7 +129,13 @@ export default function LoginPage() {
       <p className="text-[13px] text-text-muted">
         New to Tangram?{" "}
         <Link
-          href={next === "/board" ? "/signup" : `/signup?next=${encodeURIComponent(next)}`}
+          href={
+            inviteToken
+              ? buildInviteSignupPath(inviteToken)
+              : next === "/board"
+                ? "/signup"
+                : `/signup?next=${encodeURIComponent(next)}`
+          }
           className="text-accent font-medium hover:underline"
         >
           Create an account
