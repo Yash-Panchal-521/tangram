@@ -67,7 +67,7 @@ describe("applyOperation", () => {
       id: "backlog",
       boardId: "board-1",
       name: "Backlog",
-      rank: "aa", dueAt: null, assigneeId: null,
+      rank: "aa",
     });
 
     expect(next.columns.map((c) => c.id)).toEqual(["todo", "backlog", "doing"]);
@@ -80,7 +80,7 @@ describe("applyOperation", () => {
       id: "todo",
       boardId: "board-1",
       name: "Up Next",
-      rank: "a", dueAt: null, assigneeId: null,
+      rank: "a",
     });
 
     expect(next.columns[0].name).toBe("Up Next");
@@ -92,7 +92,7 @@ describe("applyOperation", () => {
       id: "todo",
       boardId: "board-1",
       name: "To Do",
-      rank: "c", dueAt: null, assigneeId: null,
+      rank: "c",
     });
 
     expect(next.columns.map((c) => c.id)).toEqual(["doing", "todo"]);
@@ -181,5 +181,53 @@ describe("moveCardOptimistic", () => {
     const reconciled = applyOperation(optimistic, "card.move", card("c3", "todo", "c"));
 
     expect(ids(reconciled, "todo")).toEqual(["c1", "c2", "c3"]);
+  });
+});
+
+describe("card depth carried through the reducer", () => {
+  it("applies a due date and assignee arriving on card.rename", () => {
+    // A due-date edit is still broadcast as card.rename -- the operations log
+    // holds historical rows of that type that resync replays, so a new op type
+    // would mean every client understanding both forever.
+    const withDepth = applyOperation(board(), "card.rename", {
+      ...card("c1", "todo", "a"),
+      dueAt: "2026-09-15T00:00:00.000Z",
+      assigneeId: "u-7",
+    });
+
+    const updated = withDepth.columns
+      .flatMap((col) => col.cards)
+      .find((c) => c.id === "c1")!;
+
+    expect(updated.dueAt).toBe("2026-09-15T00:00:00.000Z");
+    expect(updated.assigneeId).toBe("u-7");
+  });
+
+  it("clears them when the broadcast says they are gone, which is how undo lands", () => {
+    const withDepth = applyOperation(board(), "card.rename", {
+      ...card("c1", "todo", "a"),
+      dueAt: "2026-09-15T00:00:00.000Z",
+      assigneeId: "u-7",
+    });
+
+    const undone = applyOperation(withDepth, "card.rename", card("c1", "todo", "a"));
+    const updated = undone.columns.flatMap((col) => col.cards).find((c) => c.id === "c1")!;
+
+    expect(updated.dueAt).toBeNull();
+    expect(updated.assigneeId).toBeNull();
+  });
+
+  it("keeps depth intact across a restore, which arrives as card.create", () => {
+    // Undoing a delete re-broadcasts the card as a create carrying its original
+    // id, so the reducer's replace-by-id is what makes restore work at all.
+    const restored = applyOperation(board(), "card.create", {
+      ...card("c9", "todo", "z"),
+      dueAt: "2026-10-01T00:00:00.000Z",
+      assigneeId: "u-3",
+    });
+
+    const back = restored.columns.flatMap((col) => col.cards).find((c) => c.id === "c9")!;
+    expect(back.dueAt).toBe("2026-10-01T00:00:00.000Z");
+    expect(back.assigneeId).toBe("u-3");
   });
 });
