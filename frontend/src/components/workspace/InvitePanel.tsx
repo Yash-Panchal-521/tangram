@@ -1,7 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { api, type MembershipRole, type MemberResponse, type PendingInvitationResponse } from "@/lib/api";
+import {
+  api,
+  type InviteMemberResponse,
+  type MembershipRole,
+  type MemberResponse,
+  type PendingInvitationResponse,
+} from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { friendlyError } from "@/lib/errorMessage";
 import { Button } from "@/components/ui/Button";
@@ -28,10 +34,14 @@ interface InviteResult {
   role: MembershipRole;
   outcome: InviteOutcome;
   detail?: string;
+  /** Present only for "invited" — it's what the copy button puts in the link. */
+  token?: string;
 }
 
 const OUTCOME_TEXT: Record<InviteOutcome, string> = {
-  invited: "Invited — joins on first sign-in",
+  // Nothing is sent for them: the owner has to pass the link along, and the
+  // wording has to make that a task rather than a status.
+  invited: "Invited — send them the link",
   added: "Added — already had an account",
   updated: "Already a member — role updated",
   failed: "Failed",
@@ -99,7 +109,7 @@ export function InvitePanel({
     for (const [index, recipient] of recipients.entries()) {
       const wasMember = context.memberEmails.has(recipient.email);
       try {
-        const result = await api.post<{ joined: boolean }>(
+        const result = await api.post<InviteMemberResponse>(
           `/workspaces/${workspaceId}/members`,
           token,
           { email: recipient.email, role: recipient.role }
@@ -108,6 +118,10 @@ export function InvitePanel({
           email: recipient.email,
           role: recipient.role,
           outcome: wasMember ? "updated" : result.joined ? "added" : "invited",
+          // Never null in practice -- only an owner reaches this endpoint, and
+          // the token is withheld from everyone else. Narrowed rather than
+          // asserted so a future change to that rule fails here.
+          token: result.invitation?.token ?? undefined,
         });
       } catch (err) {
         collected.push({
@@ -197,7 +211,8 @@ export function InvitePanel({
           ) : recipients.length === 0 ? (
             <span className="text-text-muted">
               <span className="font-medium text-text">{newRole}:</span> {ROLE_INFO[newRole]} No
-              account needed yet — the invitation is claimed the first time they sign in.
+              account needed yet — you&apos;ll get a link to send them, and they join when they
+              accept it.
             </span>
           ) : distinctRoles.size > 1 ? (
             <span className="text-text-muted">
@@ -256,9 +271,10 @@ export function InvitePanel({
 
               {/* Only pending invites need passing along; the others already
                   have accounts and will see the workspace on next load. */}
-              {result.outcome === "invited" && (
+              {result.outcome === "invited" && result.token && (
                 <CopyInviteButton
                   email={result.email}
+                  token={result.token}
                   workspaceName={workspaceName}
                   label="Copy invite"
                 />

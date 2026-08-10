@@ -38,7 +38,7 @@ public class CardDepthTests(TangramWebApplicationFactory factory)
 
     private async Task<Guid> AddMemberAsync(HttpClient owner, Guid workspaceId, string uid, string role)
     {
-        var client = factory.CreateClientAs(uid);
+        var client = await factory.CreateRegisteredClientAs(uid);
         await owner.PostAsJsonAsync($"/workspaces/{workspaceId}/members",
             new InviteMemberRequest(TestAuthHandler.DefaultEmailFor(uid), role));
         var me = await (await client.GetAsync("/me")).Content.ReadFromJsonAsync<MeResponse>();
@@ -179,7 +179,7 @@ public class CardDepthTests(TangramWebApplicationFactory factory)
     public async Task A_viewer_cannot_set_a_due_date()
     {
         var (owner, workspaceId, board, card) = await SeedAsync("viewer-depth-owner");
-        var viewerClient = factory.CreateClientAs("viewer-depth-viewer");
+        var viewerClient = await factory.CreateRegisteredClientAs("viewer-depth-viewer");
         await owner.PostAsJsonAsync($"/workspaces/{workspaceId}/members",
             new InviteMemberRequest(TestAuthHandler.DefaultEmailFor("viewer-depth-viewer"), "Viewer"));
         await viewerClient.GetAsync("/me");

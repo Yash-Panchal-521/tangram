@@ -52,7 +52,7 @@ public class MembershipTests(TangramWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task Inviting_an_unregistered_email_is_claimed_on_that_users_first_request()
+    public async Task Inviting_an_unregistered_email_grants_nothing_until_the_link_is_accepted()
     {
         var owner = factory.CreateClientAs("owner-uid");
         var (workspace, board, _) = await SeedWorkspaceAsync(owner);
@@ -66,17 +66,28 @@ public class MembershipTests(TangramWebApplicationFactory factory)
         Assert.False(result!.Joined);
         Assert.Equal(newcomerEmail, result.Invitation!.Email);
 
-        // First authenticated request from that address claims the invitation
-        // and must see the workspace on this very call, not the next one.
+        // This used to be the whole mechanism: signing in with the invited
+        // address claimed the invitation. Nothing verifies an email here --
+        // Firebase treats a password sign-up as unverified -- so it meant
+        // knowing an address was enough to take someone else's invitation.
+        // Turning up with the address must now buy exactly nothing.
         var newcomer = factory.CreateClientAs("newcomer-uid", newcomerEmail);
-        var boardRead = await newcomer.GetAsync($"/boards/{board.Id}");
+        Assert.Equal(HttpStatusCode.NotFound, (await newcomer.GetAsync($"/boards/{board.Id}")).StatusCode);
 
-        Assert.Equal(HttpStatusCode.OK, boardRead.StatusCode);
-
-        var pendingAfter = await (await owner.GetAsync($"/workspaces/{workspace.Id}/members"))
+        var stillPending = await (await owner.GetAsync($"/workspaces/{workspace.Id}/members"))
             .Content.ReadFromJsonAsync<WorkspaceMembersResponse>();
-        Assert.Empty(pendingAfter!.PendingInvitations);
-        Assert.Contains(pendingAfter.Members, m => m.Email == newcomerEmail && m.Role == "Editor");
+        Assert.Single(stillPending!.PendingInvitations);
+
+        // The token is the credential, and it is the only thing that works.
+        (await newcomer.PostAsync($"/invitations/{result.Invitation.Token}/accept", null))
+            .EnsureSuccessStatusCode();
+
+        Assert.Equal(HttpStatusCode.OK, (await newcomer.GetAsync($"/boards/{board.Id}")).StatusCode);
+
+        var after = await (await owner.GetAsync($"/workspaces/{workspace.Id}/members"))
+            .Content.ReadFromJsonAsync<WorkspaceMembersResponse>();
+        Assert.Empty(after!.PendingInvitations);
+        Assert.Contains(after.Members, m => m.Email == newcomerEmail && m.Role == "Editor");
     }
 
     [Fact]
@@ -85,11 +96,18 @@ public class MembershipTests(TangramWebApplicationFactory factory)
         var owner = factory.CreateClientAs("owner-uid");
         var (workspace, board, _) = await SeedWorkspaceAsync(owner);
 
-        await owner.PostAsJsonAsync($"/workspaces/{workspace.Id}/members",
-            new InviteMemberRequest("  MixedCase@Example.COM ", "Viewer"));
-
+        // Already registered, so this is the immediate-join branch -- which is
+        // an exact index lookup on the normalised address. Unnormalised input
+        // silently falls through to "create an invitation" instead, and the
+        // owner never finds out they invited someone who was already here.
         var invitee = factory.CreateClientAs("mixed-uid", "mixedcase@example.com");
+        await invitee.GetAsync("/me");
 
+        var invite = await owner.PostAsJsonAsync($"/workspaces/{workspace.Id}/members",
+            new InviteMemberRequest("  MixedCase@Example.COM ", "Viewer"));
+        var result = await invite.Content.ReadFromJsonAsync<InviteMemberResponse>();
+
+        Assert.True(result!.Joined);
         Assert.Equal(HttpStatusCode.OK, (await invitee.GetAsync($"/boards/{board.Id}")).StatusCode);
     }
 

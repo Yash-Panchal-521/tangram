@@ -28,7 +28,7 @@ public class BoardManagementTests(TangramWebApplicationFactory factory)
 
     private async Task<HttpClient> AddMemberAsync(HttpClient owner, Guid workspaceId, string uid, string role)
     {
-        var client = factory.CreateClientAs(uid);
+        var client = await factory.CreateRegisteredClientAs(uid);
         await owner.PostAsJsonAsync($"/workspaces/{workspaceId}/members",
             new InviteMemberRequest(TestAuthHandler.DefaultEmailFor(uid), role));
         // Touching any endpoint claims the pending invitation.

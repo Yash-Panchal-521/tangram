@@ -20,6 +20,9 @@ public class MembersController(
     ICurrentUserService currentUser,
     IMembershipService memberships) : ControllerBase
 {
+    // Seven days, matching GitHub. Bounds how long a leaked link stays useful.
+    private const int InvitationLifetimeDays = 7;
+
     [HttpGet]
     public async Task<ActionResult<WorkspaceMembersResponse>> GetMembers(Guid workspaceId, CancellationToken ct)
     {
@@ -32,9 +35,15 @@ public class MembersController(
                 .Select(m => new MemberResponse(m.UserId, m.User.DisplayName, m.User.Email, m.Role.ToString()))
                 .ToListAsync(ct);
 
+            // Withheld from everyone but owners -- see PendingInvitationResponse.
+            // Filtered in the projection rather than after it so the secret is
+            // never materialised for a caller who may not have it.
+            var isOwner = await memberships.GetRoleAsync(workspaceId, currentUser.UserId, ct) == MembershipRole.Owner;
+
             var pending = await db.Invitations
                 .Where(i => i.WorkspaceId == workspaceId && i.AcceptedAt == null)
-                .Select(i => new PendingInvitationResponse(i.Id, i.Email, i.Role.ToString(), i.CreatedAt))
+                .Select(i => new PendingInvitationResponse(
+                    i.Id, i.Email, i.Role.ToString(), i.CreatedAt, isOwner ? i.Token : null, i.ExpiresAt))
                 .ToListAsync(ct);
 
             return new WorkspaceMembersResponse(members, pending);
@@ -42,8 +51,10 @@ public class MembersController(
     }
 
     // Hybrid invite: an address that already belongs to a user becomes a
-    // membership straight away, anything else becomes an invitation that
-    // CurrentUserLoader claims on that person's first authenticated request.
+    // membership straight away -- an owner adding someone who is already here
+    // has all the identity there is to have. Anything else becomes a pending
+    // invitation whose token the owner passes along; nothing grants membership
+    // until that person opens the link and accepts.
     [HttpPost]
     public async Task<ActionResult<InviteMemberResponse>> InviteMember(
         Guid workspaceId, InviteMemberRequest request, CancellationToken ct)
@@ -116,7 +127,9 @@ public class MembersController(
                     Email = email,
                     Role = role,
                     InvitedByUserId = currentUser.UserId,
-                    CreatedAt = DateTimeOffset.UtcNow
+                    Token = InvitationsController.NewToken(),
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    ExpiresAt = DateTimeOffset.UtcNow.AddDays(InvitationLifetimeDays)
                 };
                 db.Invitations.Add(invitation);
             }
@@ -126,6 +139,12 @@ public class MembersController(
                 invitation.InvitedByUserId = currentUser.UserId;
                 invitation.AcceptedAt = null;
                 invitation.AcceptedByUserId = null;
+                // Re-inviting clears a decline and restarts the clock, but mints
+                // a fresh secret too: the old link may have been shared
+                // somewhere the owner no longer wants it to work.
+                invitation.DeclinedAt = null;
+                invitation.Token = InvitationsController.NewToken();
+                invitation.ExpiresAt = DateTimeOffset.UtcNow.AddDays(InvitationLifetimeDays);
             }
 
             await db.SaveChangesAsync(ct);
@@ -133,7 +152,9 @@ public class MembersController(
             return new InviteMemberResponse(
                 false,
                 null,
-                new PendingInvitationResponse(invitation.Id, invitation.Email, invitation.Role.ToString(), invitation.CreatedAt));
+                new PendingInvitationResponse(
+                    invitation.Id, invitation.Email, invitation.Role.ToString(),
+                    invitation.CreatedAt, invitation.Token, invitation.ExpiresAt));
         }
         catch (BoardOperationNotFoundException)
         {

@@ -23,6 +23,8 @@ import { UserMenu } from "@/components/ui/UserMenu";
 import { TangramMark } from "@/components/ui/TangramMark";
 import { useConfirm, type ConfirmOptions } from "@/components/ui/ConfirmDialog";
 import { friendlyError } from "@/lib/errorMessage";
+import { relativeTime } from "@/lib/relativeTime";
+import { expiresIn } from "@/lib/invite";
 import { InvitePanel } from "@/components/workspace/InvitePanel";
 import { CopyInviteButton } from "@/components/workspace/CopyInviteButton";
 
@@ -39,19 +41,8 @@ function article(role: MembershipRole) {
   return role === "Editor" || role === "Owner" ? "an" : "a";
 }
 
-function relativeTime(iso: string): string {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return "recently";
-
-  const minutes = Math.round((Date.now() - then) / 60000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-
-  const days = Math.round(hours / 24);
-  return days === 1 ? "yesterday" : `${days}d ago`;
+function expired(iso: string): boolean {
+  return new Date(iso).getTime() <= Date.now();
 }
 
 function roleChangeConfirm(
@@ -306,7 +297,9 @@ export function WorkspaceMembersView({ workspaceId }: { workspaceId: string }) {
   async function handleRevoke(invitation: PendingInvitationResponse) {
     const confirmed = await confirm({
       title: "Revoke this invitation?",
-      body: `${invitation.email} won't be added when they sign up. You can invite them again at any time.`,
+      // S4.2: the consequence, which here is that a link already sent stops
+      // working -- worth saying, since the owner may have shared it days ago.
+      body: `The invite link sent to ${invitation.email} will stop working, and they won't join. You can invite them again at any time.`,
       confirmLabel: "Revoke invitation",
       tone: "danger",
     });
@@ -601,9 +594,18 @@ export function WorkspaceMembersView({ workspaceId }: { workspaceId: string }) {
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-medium truncate">{invitation.email}</p>
                       {/* Was "Invited as {role}" sitting next to a badge saying
-                          the same thing; the useful second line is when. */}
+                          the same thing; the useful second line is when. The
+                          expiry belongs here too -- a link that quietly stopped
+                          working is the thing an owner needs to see, and it is
+                          the difference between "they're ignoring me" and
+                          "re-send it". */}
                       <p className="text-xs text-text-muted">
-                        Invited {relativeTime(invitation.createdAt)} · hasn&apos;t signed in yet
+                        Invited {relativeTime(invitation.createdAt)} ·{" "}
+                        {expired(invitation.expiresAt) ? (
+                          <span className="text-warn">link expired — invite again to renew</span>
+                        ) : (
+                          <>expires {expiresIn(invitation.expiresAt)}</>
+                        )}
                       </p>
                     </div>
 
@@ -615,13 +617,18 @@ export function WorkspaceMembersView({ workspaceId }: { workspaceId: string }) {
                       <>
                         {/* The durable home for this: nothing emails the
                             invitee, so an owner needs to re-copy the message
-                            days later without re-inviting. */}
-                        <CopyInviteButton
-                          email={invitation.email}
-                          workspaceName={workspace?.name ?? "this workspace"}
-                          label="Copy invite"
-                          className="shrink-0"
-                        />
+                            days later without re-inviting. The token is only
+                            sent to owners, so this is guarded on having it
+                            rather than on the role alone. */}
+                        {invitation.token && (
+                          <CopyInviteButton
+                            email={invitation.email}
+                            token={invitation.token}
+                            workspaceName={workspace?.name ?? "this workspace"}
+                            label="Copy invite"
+                            className="shrink-0"
+                          />
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"

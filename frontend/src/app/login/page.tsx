@@ -7,6 +7,7 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
 import { authInputClasses, friendlyAuthError } from "@/lib/authForm";
+import { safeNextPath } from "@/lib/invite";
 import { AuthField } from "@/components/auth/AuthField";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/Button";
@@ -22,11 +23,20 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // See the signup page: an invite link sends people through here, and they
+  // have to come back to it rather than being dropped on a board.
+  const [next, setNext] = useState("/board");
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNext(safeNextPath(new URLSearchParams(window.location.search).get("next"), "/board"));
+  }, []);
+
   useEffect(() => {
     if (!loading && user) {
-      router.replace("/board");
+      router.replace(next);
     }
-  }, [loading, user, router]);
+  }, [loading, user, router, next]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -34,7 +44,7 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.replace("/board");
+      router.replace(next);
     } catch (err) {
       setError(friendlyAuthError(err));
     } finally {
@@ -102,7 +112,10 @@ export default function LoginPage() {
 
       <p className="text-[13px] text-text-muted">
         New to Tangram?{" "}
-        <Link href="/signup" className="text-accent font-medium hover:underline">
+        <Link
+          href={next === "/board" ? "/signup" : `/signup?next=${encodeURIComponent(next)}`}
+          className="text-accent font-medium hover:underline"
+        >
           Create an account
         </Link>
       </p>

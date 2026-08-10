@@ -72,4 +72,23 @@ public class TangramWebApplicationFactory : WebApplicationFactory<Program>
         }
         return client;
     }
+
+    /// <summary>
+    /// A client whose user row already exists, because it has made one request.
+    /// </summary>
+    /// <remarks>
+    /// Inviting an address is two different operations depending on whether that
+    /// address is already registered: an immediate membership if it is, a
+    /// pending invitation needing a token if it isn't. Tests that only want a
+    /// second member want the former, and used to get it by accident -- an
+    /// earlier design claimed pending invitations by email on first request, so
+    /// the order didn't matter. It does now.
+    /// </remarks>
+    public async Task<HttpClient> CreateRegisteredClientAs(
+        string testUserId, string? email = null, string? name = null)
+    {
+        var client = CreateClientAs(testUserId, email, name);
+        (await client.GetAsync("/me")).EnsureSuccessStatusCode();
+        return client;
+    }
 }

@@ -791,6 +791,68 @@ template produced Backlog/In Progress/Review/Done in rank order with `seq` 0 and
 zero operations, the valid invite was written and the invalid one skipped, and
 Skip produced a Basic board and landed on it.
 
+## v2 — accepting and declining invitations
+
+There was no accept step. An invitation to an unregistered address was claimed
+by `CurrentUserLoader` on that person's first authenticated request, by matching
+the token's email claim against pending invitations.
+
+**That was a vulnerability, not just a missing screen.** Nothing in this stack
+verifies an email address — Firebase issues tokens for password sign-ups with
+`email_verified: false`, and the API never read that flag — so anyone who knew an
+invited address could create an account with it and be handed the workspace. The
+real invitee then found their invitation gone. Being silently added is the mild
+version of the same problem: joining a tenant puts your name and address in front
+of its owners, which should be a decision.
+
+**Shape, following GitHub's:** a 256-bit token on the invitation, a seven-day
+expiry (GitHub's number), single use, and `GET /invitations/{token}` +
+`/accept` + `/decline`. `ClaimPendingInvitationsAsync` is deleted rather than
+guarded — a fallback that grants membership by email is the whole bug.
+
+**Decisions inside it:**
+
+- **Anyone holding the link can accept.** Binding acceptance to the invited
+  address would be theatre: the address is unverified, so matching it proves
+  nothing that the token doesn't already prove better. It also breaks the common
+  case of someone whose real address differs from the one a colleague guessed.
+  The link is therefore a credential, and the copy an owner pastes says so.
+- **The offer is readable signed out.** Deciding whether to create an account is
+  impossible if you cannot see what it would be for. It carries the workspace
+  name, the role and who invited you — and deliberately not the invited address,
+  which is not the link-holder's to read, nor anything about the board.
+- **Re-inviting mints a fresh token.** The previous link may be sitting in a
+  channel the owner no longer wants it in; re-inviting is their only control
+  over that. Revoking kills it outright.
+- **The token is owner-only.** `GET /members` nulls it for everyone else. A
+  viewer who could read it could hand out membership — precisely the authority
+  the role withholds. Found by writing the test for it.
+- **Declining is recorded, not deleted.** The row is the owner's audit trail,
+  and without a marker the invitation would simply be offered again.
+- **`?next=` survives the sign-up round trip**, validated against open redirect:
+  same-origin paths only, rejecting `//host`, `https://host` and the `/\host`
+  form browsers normalise.
+- **Existing invitations were not grandfathered.** The migration backfills a
+  random token per row before creating the unique index. Those tokens have never
+  been sent anywhere, so every pre-existing invitation is inert until an owner
+  copies its fresh link.
+
+**Open, and deliberately not decided here:** inviting an address that *already*
+has an account still adds them immediately, with no accept step. Since declining
+requires signing in — which creates the account — a decline can be overridden by
+the owner clicking Invite again. `Re_inviting_someone_who_declined_adds_them_
+without_asking_again` documents it rather than asserting it is right. Closing it
+means every invite goes through a link, including for existing users, and there
+is no in-app alternative: listing someone's pending invitations by their
+unverified email would reintroduce the original vulnerability. That is a product
+decision.
+
+Verified by 16 new integration tests plus 15 component tests, and by rewriting
+the two tests that encoded the old behaviour to assert its opposite. Thirteen
+other tests turned out to depend on auto-claim by accident — they invited a user
+whose row did not exist yet — and now register that user first, via a named
+factory helper that says why.
+
 ### Divergences and known debt from Slice 4a
 
 - **The test suite needs `Firebase:ProjectId` from the environment or user-secrets.**

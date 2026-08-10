@@ -6,8 +6,8 @@ using Tangram.Api.Entities;
 namespace Tangram.Api.Services;
 
 // Resolves the Firebase-authenticated principal to an internal User row
-// (upserting on first sight), claims any invitations waiting on their email,
-// and populates ICurrentUserService with the user's accessible workspace ids.
+// (upserting on first sight) and populates ICurrentUserService with the user's
+// accessible workspace ids.
 // Called on every authenticated REST request AND on every inbound hub
 // invocation — RBAC/tenant scope is re-derived per call, never cached across
 // a connection.
@@ -92,14 +92,16 @@ public class CurrentUserLoader(AppDbContext db, ICurrentUserService currentUserS
             }
         }
 
-        // Must run before workspace ids are read below -- claiming after that
-        // point would leave a freshly joined workspace invisible until the
-        // user's next request.
-        if (user.Email is not null)
-        {
-            await ClaimPendingInvitationsAsync(user, ct);
-        }
-
+        // Invitations are no longer claimed here.
+        //
+        // This used to turn any pending invitation whose email matched the
+        // caller into a membership, on every request. Nothing in this stack
+        // verifies an email address -- Firebase treats a password sign-up as
+        // unverified -- so knowing an invited address was enough to take an
+        // invitation meant for someone else, and the person invited was made a
+        // member of a workspace without ever being asked. Joining now requires
+        // the secret in the invite link and an explicit accept; see
+        // InvitationsController.
         var workspaceIds = await db.Memberships
             .IgnoreQueryFilters()
             .Where(m => m.UserId == user.Id)
@@ -114,61 +116,4 @@ public class CurrentUserLoader(AppDbContext db, ICurrentUserService currentUserS
     private static string? Trimmed(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    // Turns invitations addressed to this user's email into real memberships.
-    // Runs on every authenticated call, so the common "nothing pending" case
-    // must stay a single indexed lookup (see the (email, accepted_at) index).
-    private async Task ClaimPendingInvitationsAsync(User user, CancellationToken ct)
-    {
-        var pending = await db.Invitations
-            .IgnoreQueryFilters() // The invitee has no membership yet, so the tenant filter would hide their own invitation.
-            .Where(i => i.Email == user.Email && i.AcceptedAt == null)
-            .ToListAsync(ct);
-
-        if (pending.Count == 0)
-        {
-            return;
-        }
-
-        var alreadyMemberOf = await db.Memberships
-            .IgnoreQueryFilters()
-            .Where(m => m.UserId == user.Id)
-            .Select(m => m.WorkspaceId)
-            .ToListAsync(ct);
-
-        var now = DateTimeOffset.UtcNow;
-        foreach (var invitation in pending)
-        {
-            if (!alreadyMemberOf.Contains(invitation.WorkspaceId))
-            {
-                db.Memberships.Add(new Membership
-                {
-                    Id = Guid.NewGuid(),
-                    WorkspaceId = invitation.WorkspaceId,
-                    UserId = user.Id,
-                    Role = invitation.Role,
-                    CreatedAt = now
-                });
-            }
-
-            invitation.AcceptedAt = now;
-            invitation.AcceptedByUserId = user.Id;
-        }
-
-        try
-        {
-            await db.SaveChangesAsync(ct);
-        }
-        catch (DbUpdateException)
-        {
-            // Two concurrent requests from the same user can race to claim the
-            // same invitation; the unique (workspace_id, user_id) index on
-            // memberships is what makes that safe to lose. The winner already
-            // created the membership, so drop our tracked changes and carry on
-            // with whatever is actually in the database.
-            foreach (var entry in db.ChangeTracker.Entries().ToList())
-            {
-                await entry.ReloadAsync(ct);
-            }
-        }
-    }
 }

@@ -281,7 +281,7 @@ public class V2ScenarioTests(TangramWebApplicationFactory factory)
     public async Task Depth_survives_a_column_delete_and_restore()
     {
         var (client, workspaceId, board, column) = await SeedAsync("depth-column-uid");
-        var editorClient = factory.CreateClientAs("depth-column-editor");
+        var editorClient = await factory.CreateRegisteredClientAs("depth-column-editor");
         await client.PostAsJsonAsync($"/workspaces/{workspaceId}/members",
             new InviteMemberRequest(TestAuthHandler.DefaultEmailFor("depth-column-editor"), "Editor"));
         var editor = await (await editorClient.GetAsync("/me")).Content.ReadFromJsonAsync<MeResponse>();
@@ -342,7 +342,7 @@ public class V2ScenarioTests(TangramWebApplicationFactory factory)
         // No FK, on purpose: removing a member must not cascade-delete or block.
         // The card keeps the id and the UI stops resolving it.
         var (owner, workspaceId, board, column) = await SeedAsync("depth-leaver-uid");
-        var leaverClient = factory.CreateClientAs("depth-leaver-member");
+        var leaverClient = await factory.CreateRegisteredClientAs("depth-leaver-member");
         await owner.PostAsJsonAsync($"/workspaces/{workspaceId}/members",
             new InviteMemberRequest(TestAuthHandler.DefaultEmailFor("depth-leaver-member"), "Editor"));
         var leaver = await (await leaverClient.GetAsync("/me")).Content.ReadFromJsonAsync<MeResponse>();
@@ -362,7 +362,7 @@ public class V2ScenarioTests(TangramWebApplicationFactory factory)
     public async Task Reassigning_to_a_departed_member_is_refused()
     {
         var (owner, workspaceId, board, column) = await SeedAsync("depth-rejoin-uid");
-        var leaverClient = factory.CreateClientAs("depth-rejoin-member");
+        var leaverClient = await factory.CreateRegisteredClientAs("depth-rejoin-member");
         await owner.PostAsJsonAsync($"/workspaces/{workspaceId}/members",
             new InviteMemberRequest(TestAuthHandler.DefaultEmailFor("depth-rejoin-member"), "Editor"));
         var leaver = await (await leaverClient.GetAsync("/me")).Content.ReadFromJsonAsync<MeResponse>();

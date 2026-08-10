@@ -54,12 +54,19 @@ connection. EF global query filters read `ICurrentUserService.WorkspaceIds`, pop
 `CurrentUserLoader`. A non-member gets 404 from the filter before any role check runs —
 so "not found" and "not permitted" are deliberately conflated.
 
-**Invitation claiming must run before `workspaceIds` is computed** in
-`CurrentUserLoader.LoadAsync`. Claim after that point and a freshly joined workspace stays
-invisible until the *next* request.
+**An email address is not a credential.** Nothing here verifies one — Firebase treats a
+password sign-up as unverified — so no code path may grant membership because the caller's
+email matches something. `CurrentUserLoader` used to claim pending invitations exactly that
+way, which made knowing an address enough to take someone else's invitation. Membership now
+comes only from `POST /invitations/{token}/accept`, and the token is the secret.
 
-**Emails are normalized through `EmailAddress.Normalize` on both sides.** Claiming is an
-exact index lookup; unnormalized input silently never resolves.
+**Emails are normalized through `EmailAddress.Normalize` on both sides.** The immediate-join
+branch of `POST /members` is an exact index lookup on `Users.Email`; unnormalized input
+silently falls through to "create an invitation" instead, and the owner is never told they
+just invited someone who was already here.
+
+**The invitation token is owner-only.** `GET /members` nulls it for everyone else — a viewer
+who could read it could hand out membership, which is the authority the role withholds.
 
 **Firebase is authoritative for display names, but a token without a `name` claim must
 never overwrite a stored name** with the email-local-part fallback. That fallback is for

@@ -7,6 +7,7 @@ import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
 import { authInputClasses, friendlyAuthError, MIN_PASSWORD_LENGTH } from "@/lib/authForm";
+import { safeNextPath } from "@/lib/invite";
 import { AuthField, PasswordRule } from "@/components/auth/AuthField";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/Button";
@@ -24,6 +25,11 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Where to land afterwards. Someone who arrived from an invite link has to be
+  // returned to it -- signing up is a detour they took to accept, and dropping
+  // them on a board they aren't in yet loses the invitation entirely.
+  const [next, setNext] = useState("/board");
+
   // Set synchronously at the top of handleSubmit, before any await, so it is
   // already true by the time Firebase notifies the auth listener below.
   const signingUpRef = useRef(false);
@@ -39,23 +45,25 @@ export default function SignupPage() {
     // itself once the profile is set and the token refreshed.
     if (signingUpRef.current) return;
     if (!loading && user) {
-      router.replace("/board");
+      router.replace(next);
     }
-  }, [loading, user, router]);
+  }, [loading, user, router, next]);
 
-  // Seeds the address from an invite link (/signup?email=…). More than a
-  // convenience: invitations are claimed by exact normalised email, so someone
-  // who signs up with a different address silently never joins the workspace
-  // they were invited to.
+  // Seeds the address from an invite link (/signup?email=…) — a convenience, no
+  // more: the invitation is granted by its token now, so signing up with a
+  // different address still works.
   //
   // Read from window rather than useSearchParams() — the hook would force this
   // statically prerendered route to become dynamic, or demand a Suspense
   // boundary, neither of which is worth restructuring the page for. Costs one
   // tick of empty field.
   useEffect(() => {
-    const invited = new URLSearchParams(window.location.search).get("email");
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    const params = new URLSearchParams(window.location.search);
+    const invited = params.get("email");
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (invited) setEmail(invited.trim().toLowerCase());
+    setNext(safeNextPath(params.get("next"), "/board"));
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -73,7 +81,7 @@ export default function SignupPage() {
       // is what presence avatars and cursor labels would then show forever.
       await credential.user.getIdToken(true);
 
-      router.replace("/board");
+      router.replace(next);
     } catch (err) {
       setError(friendlyAuthError(err));
       signingUpRef.current = false;
@@ -91,7 +99,7 @@ export default function SignupPage() {
           together.
         </>
       }
-      subhead="Create an account to join a workspace or start your own. Invitations waiting on your email are picked up automatically."
+      subhead="Create an account to start your own workspace, or to accept an invitation someone sent you."
       // `submitting`, not the ref: a ref read during render doesn't re-render
       // when it changes, so the shell would keep whichever value it saw first.
       // The two flip together anyway -- setSubmitting(true) is the line above
@@ -174,7 +182,12 @@ export default function SignupPage() {
 
       <p className="text-[13px] text-text-muted">
         Already have an account?{" "}
-        <Link href="/login" className="text-accent font-medium hover:underline">
+        {/* Carries the destination across, so switching form doesn't strand
+            someone who came here from an invite link. */}
+        <Link
+          href={next === "/board" ? "/login" : `/login?next=${encodeURIComponent(next)}`}
+          className="text-accent font-medium hover:underline"
+        >
           Sign in
         </Link>
       </p>

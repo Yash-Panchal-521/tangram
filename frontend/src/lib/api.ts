@@ -154,6 +154,18 @@ export interface PendingInvitationResponse {
   email: string;
   role: MembershipRole;
   createdAt: string;
+  /** The credential — null for anyone but an owner, since holding it grants membership. */
+  token: string | null;
+  expiresAt: string;
+}
+
+/** What `/invite/[token]` shows before anyone signs in — see InvitationsController. */
+export interface InvitationOfferResponse {
+  workspaceName: string;
+  role: MembershipRole;
+  invitedByName: string;
+  status: "pending" | "accepted" | "declined" | "expired";
+  expiresAt: string;
 }
 
 export interface WorkspaceMembersResponse {

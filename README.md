@@ -52,9 +52,11 @@ end. [`docs/roadmap-v2.md`](docs/roadmap-v2.md) covers what comes next.
   edit controls are removed rather than shown and rejected — while still receiving
   presence, cursors and live updates.
 - **Invitations:** inviting an address that already has an account creates the
-  membership immediately; anything else writes a pending invitation that is claimed
-  on that person's first authenticated request, before their workspace scope is
-  resolved — so they see the workspace on that very first call.
+  membership immediately; anything else writes a pending invitation carrying a
+  256-bit token, and the owner passes the `/invite/{token}` link along. That link is
+  the only thing that grants membership: the invitee opens it, sees what they'd be
+  joining, and accepts or declines. Seven-day expiry, single use, re-issuing mints a
+  fresh token so the old link dies. Tokens are returned to owners only.
 - **Ordering:** columns and cards use fractional/lexicographic string ranks, so
   inserting or moving an item only ever writes one row.
 - **Presence & resync:** in-memory presence tracker, connection-counted per user so
@@ -160,15 +162,18 @@ Open `http://localhost:3000`.
 
 ## Using it
 
-1. **Sign up** at `/signup`. First sign-in bootstraps a workspace, a board, and three
-   starter columns.
+1. **Sign up** at `/signup`, then name your workspace, pick a column template and
+   optionally invite people on the `/welcome` screen. Everything there has a default;
+   **Skip** produces a workspace, a board and three starter columns.
 2. **Invite someone** — click **Members** in the board header, enter one or more
    addresses, pick a role per person, send.
-3. **Nothing emails them.** There is no mail delivery and no tokenised join link, so
-   use **Copy invite** to get a ready-made message (including a `/signup?email=…`
-   link) and send it yourself. The address must match exactly, or the invitation
-   never resolves — which is why the link prefills it.
-4. **Watch it sync.** With both of you on the board, cards, columns, presence avatars
+3. **Nothing emails them.** There is no mail delivery, so use **Copy invite** to get a
+   ready-made message containing an `/invite/{token}` link, and send it yourself. That
+   link is a credential — anyone who opens it can join — so send it directly rather
+   than posting it somewhere public. It lasts seven days and works once.
+4. **They accept.** The link shows the workspace, the role and who invited them, and
+   they choose. Signing up first is a detour the page brings them back from.
+5. **Watch it sync.** With both of you on the board, cards, columns, presence avatars
    and cursors update live. Change someone to Viewer and their next edit is rejected.
 
 To see real-time behaviour solo, open the same board URL in two tabs.
@@ -177,8 +182,11 @@ To see real-time behaviour solo, open the same board URL in two tabs.
 
 | Route | Purpose |
 |---|---|
-| `/login`, `/signup` | Firebase email/password auth |
+| `/login`, `/signup` | Firebase email/password auth; `?next=` returns you mid-flow |
+| `/welcome` | First-run setup — workspace name, column template, invites |
+| `/invite/[token]` | Accept or decline an invitation; readable signed out |
 | `/board` | Resolves which board to open from your memberships |
+| `/boards` | Every workspace and board you belong to |
 | `/board/[boardId]` | The collaborative board |
 | `/workspace/[workspaceId]/members` | Roster, invites, role management |
 | `/kitchen-sink` | Design-system component gallery |

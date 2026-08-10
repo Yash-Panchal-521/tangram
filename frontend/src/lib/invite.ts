@@ -1,30 +1,71 @@
-// The invitee is never emailed — nothing in the stack sends mail, and there is
-// no tokenised join link. So an owner has to pass the invitation along
-// themselves, and this is the text they paste into Slack or WhatsApp.
+// The invitee is never emailed — nothing in the stack sends mail — so an owner
+// has to pass the invitation along themselves, and this is the text they paste
+// into Slack or WhatsApp.
 //
-// Pure on purpose: origin is injected rather than read from window, so it can
-// be checked without a DOM and so the message is correct in any environment
+// The link carries a token, not an address. That token *is* the invitation:
+// whoever opens it can accept, and nothing else grants membership. So this
+// message is a secret, and the copy says so rather than leaving an owner to
+// assume it is safe to post in a public channel.
+//
+// Pure on purpose: origin is injected rather than read from window, so it can be
+// checked without a DOM and so the message is correct in any environment
 // instead of hardcoding localhost.
 export function buildInviteMessage({
   workspaceName,
-  email,
+  token,
   origin,
 }: {
   workspaceName: string;
-  email: string;
+  token: string;
   origin: string;
 }): string {
   return [
     `You've been invited to "${workspaceName}" on Tangram — a real-time collaborative board.`,
     "",
-    `Sign up here: ${buildSignupUrl(email, origin)}`,
+    `Accept here: ${buildInviteUrl(token, origin)}`,
     "",
-    // Claiming matches on the exact normalised address, so signing up with a
-    // different one silently never joins the workspace. Worth spelling out.
-    `Use ${email} when you sign up — the invitation is tied to that address, and you'll land straight on the board.`,
+    "The link expires in 7 days, and works once. Send it to them directly rather than posting it somewhere public — anyone who opens it can join.",
   ].join("\n");
 }
 
-export function buildSignupUrl(email: string, origin: string): string {
-  return `${origin}/signup?email=${encodeURIComponent(email)}`;
+export function buildInviteUrl(token: string, origin: string): string {
+  return `${origin}/invite/${encodeURIComponent(token)}`;
+}
+
+/**
+ * How long an invitation has left, in words.
+ *
+ * `relativeTime` is deliberately past-only — it floors anything in the future at
+ * "just now", which on an expiry date reads as *already gone*. Nothing else in
+ * the app has a forward-looking timestamp yet, so this stays local rather than
+ * bending the shared helper into both directions.
+ */
+export function expiresIn(iso: string, now: number = Date.now()): string {
+  const at = new Date(iso).getTime();
+  if (Number.isNaN(at)) return "soon";
+
+  const hours = (at - now) / 3_600_000;
+  if (hours <= 0) return "already";
+  if (hours < 1) return "within the hour";
+  if (hours < 24) return `in ${Math.round(hours)} hour${Math.round(hours) === 1 ? "" : "s"}`;
+
+  const days = Math.round(hours / 24);
+  return days === 1 ? "tomorrow" : `in ${days} days`;
+}
+
+/**
+ * Where to send someone after they sign in, when they arrived mid-flow.
+ *
+ * Only same-origin *paths* survive. A `?next=` that anyone can put in a URL is
+ * an open-redirect otherwise: `//evil.example` and `https://evil.example` are
+ * both absolute despite one looking relative, and a phishing page reached
+ * straight after a real sign-in is a convincing place to ask for a password
+ * again.
+ */
+export function safeNextPath(raw: string | null, fallback: string): string {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return fallback;
+  // Backslashes because some browsers normalise "/\evil.example" to a
+  // protocol-relative URL.
+  if (raw.startsWith("/\\")) return fallback;
+  return raw;
 }

@@ -78,12 +78,17 @@ public class DisplayNameTests(TangramWebApplicationFactory factory)
         var workspace = await (await owner.PostAsJsonAsync("/workspaces", new CreateWorkspaceRequest("Team")))
             .Content.ReadFromJsonAsync<WorkspaceResponse>();
 
-        await owner.PostAsJsonAsync($"/workspaces/{workspace!.Id}/members",
-            new InviteMemberRequest(inviteeEmail, "Editor"));
+        var invited = await (await owner.PostAsJsonAsync($"/workspaces/{workspace!.Id}/members",
+            new InviteMemberRequest(inviteeEmail, "Editor")))
+            .Content.ReadFromJsonAsync<InviteMemberResponse>();
 
-        // Claims the invitation on a token that has no name yet.
+        // Accepts on a token that has no name claim yet, which is exactly the
+        // window the bug lived in: the user row is created from the email
+        // local-part, and the roster then has to notice when the real name
+        // arrives on a later request.
         var invitee = factory.CreateClientAs("harsh-uid", inviteeEmail, name: "-");
-        await invitee.GetAsync("/me");
+        (await invitee.PostAsync($"/invitations/{invited!.Invitation!.Token}/accept", null))
+            .EnsureSuccessStatusCode();
 
         var beforeSignup = await (await owner.GetAsync($"/workspaces/{workspace.Id}/members"))
             .Content.ReadFromJsonAsync<WorkspaceMembersResponse>();

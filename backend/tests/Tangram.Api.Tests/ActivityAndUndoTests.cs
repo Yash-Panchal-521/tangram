@@ -183,7 +183,7 @@ public class ActivityAndUndoTests(TangramWebApplicationFactory factory)
     public async Task Undo_only_reaches_your_own_operations()
     {
         var (owner, workspaceId, board, columnA, _) = await SeedAsync("undo-owner-uid");
-        var editorClient = factory.CreateClientAs("undo-editor-uid");
+        var editorClient = await factory.CreateRegisteredClientAs("undo-editor-uid");
         await owner.PostAsJsonAsync($"/workspaces/{workspaceId}/members",
             new InviteMemberRequest(TestAuthHandler.DefaultEmailFor("undo-editor-uid"), "Editor"));
         // Touching any endpoint claims the pending invitation.
@@ -206,7 +206,7 @@ public class ActivityAndUndoTests(TangramWebApplicationFactory factory)
     public async Task Undo_conflicts_rather_than_failing_silently_when_the_target_is_gone()
     {
         var (owner, workspaceId, board, columnA, _) = await SeedAsync("undo-conflict-owner");
-        var editorClient = factory.CreateClientAs("undo-conflict-editor");
+        var editorClient = await factory.CreateRegisteredClientAs("undo-conflict-editor");
         await owner.PostAsJsonAsync($"/workspaces/{workspaceId}/members",
             new InviteMemberRequest(TestAuthHandler.DefaultEmailFor("undo-conflict-editor"), "Editor"));
         await editorClient.GetAsync("/me");
@@ -229,7 +229,7 @@ public class ActivityAndUndoTests(TangramWebApplicationFactory factory)
     public async Task Undo_with_nothing_of_your_own_conflicts()
     {
         var (owner, workspaceId, board, _, _) = await SeedAsync("undo-empty-owner");
-        var editorClient = factory.CreateClientAs("undo-empty-editor");
+        var editorClient = await factory.CreateRegisteredClientAs("undo-empty-editor");
         await owner.PostAsJsonAsync($"/workspaces/{workspaceId}/members",
             new InviteMemberRequest(TestAuthHandler.DefaultEmailFor("undo-empty-editor"), "Editor"));
         await editorClient.GetAsync("/me");
@@ -246,7 +246,7 @@ public class ActivityAndUndoTests(TangramWebApplicationFactory factory)
         await owner.PostAsJsonAsync($"/boards/{board.Id}/columns/{columnA.Id}/cards",
             new CreateCardRequest("Untouchable", null));
 
-        var viewerClient = factory.CreateClientAs("undo-viewer-uid");
+        var viewerClient = await factory.CreateRegisteredClientAs("undo-viewer-uid");
         await owner.PostAsJsonAsync($"/workspaces/{workspaceId}/members",
             new InviteMemberRequest(TestAuthHandler.DefaultEmailFor("undo-viewer-uid"), "Viewer"));
         await viewerClient.GetAsync("/me");
@@ -374,7 +374,7 @@ public class ActivityAndUndoTests(TangramWebApplicationFactory factory)
     public async Task Activity_never_offers_someone_elses_operation_for_undo()
     {
         var (owner, workspaceId, board, columnA, _) = await SeedAsync("activity-others-owner");
-        var editorClient = factory.CreateClientAs("activity-others-editor");
+        var editorClient = await factory.CreateRegisteredClientAs("activity-others-editor");
         await owner.PostAsJsonAsync($"/workspaces/{workspaceId}/members",
             new InviteMemberRequest(TestAuthHandler.DefaultEmailFor("activity-others-editor"), "Editor"));
         await editorClient.GetAsync("/me");
@@ -397,7 +397,7 @@ public class ActivityAndUndoTests(TangramWebApplicationFactory factory)
         await owner.PostAsJsonAsync($"/boards/{board.Id}/columns/{columnA.Id}/cards",
             new CreateCardRequest("Visible", null));
 
-        var viewerClient = factory.CreateClientAs("activity-viewer-uid");
+        var viewerClient = await factory.CreateRegisteredClientAs("activity-viewer-uid");
         await owner.PostAsJsonAsync($"/workspaces/{workspaceId}/members",
             new InviteMemberRequest(TestAuthHandler.DefaultEmailFor("activity-viewer-uid"), "Viewer"));
         await viewerClient.GetAsync("/me");

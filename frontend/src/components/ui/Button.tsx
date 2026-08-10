@@ -21,18 +21,27 @@ const sizeClasses: Record<Size, string> = {
   md: "text-sm px-4 py-2.5 gap-2",
 };
 
+const baseClasses =
+  "inline-flex items-center justify-center rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer";
+
+/**
+ * The same look, for something that has to be a real `<a>`.
+ *
+ * A navigation rendered as a button loses middle-click, open-in-new-tab and the
+ * link semantics a screen reader announces. Exported rather than copied because
+ * `cn()` does no Tailwind conflict resolution — a hand-rolled duplicate drifts
+ * silently the first time a class here changes.
+ */
+export function buttonClasses(
+  { variant = "primary", size = "md" }: { variant?: Variant; size?: Size } = {},
+  className?: string
+) {
+  return cn(baseClasses, variantClasses[variant], sizeClasses[size], className);
+}
+
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = "primary", size = "md", ...props }, ref) => (
-    <button
-      ref={ref}
-      className={cn(
-        "inline-flex items-center justify-center rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer",
-        variantClasses[variant],
-        sizeClasses[size],
-        className
-      )}
-      {...props}
-    />
+    <button ref={ref} className={buttonClasses({ variant, size }, className)} {...props} />
   )
 );
 Button.displayName = "Button";

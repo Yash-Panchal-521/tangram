@@ -9,13 +9,19 @@ const COPIED_RESET_MS = 2000;
 // Since nothing emails the invitee, this is the only thing that actually gets
 // the invitation to them. Lives next to fresh invite results and on every
 // pending row, so it's re-copyable days later without re-inviting.
+//
+// The message carries the invitation token, which is the credential -- so this
+// control is owner-only wherever it appears, and the copy warns against posting
+// the link publicly.
 export function CopyInviteButton({
   email,
+  token,
   workspaceName,
   label = "Copy invite",
   className,
 }: {
   email: string;
+  token: string;
   workspaceName: string;
   label?: string;
   className?: string;
@@ -38,7 +44,7 @@ export function CopyInviteButton({
   async function handleCopy() {
     const message = buildInviteMessage({
       workspaceName,
-      email,
+      token,
       // Read at click time, so the link matches wherever the app is served
       // from rather than a build-time guess.
       origin: window.location.origin,

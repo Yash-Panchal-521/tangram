@@ -78,8 +78,9 @@ public class AppDbContext : DbContext
             // rather than stacking duplicates.
             e.HasIndex(i => new { i.WorkspaceId, i.Email }).IsUnique();
 
-            // Backs the claim lookup, which runs on every authenticated request.
-            e.HasIndex(i => new { i.Email, i.AcceptedAt });
+            // The token is the credential, so lookups go through it and it must
+            // be unique. Nothing looks invitations up by email any more.
+            e.HasIndex(i => i.Token).IsUnique();
 
             e.Property(i => i.Role).HasConversion<string>();
             e.HasOne(i => i.Workspace).WithMany(w => w.Invitations).HasForeignKey(i => i.WorkspaceId);

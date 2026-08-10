@@ -11,7 +11,22 @@ public record WorkspaceSummaryResponse(Guid Id, string Name, string Role, List<W
 public record InviteMemberRequest(string Email, string Role);
 public record UpdateMemberRoleRequest(string Role);
 public record MemberResponse(Guid UserId, string DisplayName, string? Email, string Role);
-public record PendingInvitationResponse(Guid Id, string Email, string Role, DateTimeOffset CreatedAt);
+// Token is null for anyone but an owner. It is the credential that grants
+// membership, so a viewer who could read it could hand out access -- exactly the
+// authority the role withholds. Reading *that* someone was invited is fine;
+// reading the link is not.
+public record PendingInvitationResponse(
+    Guid Id, string Email, string Role, DateTimeOffset CreatedAt, string? Token, DateTimeOffset ExpiresAt);
+
+// What the invite page shows before anyone commits to anything. Deliberately
+// small: whoever holds the link learns the workspace name, the role offered and
+// who sent it -- enough to decide -- and nothing about the board's contents.
+public record InvitationOfferResponse(
+    string WorkspaceName,
+    string Role,
+    string InvitedByName,
+    string Status,
+    DateTimeOffset ExpiresAt);
 public record WorkspaceMembersResponse(List<MemberResponse> Members, List<PendingInvitationResponse> PendingInvitations);
 
 // Distinguishes the two outcomes of an invite: the address already belonged to
