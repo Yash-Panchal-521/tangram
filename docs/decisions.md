@@ -662,6 +662,39 @@ answer yet -- whether a comment is undoable, whether editing one is, and what
 happens to comments when their card is deleted and later restored. Left
 unstarted rather than half-built.
 
+## v2 — two defects found by manual browser testing
+
+Both were invisible to the automated suites and only showed up when the app was
+driven as a person drives it.
+
+**The read-only card panel was inconsistent with itself.** Title and Description
+degraded to plain text for a viewer, but Due and Assignee stayed as a *disabled*
+date picker and dropdown — editable-looking chrome nobody could use, and an
+empty `dd-mm-yyyy` field offered for data that wasn't there. S8.1 says remove
+for a role and disable only for a transient state; a viewer's inability is
+permanent for the session. All four fields now degrade the same way. The tests
+missed it because they asserted `readOnly` on the title and never looked at how
+the other two rendered.
+
+**An undo was unreadable in the activity feed.** Undoing a card creation
+appended a plain `card.delete`, which the feed rendered as *"deleted a card"* —
+not identifiable as an undo, and missing the card's name, because a delete takes
+its name from an inverse and undos deliberately record none. Operations now
+carry `UndoOfSeq`, the seq they reversed, and the feed describes them in the
+gerund: *"undid adding “Live sync probe”"*.
+
+- **The phrasing is a separate function, not `"undid " + Summarize(...)`.** That
+  concatenation produces "undid added “X”".
+- **The target is loaded separately, not read from the page already fetched.**
+  Undoing something from last week puts the target far outside the window, where
+  it would degrade to "undid an earlier change".
+- **A column restore collapses to one line.** It appends the column and every
+  card it held, all sharing one `UndoOfSeq`; that is one action to a person, and
+  without the collapse a single undo fills the feed.
+- **Operations written before this keep their old rendering.** The column is
+  nullable and old rows have no value, so they fall back to the ordinary
+  summary — visible in local dev as older rows still reading "deleted a card".
+
 ### Divergences and known debt from Slice 4a
 
 - **The test suite needs `Firebase:ProjectId` from the environment or user-secrets.**

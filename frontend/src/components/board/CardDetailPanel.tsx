@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { Select } from "@/components/ui/Select";
 import { useDialog } from "@/lib/useDialog";
-import { fromDateInputValue, toDateInputValue } from "@/lib/dueDate";
+import { dueLabel, formatDueDate, fromDateInputValue, toDateInputValue } from "@/lib/dueDate";
 import type { CardResponse, MemberResponse, UpdateCardRequest } from "@/lib/api";
 
 // Read once, during the first render rather than in an effect. Safe from
@@ -61,6 +61,10 @@ export function CardDetailPanel({
   // the select would silently fall back to "Unassigned" and a save would clear
   // them. Keeping a placeholder option makes the state visible instead.
   const assigneeMissing = assignee !== "" && !members.some((m) => m.userId === assignee);
+
+  // For the read-only rendering. Someone who has left the workspace no longer
+  // resolves, and "Unassigned" is the honest thing to show rather than an id.
+  const assigneeName = members.find((m) => m.userId === card.assigneeId)?.displayName ?? null;
 
   useDialog({ containerRef: panelRef, onClose: requestClose, paused: confirming });
 
@@ -203,45 +207,60 @@ export function CardDetailPanel({
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <label
-                htmlFor={dueId}
+                htmlFor={readOnly ? undefined : dueId}
                 className="text-[11px] font-semibold uppercase tracking-wider text-text-dim"
               >
                 Due
               </label>
-              <input
-                id={dueId}
-                type="date"
-                value={due}
-                readOnly={readOnly}
-                disabled={readOnly}
-                onChange={(e) => setDue(e.target.value)}
-                className="w-full text-[13px] bg-surface-2 border border-border rounded-lg px-2.5 py-1.5 outline-none focus-visible:border-accent disabled:opacity-70 disabled:cursor-default"
-              />
+              {/* A viewer gets text, not a disabled control. Their inability
+                  is permanent for the session, so the control is removed rather
+                  than greyed out (S8.1) -- and an empty date picker offering
+                  "dd-mm-yyyy" to someone who can never fill it is chrome for
+                  data that isn't there. Matches how Description already behaves
+                  two fields below; the panel was inconsistent with itself. */}
+              {readOnly ? (
+                <p className={`text-[13px] ${card.dueAt ? "text-text" : "text-text-dim italic"}`}>
+                  {card.dueAt ? `${formatDueDate(card.dueAt)} · ${dueLabel(card.dueAt)}` : "No due date."}
+                </p>
+              ) : (
+                <input
+                  id={dueId}
+                  type="date"
+                  value={due}
+                  onChange={(e) => setDue(e.target.value)}
+                  className="w-full text-[13px] bg-surface-2 border border-border rounded-lg px-2.5 py-1.5 outline-none focus-visible:border-accent"
+                />
+              )}
             </div>
 
             <div className="flex flex-col gap-1.5">
               <label
-                htmlFor={assigneeId}
+                htmlFor={readOnly ? undefined : assigneeId}
                 className="text-[11px] font-semibold uppercase tracking-wider text-text-dim"
               >
                 Assignee
               </label>
-              <Select
-                id={assigneeId}
-                value={assignee}
-                disabled={readOnly}
-                onChange={(e) => setAssignee(e.target.value)}
-              >
-                <option value="">Unassigned</option>
-                {assigneeMissing && (
-                  <option value={assignee}>Someone who has left the workspace</option>
-                )}
-                {members.map((m) => (
-                  <option key={m.userId} value={m.userId}>
-                    {m.displayName}
-                  </option>
-                ))}
-              </Select>
+              {readOnly ? (
+                <p className={`text-[13px] ${assigneeName ? "text-text" : "text-text-dim italic"}`}>
+                  {assigneeName ?? "Unassigned."}
+                </p>
+              ) : (
+                <Select
+                  id={assigneeId}
+                  value={assignee}
+                  onChange={(e) => setAssignee(e.target.value)}
+                >
+                  <option value="">Unassigned</option>
+                  {assigneeMissing && (
+                    <option value={assignee}>Someone who has left the workspace</option>
+                  )}
+                  {members.map((m) => (
+                    <option key={m.userId} value={m.userId}>
+                      {m.displayName}
+                    </option>
+                  ))}
+                </Select>
+              )}
             </div>
           </div>
 

@@ -303,6 +303,74 @@ public class ActivityAndUndoTests(TangramWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task An_undo_reads_as_an_undo_and_names_what_it_reversed()
+    {
+        // It used to append a bare card.delete, which the feed rendered as
+        // "deleted a card": not identifiable as an undo, and missing the title
+        // because a delete takes its name from an inverse -- and undos
+        // deliberately record none.
+        var (client, _, board, columnA, _) = await SeedAsync("undo-summary-uid");
+        await client.PostAsJsonAsync($"/boards/{board.Id}/columns/{columnA.Id}/cards",
+            new CreateCardRequest("Live sync probe", null));
+
+        await client.PostAsync($"/boards/{board.Id}/undo", null);
+
+        var activity = await client.GetFromJsonAsync<ActivityResponse>($"/boards/{board.Id}/activity");
+        Assert.Equal("undid adding “Live sync probe”", activity!.Entries[0].Summary);
+    }
+
+    [Fact]
+    public async Task Undoing_a_deletion_names_the_card_it_brought_back()
+    {
+        var (client, _, board, columnA, _) = await SeedAsync("undo-summary-delete-uid");
+        var card = await (await client.PostAsJsonAsync(
+            $"/boards/{board.Id}/columns/{columnA.Id}/cards", new CreateCardRequest("Rescued", null)))
+            .Content.ReadFromJsonAsync<CardResponse>();
+        await client.DeleteAsync($"/boards/{board.Id}/cards/{card!.Id}");
+
+        await client.PostAsync($"/boards/{board.Id}/undo", null);
+
+        var activity = await client.GetFromJsonAsync<ActivityResponse>($"/boards/{board.Id}/activity");
+        Assert.Contains("undid deleting", activity!.Entries[0].Summary);
+        Assert.Contains("Rescued", activity.Entries[0].Summary);
+    }
+
+    [Fact]
+    public async Task Restoring_a_column_is_one_line_in_the_feed_not_one_per_card()
+    {
+        // The restore appends the column plus every card it held. That is one
+        // action to a person, so a single undo must not fill the feed.
+        var (client, _, board, columnA, _) = await SeedAsync("undo-summary-column-uid");
+        await client.PostAsJsonAsync($"/boards/{board.Id}/columns/{columnA.Id}/cards",
+            new CreateCardRequest("One", null));
+        await client.PostAsJsonAsync($"/boards/{board.Id}/columns/{columnA.Id}/cards",
+            new CreateCardRequest("Two", null));
+        await client.DeleteAsync($"/boards/{board.Id}/columns/{columnA.Id}");
+
+        await client.PostAsync($"/boards/{board.Id}/undo", null);
+
+        var activity = await client.GetFromJsonAsync<ActivityResponse>($"/boards/{board.Id}/activity");
+        Assert.Equal("undid deleting the “A” column", activity!.Entries[0].Summary);
+        Assert.Single(activity.Entries, e => e.Summary.StartsWith("undid"));
+    }
+
+    [Fact]
+    public async Task An_ordinary_operation_is_still_described_normally()
+    {
+        // Guards the collapse: only undo-produced rows group together.
+        var (client, _, board, columnA, _) = await SeedAsync("undo-summary-plain-uid");
+        await client.PostAsJsonAsync($"/boards/{board.Id}/columns/{columnA.Id}/cards",
+            new CreateCardRequest("Alpha", null));
+        await client.PostAsJsonAsync($"/boards/{board.Id}/columns/{columnA.Id}/cards",
+            new CreateCardRequest("Beta", null));
+
+        var activity = await client.GetFromJsonAsync<ActivityResponse>($"/boards/{board.Id}/activity");
+
+        Assert.Equal("added “Beta”", activity!.Entries[0].Summary);
+        Assert.Equal("added “Alpha”", activity.Entries[1].Summary);
+    }
+
+    [Fact]
     public async Task Activity_never_offers_someone_elses_operation_for_undo()
     {
         var (owner, workspaceId, board, columnA, _) = await SeedAsync("activity-others-owner");

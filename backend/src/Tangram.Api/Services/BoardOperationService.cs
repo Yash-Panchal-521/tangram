@@ -305,9 +305,22 @@ public class BoardOperationService(
                 o.InverseOpType,
                 o.InversePayload,
                 o.CreatedAt,
-                o.UndoneAt
+                o.UndoneAt,
+                o.UndoOfSeq
             })
             .ToListAsync(ct);
+
+        // Restoring a column appends the column and each of its cards, all
+        // stamped with the same UndoOfSeq. That is one action to a person, so it
+        // becomes one line -- otherwise a single undo fills the feed.
+        rows = rows
+            .GroupBy(r => r.UndoOfSeq is null ? $"op:{r.Seq}" : $"undo:{r.UndoOfSeq}")
+            .Select(g => g.OrderByDescending(r => r.Seq).First())
+            .OrderByDescending(r => r.Seq)
+            .ToList();
+
+        var undoneSummaries = await SummariesForAsync(
+            boardId, rows.Where(r => r.UndoOfSeq is not null).Select(r => r.UndoOfSeq!.Value), ct);
 
         var me = currentUser.UserId;
         var entries = rows
@@ -316,7 +329,9 @@ public class BoardOperationService(
                 r.OpType,
                 r.ActorId,
                 r.ActorName,
-                Summarize(r.OpType, r.Payload, r.InversePayload),
+                r.UndoOfSeq is not null
+                    ? undoneSummaries.GetValueOrDefault(r.UndoOfSeq.Value, "undid an earlier change")
+                    : Summarize(r.OpType, r.Payload, r.InversePayload),
                 r.CreatedAt,
                 r.UndoneAt is not null,
                 // Only your own, and only what has an inverse. Reversing someone
@@ -347,7 +362,7 @@ public class BoardOperationService(
         }
 
         var ops = await BuildUndoAsync(boardId, target.InverseOpType!, target.InversePayload!, ct);
-        await SaveAsync(boardId, ops, target, ct);
+        await SaveAsync(boardId, ops, target, target.Seq, ct);
     }
 
     /// <summary>
@@ -547,6 +562,66 @@ public class BoardOperationService(
         string.IsNullOrWhiteSpace(value) ? "an untitled item" : $"“{value.Trim()}”";
 
     /// <summary>
+    /// Describes each undone operation as "undid …", by seq.
+    /// </summary>
+    /// <remarks>
+    /// Loaded separately rather than read from the page already fetched: the
+    /// operation an undo reversed is usually just above it, but not always —
+    /// undoing something from last week puts the target far outside the window,
+    /// and it would then render as "undid an earlier change".
+    /// </remarks>
+    private async Task<Dictionary<long, string>> SummariesForAsync(
+        Guid boardId, IEnumerable<long> seqs, CancellationToken ct)
+    {
+        var wanted = seqs.Distinct().ToList();
+        if (wanted.Count == 0) return [];
+
+        var targets = await db.Operations
+            .Where(o => o.BoardId == boardId && wanted.Contains(o.Seq))
+            .Select(o => new { o.Seq, o.OpType, o.Payload, o.InversePayload })
+            .ToListAsync(ct);
+
+        return targets.ToDictionary(
+            t => t.Seq,
+            t => SummarizeUndo(t.OpType, t.Payload, t.InversePayload));
+    }
+
+    /// <summary>
+    /// "undid deleting “Ship it”" — the gerund form, so the sentence reads.
+    /// </summary>
+    /// <remarks>
+    /// Not "undid " + <see cref="Summarize"/>: that produces "undid added
+    /// “Ship it”". Naming the thing matters most for a delete, where the plain
+    /// summary has no name to give — the title lives only in the inverse.
+    /// </remarks>
+    private static string SummarizeUndo(string opType, string payload, string? inversePayload)
+    {
+        try
+        {
+            return opType switch
+            {
+                "card.create" => $"undid adding {Quote(Deserialize<CardResponse>(payload).Title)}",
+                "card.rename" => $"undid an edit to {Quote(Deserialize<CardResponse>(payload).Title)}",
+                "card.move" => $"undid moving {Quote(Deserialize<CardResponse>(payload).Title)}",
+                "card.delete" => inversePayload is null
+                    ? "undid deleting a card"
+                    : $"undid deleting {Quote(Deserialize<CardResponse>(inversePayload).Title)}",
+                "column.create" => $"undid adding the {Quote(Deserialize<ColumnResponse>(payload).Name)} column",
+                "column.rename" => $"undid renaming a column",
+                "column.move" => $"undid reordering the {Quote(Deserialize<ColumnResponse>(payload).Name)} column",
+                "column.delete" => inversePayload is null
+                    ? "undid deleting a column"
+                    : $"undid deleting the {Quote(Deserialize<ColumnSnapshot>(inversePayload).Name)} column",
+                _ => "undid an earlier change",
+            };
+        }
+        catch (JsonException)
+        {
+            return "undid an earlier change";
+        }
+    }
+
+    /// <summary>
     /// A short past-tense description of one operation, for the activity feed.
     /// </summary>
     /// <remarks>
@@ -644,7 +719,7 @@ public class BoardOperationService(
         object? InversePayload = null);
 
     private Task SaveAsync(Guid boardId, Pending op, CancellationToken ct) =>
-        SaveAsync(boardId, [op], null, ct);
+        SaveAsync(boardId, [op], null, null, ct);
 
     /// <summary>
     /// Appends operations, each with its own board <c>seq</c>, and broadcasts
@@ -657,6 +732,7 @@ public class BoardOperationService(
         Guid boardId,
         IReadOnlyList<Pending> ops,
         Operation? markUndone,
+        long? undoOfSeq,
         CancellationToken ct)
     {
         await using var tx = await db.Database.BeginTransactionAsync(ct);
@@ -684,7 +760,8 @@ public class BoardOperationService(
                     ? null
                     : JsonSerializer.Serialize(op.InversePayload),
                 ActorId = currentUser.UserId,
-                CreatedAt = DateTimeOffset.UtcNow
+                CreatedAt = DateTimeOffset.UtcNow,
+                UndoOfSeq = undoOfSeq
             });
 
             assigned.Add((newSeq, op));

@@ -115,8 +115,8 @@ dev server holding port 3000, still running the old environment.
 ## Tests
 
 ```bash
-cd backend && dotnet test    # 62 integration tests, needs tangram_test on :5433
-cd frontend && npm test      # 180 Vitest tests, node by default
+cd backend && dotnet test    # 85 integration tests, needs tangram_test on :5433
+cd frontend && npm test      # 230 Vitest tests, node by default
 ```
 
 Backend tests are self-sufficient — a module initializer in `TestEnvironment.cs` seeds

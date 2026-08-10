@@ -43,6 +43,24 @@ export function dueStatus(iso: string, now: number = Date.now()): DueStatus {
   return "later";
 }
 
+/**
+ * The full date, for surfaces with room for it — "20 August 2026".
+ *
+ * Formatted in UTC, like everything else here: the stored instant is midnight
+ * UTC on the due day, and rendering it in the viewer's zone would show the
+ * previous day to anyone west of UTC.
+ */
+export function formatDueDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "an unreadable date";
+  return d.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 /** Short label for a card badge — "2d late", "Today", "in 3d", "20 Aug". */
 export function dueLabel(iso: string, now: number = Date.now()): string {
   const days = daysUntilDue(iso, now);

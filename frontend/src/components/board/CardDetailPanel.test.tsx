@@ -240,6 +240,46 @@ describe("CardDetailPanel — read-only", () => {
     expect(screen.getByText("You have view-only access to this board.")).toBeTruthy();
   });
 
+  it("renders due and assignee as text, not disabled controls (S8.1)", () => {
+    // The panel used to be inconsistent with itself: Title and Description
+    // degraded to text for a viewer while Due and Assignee stayed as a date
+    // picker and a dropdown -- editable-looking chrome nobody could use, and an
+    // empty "dd-mm-yyyy" field for data that wasn't there.
+    renderPanel({
+      readOnly: true,
+      card: { ...CARD, dueAt: "2026-09-15T00:00:00.000Z", assigneeId: "u-2" },
+      members: [
+        { userId: "u-2", displayName: "Sara R.", email: "sara@example.com", role: "Editor" },
+      ],
+    });
+
+    expect(document.querySelector("input[type='date']")).toBeNull();
+    expect(document.querySelector("select")).toBeNull();
+    expect(screen.getByText(/15 September 2026/)).toBeTruthy();
+    expect(screen.getByText("Sara R.")).toBeTruthy();
+  });
+
+  it("says so plainly when there is no due date or assignee", () => {
+    renderPanel({ readOnly: true });
+
+    expect(screen.getByText("No due date.")).toBeTruthy();
+    expect(screen.getByText("Unassigned.")).toBeTruthy();
+  });
+
+  it("shows an unresolvable assignee as unassigned rather than an id", () => {
+    renderPanel({ readOnly: true, card: { ...CARD, assigneeId: "gone" }, members: [] });
+
+    expect(screen.getByText("Unassigned.")).toBeTruthy();
+    expect(screen.queryByText("gone")).toBeNull();
+  });
+
+  it("keeps both controls for someone who can edit", () => {
+    renderPanel();
+
+    expect(screen.getByLabelText("Due")).toBeTruthy();
+    expect(screen.getByLabelText("Assignee")).toBeTruthy();
+  });
+
   it("keeps the text readable rather than greying it out", () => {
     renderPanel({ readOnly: true });
 

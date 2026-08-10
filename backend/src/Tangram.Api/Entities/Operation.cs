@@ -28,5 +28,17 @@ public class Operation
     // undone twice.
     public DateTimeOffset? UndoneAt { get; set; }
 
+    // The seq this operation reversed, when it was produced by an undo.
+    //
+    // Without it an undo is indistinguishable from ordinary work in the activity
+    // feed: undoing a card creation appended a plain `card.delete`, which read as
+    // "deleted a card" — not identifiable as an undo, and missing the card's name
+    // because a delete takes its name from an inverse, and undos deliberately
+    // record none.
+    //
+    // Restoring a column produces several operations; all of them carry the same
+    // value, which is what lets the feed collapse them into one line.
+    public long? UndoOfSeq { get; set; }
+
     public Board Board { get; set; } = null!;
 }
