@@ -35,13 +35,14 @@ import {
 import { applyOperation, moveCardOptimistic } from "@/lib/boardReducer";
 import { friendlyError } from "@/lib/errorMessage";
 import { useSeenOnce } from "@/lib/useSeenOnce";
+import { useCardParam } from "@/lib/useCardParam";
 import { BOARD_TOUR } from "@/lib/boardTour";
 import { Walkthrough } from "@/components/onboarding/Walkthrough";
 import { BoardColumn } from "@/components/board/BoardColumn";
 import { BoardIntro } from "@/components/board/BoardIntro";
 import { BoardSkeleton } from "@/components/board/BoardSkeleton";
 import { KanbanCard } from "@/components/board/KanbanCard";
-import { CardDetailPanel } from "@/components/board/CardDetailPanel";
+import { CardDetailModal } from "@/components/board/detail/CardDetailModal";
 import { PresenceAvatars } from "@/components/board/PresenceAvatars";
 import { RemoteCursors } from "@/components/board/RemoteCursors";
 import { ReconnectingBanner } from "@/components/board/ReconnectingBanner";
@@ -113,7 +114,8 @@ export function BoardView({ boardId }: { boardId: string }) {
   // On demand only -- see the reasoning in lib/boardTour.ts.
   const [tourOpen, setTourOpen] = useState(false);
   const [activeCard, setActiveCard] = useState<CardResponse | null>(null);
-  const [selectedCard, setSelectedCard] = useState<CardResponse | null>(null);
+  // Which card is open lives in the URL — see useCardParam for why.
+  const { openCardId, openCard: openCardById, closeCard } = useCardParam();
   // Workspace roster, for the assignee picker and for putting a name on the
   // avatar a card shows. Fetched once the board is known.
   const [members, setMembers] = useState<MemberResponse[]>([]);
@@ -137,6 +139,14 @@ export function BoardView({ boardId }: { boardId: string }) {
   // cursors and live updates -- they just can't originate a mutation, so the
   // controls that would 403 are removed rather than shown and rejected.
   const canEdit = board !== null && board.role !== "Viewer";
+
+  // Looked up fresh on every render rather than stored, which is the whole point
+  // of keeping the id rather than the card: the old panel held a *snapshot*, so
+  // a broadcast that changed the open card updated the board behind it and never
+  // the panel itself. Someone else's edit was invisible until you reopened it.
+  const openCardValue = openCardId
+    ? board?.columns.flatMap((c) => c.cards).find((c) => c.id === openCardId) ?? null
+    : null;
 
   // Keyed by user, not just by browser. It was per-browser, and the
   // consequence was concrete: signing up a second account in a browser that had
@@ -329,7 +339,16 @@ export function BoardView({ boardId }: { boardId: string }) {
   async function runMutation(
     description: string,
     send: () => Promise<unknown>,
-    optimistic?: (current: BoardDetailResponse) => BoardDetailResponse
+    optimistic?: (current: BoardDetailResponse) => BoardDetailResponse,
+    /**
+     * Report the failure to the caller instead of the board-level toast.
+     *
+     * The card detail view saves one field at a time, so "couldn't save that
+     * card" floating at the bottom of the board is the wrong place for it —
+     * the field itself has to say so, next to the value that reverted (S3.2).
+     * Rollback still happens here either way.
+     */
+    surface: "toast" | "rethrow" = "toast"
   ) {
     const snapshot = board;
     if (optimistic && snapshot) setBoard(optimistic(snapshot));
@@ -340,6 +359,11 @@ export function BoardView({ boardId }: { boardId: string }) {
     } catch (err) {
       if (optimistic && snapshot) setBoard(snapshot);
       const { message, canRetry } = friendlyError(err, description);
+
+      if (surface === "rethrow") {
+        throw new Error(message);
+      }
+
       setActionError({
         message,
         // Only offer a retry when repeating the request could plausibly work
@@ -422,12 +446,34 @@ export function BoardView({ boardId }: { boardId: string }) {
               : c
           ),
         })),
-      })
+      }),
+      // The detail view is the only caller, and it wants the failure itself.
+      "rethrow"
+    );
+  }
+
+  /** Status, in the detail view's language: move the card to another column. */
+  async function handleSetCardColumn(cardId: string, targetColumnId: string) {
+    if (!board) return;
+    const target = board.columns.find((c) => c.id === targetColumnId);
+    // Appended to the end of the target, which is where a card dropped without
+    // a position goes everywhere else in the app.
+    const beforeCardId = null;
+
+    await runMutation(
+      "move that card",
+      async () =>
+        api.post(`/boards/${boardId}/cards/${cardId}/move`, await getToken(), {
+          targetColumnId,
+          beforeCardId,
+        }),
+      (current) => moveCardOptimistic(current, cardId, target?.id ?? targetColumnId, beforeCardId),
+      "rethrow"
     );
   }
 
   async function handleDeleteCard(cardId: string) {
-    setSelectedCard(null);
+    closeCard();
     await runMutation(
       "delete that card",
       async () => api.delete(`/boards/${boardId}/cards/${cardId}`, await getToken()),
@@ -684,7 +730,7 @@ export function BoardView({ boardId }: { boardId: string }) {
                 onAddCard={handleAddCard}
                 onRenameColumn={handleRenameColumn}
                 onDeleteColumn={handleDeleteColumn}
-                onCardClick={setSelectedCard}
+                onCardClick={(card) => openCardById(card.id)}
               />
             ))}
 
@@ -773,14 +819,16 @@ export function BoardView({ boardId }: { boardId: string }) {
         </DragOverlay>
       </DndContext>
 
-      {selectedCard && (
-        <CardDetailPanel
-          card={selectedCard}
+      {openCardValue && (
+        <CardDetailModal
+          card={openCardValue}
           readOnly={!canEdit}
           members={members}
-          onClose={() => setSelectedCard(null)}
-          onSave={(update) => handleUpdateCard(selectedCard.id, update)}
-          onDelete={() => handleDeleteCard(selectedCard.id)}
+          statuses={board.columns.map((c) => ({ id: c.id, name: c.name }))}
+          onClose={closeCard}
+          onCommit={(update) => handleUpdateCard(openCardValue.id, update)}
+          onMove={(targetColumnId) => handleSetCardColumn(openCardValue.id, targetColumnId)}
+          onDelete={() => handleDeleteCard(openCardValue.id)}
         />
       )}
 

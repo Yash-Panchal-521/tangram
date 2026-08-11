@@ -84,6 +84,26 @@ public class CardDepthTests(TangramWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task A_card_reports_when_it_was_created_and_last_changed()
+    {
+        // Both live on the entity and were simply never exposed. The detail view
+        // shows them, and an edit has to move UpdatedAt without disturbing
+        // CreatedAt -- otherwise "created" silently tracks the last edit.
+        var (client, _, board, card) = await SeedAsync("timestamps-uid");
+
+        var fresh = await ReadCardAsync(client, board.Id, card.Id);
+        Assert.NotEqual(default, fresh.CreatedAt);
+        Assert.Equal(fresh.CreatedAt, fresh.UpdatedAt);
+
+        await client.PatchAsJsonAsync($"/boards/{board.Id}/cards/{card.Id}",
+            new UpdateCardRequest("Renamed", null, null, null));
+
+        var edited = await ReadCardAsync(client, board.Id, card.Id);
+        Assert.Equal(fresh.CreatedAt, edited.CreatedAt);
+        Assert.True(edited.UpdatedAt >= fresh.UpdatedAt);
+    }
+
+    [Fact]
     public async Task A_card_can_be_assigned_to_a_workspace_member()
     {
         var (owner, workspaceId, board, card) = await SeedAsync("assign-uid");

@@ -17,6 +17,8 @@ function card(id: string, title: string, extra: Partial<CardResponse> = {}): Car
     rank: "a0",
     dueAt: null,
     assigneeId: null,
+    createdAt: "2026-08-01T00:00:00.000Z",
+    updatedAt: "2026-08-01T00:00:00.000Z",
     ...extra,
   };
 }

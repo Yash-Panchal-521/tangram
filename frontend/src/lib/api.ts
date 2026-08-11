@@ -83,6 +83,8 @@ export interface CardResponse {
   dueAt: string | null;
   /** May name someone who has since left the workspace; treat unresolved as unassigned. */
   assigneeId: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /**

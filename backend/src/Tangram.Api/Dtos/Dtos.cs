@@ -84,6 +84,10 @@ public record UpdateCardRequest(
     bool ClearAssignee = false);
 
 public record MoveCardRequest(Guid TargetColumnId, Guid? BeforeCardId);
+
+// CreatedAt/UpdatedAt are on the entity and were simply never exposed. The detail
+// view shows them, and they cost nothing to carry: this record is also the
+// broadcast payload for card operations, so a resyncing client gets them too.
 public record CardResponse(
     Guid Id,
     Guid ColumnId,
@@ -91,7 +95,9 @@ public record CardResponse(
     string? Description,
     string Rank,
     DateTimeOffset? DueAt = null,
-    Guid? AssigneeId = null);
+    Guid? AssigneeId = null,
+    DateTimeOffset CreatedAt = default,
+    DateTimeOffset UpdatedAt = default);
 public record CardDeletedPayload(Guid Id, Guid ColumnId);
 
 public record ColumnWithCardsResponse(Guid Id, string Name, string Rank, List<CardResponse> Cards);

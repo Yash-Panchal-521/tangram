@@ -1,5 +1,7 @@
 import { ConfirmDialogDemo } from "@/app/kitchen-sink/ConfirmDialogDemo";
+import { CardDetailDemo } from "@/app/kitchen-sink/CardDetailDemo";
 import { DatePickerDemo } from "@/app/kitchen-sink/DatePickerDemo";
+import { InlineEditDemo } from "@/app/kitchen-sink/InlineEditDemo";
 import { InviteChipsDemo } from "@/app/kitchen-sink/InviteChipsDemo";
 import { BoardSkeleton } from "@/components/board/BoardSkeleton";
 import { Avatar } from "@/components/ui/Avatar";
@@ -75,6 +77,17 @@ export default function KitchenSinkPage() {
       </section>
 
       <section className="flex flex-col gap-3 max-w-sm">
+        <h2 className="text-sm font-semibold text-text-muted">Inline edit</h2>
+        <p className="text-xs text-text-dim">
+          Reads as text, edits in place. Enter or blur commits, Escape reverts — and Escape is
+          contained, so a dialog above stays open. A failed save reverts and says why{" "}
+          <em>next to the field</em>, because with each field saving on its own, &ldquo;that
+          didn&apos;t save&rdquo; means nothing unless it names which one.
+        </p>
+        <InlineEditDemo />
+      </section>
+
+      <section className="flex flex-col gap-3 max-w-sm">
         <h2 className="text-sm font-semibold text-text-muted">Date picker</h2>
         <p className="text-xs text-text-dim">
           Replaces <code>&lt;input type=&quot;date&quot;&gt;</code>, whose calendar is the
@@ -82,6 +95,19 @@ export default function KitchenSinkPage() {
           moves a month, Home and End reach the ends of the week.
         </p>
         <DatePickerDemo />
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold text-text-muted">Card detail</h2>
+        <p className="text-xs text-text-dim">
+          Two columns, as Jira lays out a work item: the description on the left because it is
+          what the work <em>is</em>, the context fields on the right because they are what you
+          sort and filter by. Every field saves on its own — there is no Save button for the
+          card — and a failure lands on the field that caused it. Below 1024px it becomes a
+          full-screen sheet and the columns stack. Here because it is otherwise unreachable
+          without signing in and opening a board.
+        </p>
+        <CardDetailDemo />
       </section>
 
       <section className="flex flex-col gap-3">

@@ -78,9 +78,6 @@ public class BoardOperationService(
         await EnsureCanMutateAsync(boardId, ct);
 
         var column = await LoadColumnOnBoardAsync(boardId, columnId, ct);
-        // Captured before the assignment below. After it the old name is gone,
-        // and the operation payload only ever records the new one.
-        var before = new ColumnResponse(column.Id, column.BoardId, column.Name, column.Rank);
 
         column.Name = name;
         column.UpdatedAt = DateTimeOffset.UtcNow;
@@ -110,7 +107,6 @@ public class BoardOperationService(
         await EnsureCanMutateAsync(boardId, ct);
 
         var column = await LoadColumnOnBoardAsync(boardId, columnId, ct);
-        var before = new ColumnResponse(column.Id, column.BoardId, column.Name, column.Rank);
 
         var siblings = await db.Columns
             .Where(c => c.BoardId == boardId && c.Id != columnId)
@@ -154,7 +150,7 @@ public class BoardOperationService(
         };
         db.Cards.Add(card);
 
-        var response = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId);
+        var response = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId, card.CreatedAt, card.UpdatedAt);
         await SaveAsync(boardId, new Pending("card.create", response), ct);
         return response;
     }
@@ -165,7 +161,6 @@ public class BoardOperationService(
         await EnsureCanMutateAsync(boardId, ct);
 
         var card = await LoadCardOnBoardAsync(boardId, cardId, ct);
-        var before = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId);
 
         if (request.Title is not null)
         {
@@ -214,7 +209,7 @@ public class BoardOperationService(
 
         card.UpdatedAt = DateTimeOffset.UtcNow;
 
-        var response = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId);
+        var response = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId, card.CreatedAt, card.UpdatedAt);
         // Still emitted as "card.rename" rather than a new op type: the
         // operations log holds historical card.rename rows that resync replays,
         // so introducing card.update would mean every client had to understand
@@ -239,7 +234,6 @@ public class BoardOperationService(
         await EnsureCanMutateAsync(boardId, ct);
 
         var card = await LoadCardOnBoardAsync(boardId, cardId, ct);
-        var before = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId);
         var targetColumn = await LoadColumnOnBoardAsync(boardId, targetColumnId, ct);
 
         var siblings = await db.Cards
@@ -255,7 +249,7 @@ public class BoardOperationService(
         card.Rank = RankService.GenerateBetween(lower, upper);
         card.UpdatedAt = DateTimeOffset.UtcNow;
 
-        var response = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId);
+        var response = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId, card.CreatedAt, card.UpdatedAt);
         await SaveAsync(boardId, new Pending("card.move", response), ct);
         return response;
     }
