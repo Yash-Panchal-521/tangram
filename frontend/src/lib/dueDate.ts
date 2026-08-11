@@ -44,16 +44,24 @@ export function dueStatus(iso: string, now: number = Date.now()): DueStatus {
 }
 
 /**
- * The full date, for surfaces with room for it — "20 August 2026".
+ * The full date, for surfaces with room for it — "20 August 2026", or
+ * "August 20, 2026", depending on who is reading.
  *
  * Formatted in UTC, like everything else here: the stored instant is midnight
  * UTC on the due day, and rendering it in the viewer's zone would show the
  * previous day to anyone west of UTC.
+ *
+ * `locale` defaults to the reader's, which is what production wants. It is a
+ * parameter so a caller that has already picked one — the date picker, whose
+ * grid is built with it — can keep the field and the calendar agreeing, and so
+ * tests can assert an exact string instead of whichever one the machine running
+ * them happens to produce. Asserting "22 August 2026" is how this reached CI
+ * green locally and red on a US-locale runner.
  */
-export function formatDueDate(iso: string): string {
+export function formatDueDate(iso: string, locale?: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "an unreadable date";
-  return d.toLocaleDateString(undefined, {
+  return d.toLocaleDateString(locale, {
     day: "numeric",
     month: "long",
     year: "numeric",

@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CardDetailPanel } from "@/components/board/CardDetailPanel";
 import { addDays, todayValue } from "@/lib/calendar";
+import { formatDueDate } from "@/lib/dueDate";
 import type { CardResponse } from "@/lib/api";
 
 afterEach(cleanup);
@@ -279,7 +280,16 @@ describe("CardDetailPanel — read-only", () => {
 
     expect(document.querySelector("input[type='date']")).toBeNull();
     expect(document.querySelector("select")).toBeNull();
-    expect(screen.getByText(/15 September 2026/)).toBeTruthy();
+    // Formatted rather than spelled out: the panel uses the reader's locale, so
+    // a literal date string passes on one machine and fails on another. Scoped
+    // to the paragraph that holds it, since every ancestor contains the text too.
+    expect(
+      screen.getByText(
+        (_, el) =>
+          el?.tagName === "P" &&
+          (el.textContent?.includes(formatDueDate("2026-09-15T00:00:00.000Z")) ?? false)
+      )
+    ).toBeTruthy();
     expect(screen.getByText("Sara R.")).toBeTruthy();
   });
 

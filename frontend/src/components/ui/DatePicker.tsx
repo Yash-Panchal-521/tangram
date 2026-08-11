@@ -141,7 +141,7 @@ export function DatePicker({
           <path d="M1.5 5.5h11M4.5 1.5v2M9.5 1.5v2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
         </svg>
         <span className="flex-1 min-w-0 truncate">
-          {value ? formatDueDate(`${value}T00:00:00.000Z`) : "No due date"}
+          {value ? formatDueDate(`${value}T00:00:00.000Z`, locale) : "No due date"}
         </span>
         {value && (
           <span className="shrink-0 text-[11px] text-text-muted">

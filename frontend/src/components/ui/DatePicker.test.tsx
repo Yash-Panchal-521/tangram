@@ -3,6 +3,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DatePicker } from "@/components/ui/DatePicker";
+import { formatDueDate } from "@/lib/dueDate";
 
 // A Thursday, so the Monday-start grid has leading days from the previous month.
 const NOW = Date.UTC(2026, 7, 20, 9, 0);
@@ -37,7 +38,10 @@ describe("DatePicker — the field", () => {
 
   it("shows the date and how far away it is", () => {
     mount("2026-08-22");
-    expect(screen.getByText("22 August 2026")).toBeTruthy();
+    // Through the same formatter the field uses, not a hardcoded string: the
+    // exact wording is the reader's locale. "22 August 2026" passed here and
+    // failed on CI's US-locale runner, which renders "August 22, 2026".
+    expect(screen.getByText(formatDueDate("2026-08-22T00:00:00.000Z", "en-GB"))).toBeTruthy();
     expect(screen.getByText("in 2d")).toBeTruthy();
   });
 
