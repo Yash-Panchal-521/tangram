@@ -36,12 +36,19 @@ persists, appends to the `operations` log, then broadcasts — after the commit,
 inside it. Conflicts resolve by server `seq`, never wall-clock time. Adding a mutation
 path that skips it silently breaks sync.
 
-**Every mutation must also record its inverse.** The payload stores the state an
-operation *produced*, never the state it replaced, so undo cannot be reconstructed
-afterwards — a rename that doesn't capture the old title before assigning the new one is
-permanently un-undoable. Deletes must snapshot enough to rebuild what the cascade takes:
-`column.delete` stores its cards. An operation with a null `InverseOpType` is silently
-not undoable, which is correct for undos themselves and a bug anywhere else.
+**Nothing reads the `operations` log except resync.** A reconnecting client asks for
+everything after the seq it last saw and replays it. There was an activity feed and an
+undo; both were removed, along with the inverse payloads and undo markers only they read.
+
+Before adding either back: **an inverse cannot be reconstructed after the fact.** The
+payload records the state an operation *produced*, never the one it replaced, so a rename
+that didn't capture the old title before assigning the new one is permanently un-undoable,
+and a `column.delete` that didn't snapshot its cards cannot restore them. Undo would work
+from the point it was reintroduced, never over history.
+
+**Deleting a column or a card is final.** It used to be recoverable, so the confirmations
+must keep naming the consequence — they are now the only thing between a person and the
+loss (S4.2).
 
 **Writes are REST-only; the hub is broadcast-only.** `BoardHub` exposes no mutations.
 One write path means one place enforcing authorization and assigning `seq`.

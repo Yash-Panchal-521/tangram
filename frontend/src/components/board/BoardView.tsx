@@ -38,7 +38,6 @@ import { useSeenOnce } from "@/lib/useSeenOnce";
 import { BOARD_TOUR } from "@/lib/boardTour";
 import { Walkthrough } from "@/components/onboarding/Walkthrough";
 import { BoardColumn } from "@/components/board/BoardColumn";
-import { ActivityPanel } from "@/components/board/ActivityPanel";
 import { BoardIntro } from "@/components/board/BoardIntro";
 import { BoardSkeleton } from "@/components/board/BoardSkeleton";
 import { KanbanCard } from "@/components/board/KanbanCard";
@@ -113,7 +112,6 @@ export function BoardView({ boardId }: { boardId: string }) {
   const [autoAddFirstCard, setAutoAddFirstCard] = useState(false);
   // On demand only -- see the reasoning in lib/boardTour.ts.
   const [tourOpen, setTourOpen] = useState(false);
-  const [activityOpen, setActivityOpen] = useState(false);
   const [activeCard, setActiveCard] = useState<CardResponse | null>(null);
   const [selectedCard, setSelectedCard] = useState<CardResponse | null>(null);
   // Workspace roster, for the assignee picker and for putting a name on the
@@ -155,29 +153,6 @@ export function BoardView({ boardId }: { boardId: string }) {
     board !== null &&
     board.columns.length >= 2 &&
     board.columns.every((c) => c.cards.length === 0);
-
-  // Cmd/Ctrl+Z opens the activity panel rather than undoing outright. Undo here
-  // is a server round trip that everyone else sees immediately, so a keystroke
-  // that fires it blind -- with no way to check what it caught -- is the wrong
-  // trade. The panel names the change first.
-  useEffect(() => {
-    if (!canEdit) return;
-
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key !== "z" || !(e.metaKey || e.ctrlKey) || e.shiftKey) return;
-
-      // Never steal undo from a field the user is typing in -- there the
-      // browser's own text undo is what they mean.
-      const target = e.target as HTMLElement | null;
-      if (target?.closest("input, textarea, [contenteditable='true']")) return;
-
-      e.preventDefault();
-      setActivityOpen(true);
-    }
-
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [canEdit]);
 
   // Assignee names, keyed by user id. Anyone who has left the workspace is
   // simply absent, and the card falls back to showing no assignee rather than a
@@ -591,19 +566,6 @@ export function BoardView({ boardId }: { boardId: string }) {
 
           <PresenceAvatars users={presentUsers} />
 
-          <button
-            onClick={() => setActivityOpen(true)}
-            data-tour="activity"
-            title="Board activity (Ctrl/Cmd + Z)"
-            className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium text-text-muted hover:text-text hover:bg-surface-2 transition-colors whitespace-nowrap cursor-pointer"
-          >
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-              <circle cx="7" cy="7" r="5.75" stroke="currentColor" strokeWidth="1.2" />
-              <path d="M7 3.9V7l2.1 1.4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            Activity
-          </button>
-
           <Link
             data-tour="members"
             href={`/workspace/${board.workspaceId}/members`}
@@ -819,19 +781,6 @@ export function BoardView({ boardId }: { boardId: string }) {
           onClose={() => setSelectedCard(null)}
           onSave={(update) => handleUpdateCard(selectedCard.id, update)}
           onDelete={() => handleDeleteCard(selectedCard.id)}
-        />
-      )}
-
-      {activityOpen && (
-        <ActivityPanel
-          boardId={boardId}
-          // Every mutation from anyone advances this, so passing it makes the
-          // feed follow the board without polling for changes.
-          boardSeq={board.seq}
-          canEdit={canEdit}
-          getToken={getToken}
-          onClose={() => setActivityOpen(false)}
-          onUndone={() => setSelectedCard(null)}
         />
       )}
 

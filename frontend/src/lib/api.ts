@@ -181,22 +181,3 @@ export interface InviteMemberResponse {
   invitation: PendingInvitationResponse | null;
 }
 
-export interface ActivityEntry {
-  seq: number;
-  opType: string;
-  actorId: string;
-  actorName: string;
-  /** Composed server-side: a delete's payload holds only ids, so the client
-   *  cannot name what was deleted. */
-  summary: string;
-  createdAt: string;
-  undone: boolean;
-  /** Your own, not yet reversed, and reversible. */
-  canUndo: boolean;
-}
-
-export interface ActivityResponse {
-  entries: ActivityEntry[];
-  /** The seq the undo button would act on, or null when there is nothing. */
-  undoableSeq: number | null;
-}

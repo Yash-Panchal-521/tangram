@@ -19,13 +19,12 @@ const COLUMNS = [[false, true, false], [true, false], [false, false, true, false
  * only thing that changes on load is the column contents (S2.2, S6.2).
  *
  * "For real" means the actual markup, classes and labels of anything the
- * response cannot change: the mark, the Boards crumb, and the Activity and
- * Members controls. Their widths then match by construction. The previous
- * version guessed at them with bars -- `w-16`, `w-14` -- which was already wrong
- * by two controls, because it still described the header as it stood before the
- * activity feed, the workspace home and the account menu existed. Grey bars are
- * kept for exactly what the response decides: the board's name, who is present,
- * and whose account this is.
+ * response cannot change: the mark, the Boards crumb and the Members control.
+ * Their widths then match by construction. The previous version guessed at them
+ * with bars -- `w-16`, `w-14` -- and was already wrong by two controls, because
+ * it still described the header as it stood before the workspace home and the
+ * account menu existed. Grey bars are kept for exactly what the response
+ * decides: the board's name, who is present, and whose account this is.
  *
  * The one thing that can still shift is the "View only" pill, which appears once
  * the caller's role is known. Pre-drawing it would mean guessing the role, and
@@ -76,23 +75,6 @@ export function BoardSkeleton({ slow = false }: { slow?: boolean }) {
           {/* Real icons and labels, so these occupy their exact final width --
               but inert, and without the hover and pointer affordances, so
               nothing invites a click that would do nothing. */}
-          <span
-            aria-hidden="true"
-            className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium text-text-dim whitespace-nowrap"
-          >
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
-              <circle cx="7" cy="7" r="5.75" stroke="currentColor" strokeWidth="1.2" />
-              <path
-                d="M7 3.9V7l2.1 1.4"
-                stroke="currentColor"
-                strokeWidth="1.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            Activity
-          </span>
-
           <span
             aria-hidden="true"
             className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium text-text-dim whitespace-nowrap"

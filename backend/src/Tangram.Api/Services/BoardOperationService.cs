@@ -27,9 +27,6 @@ public interface IBoardOperationService
     Task<CardResponse> UpdateCardAsync(Guid boardId, Guid cardId, UpdateCardRequest request, CancellationToken ct);
     Task DeleteCardAsync(Guid boardId, Guid cardId, CancellationToken ct);
     Task<CardResponse> MoveCardAsync(Guid boardId, Guid cardId, Guid targetColumnId, Guid? beforeCardId, CancellationToken ct);
-
-    Task<ActivityResponse> GetActivityAsync(Guid boardId, int limit, CancellationToken ct);
-    Task UndoLastAsync(Guid boardId, CancellationToken ct);
 }
 
 // Raised when what an undo would act on is no longer there -- someone else
@@ -72,7 +69,7 @@ public class BoardOperationService(
         db.Columns.Add(column);
 
         var response = new ColumnResponse(column.Id, column.BoardId, column.Name, column.Rank);
-        await SaveAsync(boardId, new Pending("column.create", response, "column.remove", new ColumnDeletedPayload(column.Id)), ct);
+        await SaveAsync(boardId, new Pending("column.create", response), ct);
         return response;
     }
 
@@ -89,7 +86,7 @@ public class BoardOperationService(
         column.UpdatedAt = DateTimeOffset.UtcNow;
 
         var response = new ColumnResponse(column.Id, column.BoardId, column.Name, column.Rank);
-        await SaveAsync(boardId, new Pending("column.rename", response, "column.rename", before), ct);
+        await SaveAsync(boardId, new Pending("column.rename", response), ct);
         return response;
     }
 
@@ -99,26 +96,13 @@ public class BoardOperationService(
 
         var column = await LoadColumnOnBoardAsync(boardId, columnId, ct);
 
-        // The cascade below takes the cards with it, and nothing else records
-        // them. Snapshot first, or undoing a column deletion restores an empty
-        // column and quietly loses the work it held -- which is exactly the
-        // deletion people most want back.
-        var cards = await db.Cards
-            .Where(c => c.ColumnId == columnId)
-            .OrderBy(c => c.Rank)
-            .Select(c => new CardResponse(c.Id, c.ColumnId, c.Title, c.Description, c.Rank, c.DueAt, c.AssigneeId))
-            .ToListAsync(ct);
-
         db.Columns.Remove(column); // DB FK cascade removes contained cards.
 
-        await SaveAsync(
-            boardId,
-            new Pending(
-                "column.delete",
-                new ColumnDeletedPayload(columnId),
-                "column.restore",
-                new ColumnSnapshot(column.Id, column.BoardId, column.Name, column.Rank, cards)),
-            ct);
+        // The cards are gone with it and nothing records them. That was
+        // survivable while undo existed and snapshotted them here; with undo
+        // removed, deleting a column is final. The confirmation is what stands
+        // between a person and that, so it has to keep naming the consequence.
+        await SaveAsync(boardId, new Pending("column.delete", new ColumnDeletedPayload(columnId)), ct);
     }
 
     public async Task<ColumnResponse> MoveColumnAsync(Guid boardId, Guid columnId, Guid? beforeColumnId, CancellationToken ct)
@@ -141,7 +125,7 @@ public class BoardOperationService(
         column.UpdatedAt = DateTimeOffset.UtcNow;
 
         var response = new ColumnResponse(column.Id, column.BoardId, column.Name, column.Rank);
-        await SaveAsync(boardId, new Pending("column.move", response, "column.move", before), ct);
+        await SaveAsync(boardId, new Pending("column.move", response), ct);
         return response;
     }
 
@@ -171,7 +155,7 @@ public class BoardOperationService(
         db.Cards.Add(card);
 
         var response = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId);
-        await SaveAsync(boardId, new Pending("card.create", response, "card.remove", new CardDeletedPayload(card.Id, card.ColumnId)), ct);
+        await SaveAsync(boardId, new Pending("card.create", response), ct);
         return response;
     }
 
@@ -235,7 +219,7 @@ public class BoardOperationService(
         // operations log holds historical card.rename rows that resync replays,
         // so introducing card.update would mean every client had to understand
         // both forever. The payload is a whole card either way.
-        await SaveAsync(boardId, new Pending("card.rename", response, "card.rename", before), ct);
+        await SaveAsync(boardId, new Pending("card.rename", response), ct);
         return response;
     }
 
@@ -245,13 +229,9 @@ public class BoardOperationService(
 
         var card = await LoadCardOnBoardAsync(boardId, cardId, ct);
         var columnId = card.ColumnId;
-        var snapshot = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId);
         db.Cards.Remove(card);
 
-        await SaveAsync(
-            boardId,
-            new Pending("card.delete", new CardDeletedPayload(cardId, columnId), "card.restore", snapshot),
-            ct);
+        await SaveAsync(boardId, new Pending("card.delete", new CardDeletedPayload(cardId, columnId)), ct);
     }
 
     public async Task<CardResponse> MoveCardAsync(Guid boardId, Guid cardId, Guid targetColumnId, Guid? beforeCardId, CancellationToken ct)
@@ -276,252 +256,8 @@ public class BoardOperationService(
         card.UpdatedAt = DateTimeOffset.UtcNow;
 
         var response = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId);
-        await SaveAsync(boardId, new Pending("card.move", response, "card.move", before), ct);
+        await SaveAsync(boardId, new Pending("card.move", response), ct);
         return response;
-    }
-
-    public async Task<ActivityResponse> GetActivityAsync(Guid boardId, int limit, CancellationToken ct)
-    {
-        // Read access, not write: viewers can watch the board, so they can see
-        // its history. The query filter has already excluded boards in
-        // workspaces the caller isn't a member of.
-        var boardExists = await db.Boards.AnyAsync(b => b.Id == boardId, ct);
-        if (!boardExists)
-        {
-            throw new BoardOperationNotFoundException("Board not found.");
-        }
-
-        var rows = await db.Operations
-            .Where(o => o.BoardId == boardId)
-            .OrderByDescending(o => o.Seq)
-            .Take(Math.Clamp(limit, 1, 200))
-            .Join(db.Users, o => o.ActorId, u => u.Id, (o, u) => new
-            {
-                o.Seq,
-                o.OpType,
-                o.ActorId,
-                ActorName = u.DisplayName,
-                o.Payload,
-                o.InverseOpType,
-                o.InversePayload,
-                o.CreatedAt,
-                o.UndoneAt,
-                o.UndoOfSeq
-            })
-            .ToListAsync(ct);
-
-        // Restoring a column appends the column and each of its cards, all
-        // stamped with the same UndoOfSeq. That is one action to a person, so it
-        // becomes one line -- otherwise a single undo fills the feed.
-        rows = rows
-            .GroupBy(r => r.UndoOfSeq is null ? $"op:{r.Seq}" : $"undo:{r.UndoOfSeq}")
-            .Select(g => g.OrderByDescending(r => r.Seq).First())
-            .OrderByDescending(r => r.Seq)
-            .ToList();
-
-        var undoneSummaries = await SummariesForAsync(
-            boardId, rows.Where(r => r.UndoOfSeq is not null).Select(r => r.UndoOfSeq!.Value), ct);
-
-        var me = currentUser.UserId;
-        var entries = rows
-            .Select(r => new ActivityEntry(
-                r.Seq,
-                r.OpType,
-                r.ActorId,
-                r.ActorName,
-                r.UndoOfSeq is not null
-                    ? undoneSummaries.GetValueOrDefault(r.UndoOfSeq.Value, "undid an earlier change")
-                    : Summarize(r.OpType, r.Payload, r.InversePayload),
-                r.CreatedAt,
-                r.UndoneAt is not null,
-                // Only your own, and only what has an inverse. Reversing someone
-                // else's edit out from under them is a different feature with a
-                // different conversation attached.
-                r.UndoneAt is null && r.InverseOpType is not null && r.ActorId == me))
-            .ToList();
-
-        return new ActivityResponse(entries, entries.FirstOrDefault(e => e.CanUndo)?.Seq);
-    }
-
-    public async Task UndoLastAsync(Guid boardId, CancellationToken ct)
-    {
-        await EnsureCanMutateAsync(boardId, ct);
-
-        var me = currentUser.UserId;
-        var target = await db.Operations
-            .Where(o => o.BoardId == boardId
-                && o.ActorId == me
-                && o.UndoneAt == null
-                && o.InverseOpType != null)
-            .OrderByDescending(o => o.Seq)
-            .FirstOrDefaultAsync(ct);
-
-        if (target is null)
-        {
-            throw new BoardOperationConflictException("There's nothing of yours left to undo.");
-        }
-
-        var ops = await BuildUndoAsync(boardId, target.InverseOpType!, target.InversePayload!, ct);
-        await SaveAsync(boardId, ops, target, target.Seq, ct);
-    }
-
-    /// <summary>
-    /// Turns a stored inverse into the changes that reverse it.
-    /// </summary>
-    /// <remarks>
-    /// The inverse vocabulary is deliberately internal — <c>card.restore</c> and
-    /// <c>column.restore</c> never reach a client. Restores are broadcast as
-    /// ordinary <c>create</c> operations carrying the original id, which the
-    /// client reducer already handles by replacing state by id. That keeps undo
-    /// from adding a single new case to the frontend.
-    /// </remarks>
-    private async Task<List<Pending>> BuildUndoAsync(
-        Guid boardId, string inverseOpType, string inversePayload, CancellationToken ct)
-    {
-        switch (inverseOpType)
-        {
-            case "card.remove":
-            {
-                var p = Deserialize<CardDeletedPayload>(inversePayload);
-                var card = await db.Cards.FirstOrDefaultAsync(c => c.Id == p.Id, ct)
-                    ?? throw Conflict("That card has already been deleted.");
-                db.Cards.Remove(card);
-                return [new Pending("card.delete", new CardDeletedPayload(p.Id, p.ColumnId))];
-            }
-
-            case "card.restore":
-            {
-                var p = Deserialize<CardResponse>(inversePayload);
-                var columnStillThere = await db.Columns
-                    .AnyAsync(c => c.Id == p.ColumnId && c.BoardId == boardId, ct);
-                if (!columnStillThere)
-                {
-                    throw Conflict("The column that card was in has since been deleted.");
-                }
-
-                var now = DateTimeOffset.UtcNow;
-                db.Cards.Add(new Card
-                {
-                    Id = p.Id,
-                    ColumnId = p.ColumnId,
-                    Title = p.Title,
-                    Description = p.Description,
-                    Rank = p.Rank,
-                    DueAt = p.DueAt,
-                    AssigneeId = p.AssigneeId,
-                    CreatedAt = now,
-                    UpdatedAt = now
-                });
-                return [new Pending("card.create", p)];
-            }
-
-            case "card.rename":
-            {
-                var p = Deserialize<CardResponse>(inversePayload);
-                var card = await LoadCardOrConflictAsync(boardId, p.Id, ct);
-                card.Title = p.Title;
-                card.Description = p.Description;
-                // The whole card, not just its text: undoing an edit that set a
-                // due date has to clear it again.
-                card.DueAt = p.DueAt;
-                card.AssigneeId = p.AssigneeId;
-                card.UpdatedAt = DateTimeOffset.UtcNow;
-                return [new Pending("card.rename", new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId))];
-            }
-
-            case "card.move":
-            {
-                var p = Deserialize<CardResponse>(inversePayload);
-                var card = await LoadCardOrConflictAsync(boardId, p.Id, ct);
-                var columnStillThere = await db.Columns
-                    .AnyAsync(c => c.Id == p.ColumnId && c.BoardId == boardId, ct);
-                if (!columnStillThere)
-                {
-                    throw Conflict("The column that card came from has since been deleted.");
-                }
-
-                card.ColumnId = p.ColumnId;
-                card.Rank = p.Rank;
-                card.UpdatedAt = DateTimeOffset.UtcNow;
-                return [new Pending("card.move", new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId))];
-            }
-
-            case "column.remove":
-            {
-                var p = Deserialize<ColumnDeletedPayload>(inversePayload);
-                var column = await db.Columns.FirstOrDefaultAsync(c => c.Id == p.Id, ct)
-                    ?? throw Conflict("That column has already been deleted.");
-                db.Columns.Remove(column);
-                return [new Pending("column.delete", new ColumnDeletedPayload(p.Id))];
-            }
-
-            case "column.restore":
-            {
-                var p = Deserialize<ColumnSnapshot>(inversePayload);
-                var now = DateTimeOffset.UtcNow;
-
-                db.Columns.Add(new Column
-                {
-                    Id = p.Id,
-                    BoardId = p.BoardId,
-                    Name = p.Name,
-                    Rank = p.Rank,
-                    CreatedAt = now,
-                    UpdatedAt = now
-                });
-
-                // The column first, then its cards: each is broadcast in turn,
-                // and a client that received a card for a column it doesn't yet
-                // know about would drop it.
-                var ops = new List<Pending>
-                {
-                    new("column.create", new ColumnResponse(p.Id, p.BoardId, p.Name, p.Rank))
-                };
-
-                foreach (var card in p.Cards)
-                {
-                    db.Cards.Add(new Card
-                    {
-                        Id = card.Id,
-                        ColumnId = card.ColumnId,
-                        Title = card.Title,
-                        Description = card.Description,
-                        Rank = card.Rank,
-                        DueAt = card.DueAt,
-                        AssigneeId = card.AssigneeId,
-                        CreatedAt = now,
-                        UpdatedAt = now
-                    });
-                    ops.Add(new Pending("card.create", card));
-                }
-
-                return ops;
-            }
-
-            case "column.rename":
-            {
-                var p = Deserialize<ColumnResponse>(inversePayload);
-                var column = await LoadColumnOrConflictAsync(boardId, p.Id, ct);
-                column.Name = p.Name;
-                column.UpdatedAt = DateTimeOffset.UtcNow;
-                return [new Pending("column.rename", new ColumnResponse(column.Id, column.BoardId, column.Name, column.Rank))];
-            }
-
-            case "column.move":
-            {
-                var p = Deserialize<ColumnResponse>(inversePayload);
-                var column = await LoadColumnOrConflictAsync(boardId, p.Id, ct);
-                column.Rank = p.Rank;
-                column.UpdatedAt = DateTimeOffset.UtcNow;
-                return [new Pending("column.move", new ColumnResponse(column.Id, column.BoardId, column.Name, column.Rank))];
-            }
-
-            default:
-                // Reached only if an inverse type is added above without a case
-                // here. Loud rather than silent: a no-op undo that reports
-                // success is the worst outcome available.
-                throw new InvalidOperationException($"No undo defined for inverse type '{inverseOpType}'.");
-        }
     }
 
     private async Task<Card> LoadCardOrConflictAsync(Guid boardId, Guid cardId, CancellationToken ct)
@@ -557,115 +293,6 @@ public class BoardOperationService(
     {
         PropertyNameCaseInsensitive = true
     };
-
-    private static string Quote(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? "an untitled item" : $"“{value.Trim()}”";
-
-    /// <summary>
-    /// Describes each undone operation as "undid …", by seq.
-    /// </summary>
-    /// <remarks>
-    /// Loaded separately rather than read from the page already fetched: the
-    /// operation an undo reversed is usually just above it, but not always —
-    /// undoing something from last week puts the target far outside the window,
-    /// and it would then render as "undid an earlier change".
-    /// </remarks>
-    private async Task<Dictionary<long, string>> SummariesForAsync(
-        Guid boardId, IEnumerable<long> seqs, CancellationToken ct)
-    {
-        var wanted = seqs.Distinct().ToList();
-        if (wanted.Count == 0) return [];
-
-        var targets = await db.Operations
-            .Where(o => o.BoardId == boardId && wanted.Contains(o.Seq))
-            .Select(o => new { o.Seq, o.OpType, o.Payload, o.InversePayload })
-            .ToListAsync(ct);
-
-        return targets.ToDictionary(
-            t => t.Seq,
-            t => SummarizeUndo(t.OpType, t.Payload, t.InversePayload));
-    }
-
-    /// <summary>
-    /// "undid deleting “Ship it”" — the gerund form, so the sentence reads.
-    /// </summary>
-    /// <remarks>
-    /// Not "undid " + <see cref="Summarize"/>: that produces "undid added
-    /// “Ship it”". Naming the thing matters most for a delete, where the plain
-    /// summary has no name to give — the title lives only in the inverse.
-    /// </remarks>
-    private static string SummarizeUndo(string opType, string payload, string? inversePayload)
-    {
-        try
-        {
-            return opType switch
-            {
-                "card.create" => $"undid adding {Quote(Deserialize<CardResponse>(payload).Title)}",
-                "card.rename" => $"undid an edit to {Quote(Deserialize<CardResponse>(payload).Title)}",
-                "card.move" => $"undid moving {Quote(Deserialize<CardResponse>(payload).Title)}",
-                "card.delete" => inversePayload is null
-                    ? "undid deleting a card"
-                    : $"undid deleting {Quote(Deserialize<CardResponse>(inversePayload).Title)}",
-                "column.create" => $"undid adding the {Quote(Deserialize<ColumnResponse>(payload).Name)} column",
-                "column.rename" => $"undid renaming a column",
-                "column.move" => $"undid reordering the {Quote(Deserialize<ColumnResponse>(payload).Name)} column",
-                "column.delete" => inversePayload is null
-                    ? "undid deleting a column"
-                    : $"undid deleting the {Quote(Deserialize<ColumnSnapshot>(inversePayload).Name)} column",
-                _ => "undid an earlier change",
-            };
-        }
-        catch (JsonException)
-        {
-            return "undid an earlier change";
-        }
-    }
-
-    /// <summary>
-    /// A short past-tense description of one operation, for the activity feed.
-    /// </summary>
-    /// <remarks>
-    /// Composed here rather than on the client because the client cannot: a
-    /// delete's payload carries only ids, and the name worth showing lives in
-    /// the inverse that was recorded alongside it.
-    /// </remarks>
-    private static string Summarize(string opType, string payload, string? inversePayload)
-    {
-        try
-        {
-            switch (opType)
-            {
-                case "card.create":
-                    return $"added {Quote(Deserialize<CardResponse>(payload).Title)}";
-                case "card.rename":
-                    return $"edited {Quote(Deserialize<CardResponse>(payload).Title)}";
-                case "card.move":
-                    return $"moved {Quote(Deserialize<CardResponse>(payload).Title)}";
-                case "card.delete":
-                    return inversePayload is null
-                        ? "deleted a card"
-                        : $"deleted {Quote(Deserialize<CardResponse>(inversePayload).Title)}";
-                case "column.create":
-                    return $"added the {Quote(Deserialize<ColumnResponse>(payload).Name)} column";
-                case "column.rename":
-                    return $"renamed a column to {Quote(Deserialize<ColumnResponse>(payload).Name)}";
-                case "column.move":
-                    return $"reordered the {Quote(Deserialize<ColumnResponse>(payload).Name)} column";
-                case "column.delete":
-                    return inversePayload is null
-                        ? "deleted a column"
-                        : $"deleted the {Quote(Deserialize<ColumnSnapshot>(inversePayload).Name)} column";
-                default:
-                    return "changed the board";
-            }
-        }
-        catch (JsonException)
-        {
-            // A feed entry is not worth failing the whole request over. The row
-            // still shows who and when, which is most of its value.
-            return "changed the board";
-        }
-    }
 
     private async Task<Column> LoadColumnOnBoardAsync(Guid boardId, Guid columnId, CancellationToken ct)
     {
@@ -709,30 +336,22 @@ public class BoardOperationService(
         return (lower, upper);
     }
 
-    // One broadcastable change, plus how to reverse it. `InverseOpType` null
-    // means "not undoable", which is how an undo itself is recorded -- storing
-    // an inverse for it would turn undo into redo, and then into a loop.
-    private sealed record Pending(
-        string OpType,
-        object Payload,
-        string? InverseOpType = null,
-        object? InversePayload = null);
+    // One broadcastable change.
+    private sealed record Pending(string OpType, object Payload);
 
     private Task SaveAsync(Guid boardId, Pending op, CancellationToken ct) =>
-        SaveAsync(boardId, [op], null, null, ct);
+        SaveAsync(boardId, [op], ct);
 
     /// <summary>
     /// Appends operations, each with its own board <c>seq</c>, and broadcasts
-    /// them. Takes a list because undoing a column deletion is genuinely several
-    /// changes -- the column and every card that was inside it -- and they must
-    /// land in one transaction or a failure halfway leaves a column back but its
-    /// cards gone.
+    /// them. Still takes a list, and they still land in one transaction: a
+    /// caller with several changes to make needs all or none of them, and the
+    /// seq a client reconciles against must not advance for work that then
+    /// rolls back.
     /// </summary>
     private async Task SaveAsync(
         Guid boardId,
         IReadOnlyList<Pending> ops,
-        Operation? markUndone,
-        long? undoOfSeq,
         CancellationToken ct)
     {
         await using var tx = await db.Database.BeginTransactionAsync(ct);
@@ -755,21 +374,11 @@ public class BoardOperationService(
                 Seq = newSeq,
                 OpType = op.OpType,
                 Payload = JsonSerializer.Serialize(op.Payload),
-                InverseOpType = op.InverseOpType,
-                InversePayload = op.InversePayload is null
-                    ? null
-                    : JsonSerializer.Serialize(op.InversePayload),
                 ActorId = currentUser.UserId,
-                CreatedAt = DateTimeOffset.UtcNow,
-                UndoOfSeq = undoOfSeq
+                CreatedAt = DateTimeOffset.UtcNow
             });
 
             assigned.Add((newSeq, op));
-        }
-
-        if (markUndone is not null)
-        {
-            markUndone.UndoneAt = DateTimeOffset.UtcNow;
         }
 
         await db.SaveChangesAsync(ct);

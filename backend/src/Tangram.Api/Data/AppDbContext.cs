@@ -89,14 +89,11 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Operation>(e =>
         {
             e.HasQueryFilter(o => _currentUser.WorkspaceIds.Contains(o.Board.WorkspaceId));
+            // The only query against this table is resync: everything on a board
+            // after the seq a reconnecting client last saw, in order.
             e.HasIndex(o => new { o.BoardId, o.Seq }).IsUnique();
 
-            // Backs "the newest thing this person did that is still undoable",
-            // which runs on every undo and every activity fetch.
-            e.HasIndex(o => new { o.BoardId, o.ActorId, o.Seq });
-
             e.Property(o => o.Payload).HasColumnType("jsonb");
-            e.Property(o => o.InversePayload).HasColumnType("jsonb");
             e.HasOne(o => o.Board).WithMany(b => b.Operations).HasForeignKey(o => o.BoardId);
         });
     }

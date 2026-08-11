@@ -36,6 +36,6 @@ export const BOARD_TOUR: TourStep[] = [
   {
     target: "[data-tour='members']",
     title: "Bring people in",
-    body: "Invite teammates as owners, editors or viewers. Anyone invited by email joins the moment they sign up.",
+    body: "Invite teammates as owners, editors or viewers. Nothing emails them — copy the invite link and send it yourself, and they join when they accept.",
   },
 ];

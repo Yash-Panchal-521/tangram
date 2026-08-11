@@ -1,5 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Tangram.Api.Data;
 using Tangram.Api.Dtos;
 using Tangram.Api.Tests.Infrastructure;
 using Xunit;
@@ -54,10 +57,11 @@ public class BoardManagementTests(TangramWebApplicationFactory factory)
     [Fact]
     public async Task Seeded_columns_are_not_recorded_as_work_the_user_did()
     {
-        // They used to be three ordinary API calls, so the feed opened by
-        // claiming the user had added columns they never touched -- and undo
-        // offered to reverse them. Since an undo carries no inverse, three
-        // presses of Ctrl+Z stripped a new board with no way back.
+        // They used to be three ordinary API calls carrying the user's token, so
+        // the log recorded scaffolding as something a person had done. The
+        // activity feed that made this visible is gone, but the log itself is
+        // what resync replays -- a reconnecting client must not be told to add
+        // three columns that were part of the board from the start.
         var client = factory.CreateClientAs("seed-noops-uid");
         var workspace = await (await client.PostAsJsonAsync("/workspaces", new CreateWorkspaceRequest("Seeded")))
             .Content.ReadFromJsonAsync<WorkspaceResponse>();
@@ -65,27 +69,14 @@ public class BoardManagementTests(TangramWebApplicationFactory factory)
             $"/workspaces/{workspace!.Id}/boards", new CreateBoardRequest("My Board", SeedDefaultColumns: true)))
             .Content.ReadFromJsonAsync<BoardResponse>();
 
-        var activity = await client.GetFromJsonAsync<ActivityResponse>($"/boards/{board!.Id}/activity");
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var operations = await db.Operations
+            .IgnoreQueryFilters()
+            .Where(o => o.BoardId == board!.Id)
+            .ToListAsync();
 
-        Assert.Empty(activity!.Entries);
-        Assert.Null(activity.UndoableSeq);
-    }
-
-    [Fact]
-    public async Task A_new_user_cannot_undo_their_way_to_an_empty_board()
-    {
-        var client = factory.CreateClientAs("seed-undo-uid");
-        var workspace = await (await client.PostAsJsonAsync("/workspaces", new CreateWorkspaceRequest("Seeded")))
-            .Content.ReadFromJsonAsync<WorkspaceResponse>();
-        var board = await (await client.PostAsJsonAsync(
-            $"/workspaces/{workspace!.Id}/boards", new CreateBoardRequest("My Board", SeedDefaultColumns: true)))
-            .Content.ReadFromJsonAsync<BoardResponse>();
-
-        var undo = await client.PostAsync($"/boards/{board!.Id}/undo", null);
-
-        Assert.Equal(HttpStatusCode.Conflict, undo.StatusCode);
-        var detail = await client.GetFromJsonAsync<BoardDetailResponse>($"/boards/{board.Id}");
-        Assert.Equal(3, detail!.Columns.Count);
+        Assert.Empty(operations);
     }
 
     [Fact]
@@ -167,8 +158,9 @@ public class BoardManagementTests(TangramWebApplicationFactory factory)
             new CreateBoardRequest("Sprint board", Columns: ["Backlog", "Done"])))
             .Content.ReadFromJsonAsync<BoardResponse>();
 
-        var activity = await client.GetFromJsonAsync<ActivityResponse>($"/boards/{board!.Id}/activity");
-        Assert.Empty(activity!.Entries);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Empty(await db.Operations.IgnoreQueryFilters().Where(o => o.BoardId == board!.Id).ToListAsync());
     }
 
     [Fact]

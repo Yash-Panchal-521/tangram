@@ -13,32 +13,15 @@ public class Operation
     public Guid ActorId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 
-    // How to reverse this operation, captured at write time because the payload
-    // alone cannot express it: it records the *new* state, and an undo needs the
-    // old one. A rename stores the title it changed to, never the title it
-    // changed from, so reconstructing the inverse afterwards is impossible.
+    // Nothing reads this log except sync: a client that reconnects asks for
+    // everything after the seq it last saw, and replays it. It carried inverse
+    // payloads and undo markers while the board had an activity feed and an
+    // undo; both were removed, and with them the only readers of that state.
     //
-    // Null means the operation is not undoable — which currently only happens
-    // for operations that are themselves undos. Not storing an inverse for those
-    // is what stops undo from becoming a redo, and then a loop.
-    public string? InverseOpType { get; set; }
-    public string? InversePayload { get; set; } // jsonb
-
-    // Set when this operation has been reversed, so the same action can't be
-    // undone twice.
-    public DateTimeOffset? UndoneAt { get; set; }
-
-    // The seq this operation reversed, when it was produced by an undo.
-    //
-    // Without it an undo is indistinguishable from ordinary work in the activity
-    // feed: undoing a card creation appended a plain `card.delete`, which read as
-    // "deleted a card" — not identifiable as an undo, and missing the card's name
-    // because a delete takes its name from an inverse, and undos deliberately
-    // record none.
-    //
-    // Restoring a column produces several operations; all of them carry the same
-    // value, which is what lets the feed collapse them into one line.
-    public long? UndoOfSeq { get; set; }
+    // Worth knowing before adding either back: an inverse cannot be
+    // reconstructed after the fact. The payload records the state an operation
+    // *produced*, never the one it replaced, so a rename that did not capture
+    // the old title before assigning the new one is permanently un-undoable.
 
     public Board Board { get; set; } = null!;
 }

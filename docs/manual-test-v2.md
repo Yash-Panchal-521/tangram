@@ -1,14 +1,15 @@
 # Manual test pass — everything after the MVP
 
 Covers every commit from `459dbc5` onwards: v2 phase 1 (scopes A–C6), phase 2
-(features 1–3), the welcome flow, the invitation flow, and four defects found by
-using the app rather than testing it.
+(features 2 and 3 — feature 1 was built and then removed, see §9), the welcome
+flow, the invitation flow, the date picker, and the defects found by using the
+app rather than testing it.
 
 Each check is **Do → Expect**. Where a wrong result would still look plausible,
 there's a **Why** line — those are the ones worth reading before you click.
 
-Nothing here is covered by the automated suites in a way that makes it redundant:
-401 backend + frontend tests pass and still missed the four defects in §14.
+None of it is redundant with the automated suites: they pass and still missed
+every defect in §14.
 
 ## Setup
 
@@ -137,24 +138,23 @@ trust it, then lose an edit through the one that was missed.
 
 | # | Do | Expect |
 |---|---|---|
-| 5.1 | Set a due date | Shows on the card |
-| 5.2 | Set it to today | Reads as due today — not yesterday |
-| 5.1a | Open the Due field | A calendar in the app's own styling, **not** the browser's |
-| 5.1b | Switch to dark mode, reopen it | Follows the theme — the native one never did |
-| 5.1c | Press **Tomorrow** | One click, no grid needed |
-| 5.1d | Arrow keys, then Enter | Moves a day; Up/Down a week; Page a month; Home/End the week's ends |
-| 5.1e | Arrow past the end of a month | Carries into the next one, and the grid keeps six rows |
-| 5.1f | Press Escape | Closes the calendar — **and leaves the card panel open** |
-| 5.1g | Open it with no date set | Look for a Clear button — there isn't one |
-| 5.3 | Assign to a workspace member | Their name/avatar appears |
-| 5.4 | Change title **and** due date, save once | One entry in the activity feed, not three |
-| 5.5 | Clear the due date | Actually clears, and stays cleared after reload |
-| 5.6 | Edit only the title | Due date and assignee **survive untouched** |
+| 5.1 | Open the Due field | A calendar in the app's own styling, **not** the browser's |
+| 5.2 | Switch to dark mode, reopen it | Follows the theme — the native one never did |
+| 5.3 | Press **Tomorrow** | One click, no grid needed |
+| 5.4 | Arrow keys, then Enter | Moves a day; Up/Down a week; Page a month; Home/End the week's ends |
+| 5.5 | Arrow past the end of a month | Carries into the next one, and the grid keeps six rows |
+| 5.6 | Press Escape | Closes the calendar — **and leaves the card panel open** |
+| 5.7 | Open it with no date set | Look for a Clear button — there isn't one |
+| 5.8 | Set a due date to today | Shows on the card, reads as due **today** — not yesterday |
+| 5.9 | Assign to a workspace member | Their name/avatar appears |
+| 5.10 | Change title **and** due date, save once | Both land together after one save |
+| 5.11 | Clear the due date | Actually clears, and stays cleared after reload |
+| 5.12 | Edit only the title | Due date and assignee **survive untouched** |
 
-**Why 5.6:** JSON can't tell "absent" from "null". Without explicit clear flags,
+**Why 5.12:** JSON can't tell "absent" from "null". Without explicit clear flags,
 an edit that only changed the title wipes everything it didn't mention.
 
-**Why 5.2:** a due date is a day, not a moment. If it reads back through your
+**Why 5.8:** a due date is a day, not a moment. If it reads back through your
 local timezone, cards start claiming they were due yesterday.
 
 ---
@@ -211,44 +211,38 @@ rejected request went nowhere — the change just didn't happen.
 
 ---
 
-## 9. Activity feed and undo
+## 9. Deletion is final
+
+The activity feed and undo were removed. Ctrl+Z does nothing on the board, there
+is no Activity button, and **nothing here is recoverable** — which makes the
+confirmations the whole safety net.
 
 | # | Do | Expect |
 |---|---|---|
-| 9.1 | Open the activity panel | Who changed what, newest first |
-| 9.2 | Add a card, check the feed | Names the card |
-| 9.3 | Press **Ctrl+Z** | Undoes your last change |
-| 9.4 | Check the feed | Reads **"undid adding *Card name*"** — not "deleted a card" |
-| 9.5 | Delete a column with cards in it, then Ctrl+Z | Column **and all its cards** come back |
-| 9.6 | Press Ctrl+Z again | Does **not** redo — undos aren't undoable |
-| 9.7 | Have the other account make a change, then press Ctrl+Z | Undoes **your** last change, not theirs |
-| 9.8 | Rename a card, Ctrl+Z | The **old** title returns |
+| 9.1 | Look at the board header | **No Activity button** |
+| 9.2 | Press **Ctrl+Z** on the board | Nothing happens |
+| 9.3 | Type in a card's title, press Ctrl+Z | Normal **text** undo inside the field, as any input does |
+| 9.4 | Delete a card | Confirms first, **naming the card** |
+| 9.5 | Confirm it | Gone, and it stays gone after a reload |
+| 9.6 | Delete a column holding cards | Confirmation says **how many cards** go with it |
+| 9.7 | Confirm it | Column and its cards are gone for good |
+| 9.8 | Have the other browser watch during 9.7 | It disappears there too, live |
 
-**Why 9.5:** the DB cascade takes the cards and the payload holds only the column
-id. Without a snapshot, undo restores an empty column and silently loses the work
-— the exact deletion people most want back.
+**Why 9.6:** the cards used to be recoverable — the delete snapshotted them so
+undo could put them back. That snapshot is gone, so this sentence is the only
+warning anyone gets.
 
-**Why 9.8:** payloads record the state an operation *produced*, never what it
-replaced. If the inverse isn't captured before the write, the old title is gone
-forever.
-
-**Why 9.4:** defect fix `831c14d`.
-
-### The one that could destroy a board
+### Sync still works — the log behind it stayed
 
 | # | Do | Expect |
 |---|---|---|
-| 9.9 | Brand-new board. Open the feed **before touching anything** | **Empty.** No "added a column" entries |
-| 9.10 | Press Ctrl+Z three times on that untouched board | Nothing happens. Columns stay |
+| 9.9 | Brand-new board, check its **seq** (board detail, or just trust §3) | Seeding left it at 0 |
+| 9.10 | Disconnect one browser, make changes in the other, reconnect | The reconnecting one catches up rather than reloading |
 
-**Why:** the three starter columns used to be created by ordinary API calls
-carrying your token, so the log recorded them as *your* work. Three presses of
-Ctrl+Z stripped a brand-new board to nothing, with no way back — a new user's
-first interaction could irreversibly destroy their board. Seeding now happens
-inside the board-create transaction with no operations rows. **Board `seq` must
-still be 0** on a fresh board.
+**Why:** the `operations` log was kept when the feed was removed, because resync
+replays it. If 9.10 reloads the whole board instead of catching up, the log is
+not being read correctly.
 
----
 
 ## 10. Workspaces and boards
 
@@ -283,7 +277,6 @@ Needs the second account in the workspace (do §12 first, or invite them).
 | 11.4 | Look at Due and Assignee on that card | Plain text too: *"No due date."* / *"Unassigned."* |
 | 11.5 | Look for an empty `dd-mm-yyyy` field | There isn't one |
 | 11.6 | As the Viewer, check the header | Says why it's read-only |
-| 11.7 | As the Viewer, open the activity feed | Readable |
 | 11.8 | Promote to Editor | Controls appear without a manual reload |
 | 11.9 | Try to demote the only owner | Control disabled, rule explained |
 
@@ -417,6 +410,8 @@ Don't file these.
 
 - **Labels and comments** — not built. Card depth shipped due dates and
   assignees only; the other two need their own tables and lifecycle.
+- **No activity feed, no undo.** Built, then removed deliberately. Deleting a
+  column or a card is final by design, not by oversight.
 - **Leave workspace** — doesn't exist. Only an owner can remove a member.
 - **Existing accounts skip consent.** Inviting an address that already has a
   Tangram account adds them immediately, with no accept step. And since

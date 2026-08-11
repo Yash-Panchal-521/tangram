@@ -24,14 +24,15 @@ describe("BoardSkeleton", () => {
 
   it("carries every control the loaded header has", () => {
     // This drifted once already: the skeleton still described the header as it
-    // stood before the activity feed, the workspace home and the account menu
-    // existed, so three controls appeared out of nowhere on arrival.
+    // stood before the workspace home and the account menu existed, so controls
+    // appeared out of nowhere on arrival.
     render(<BoardSkeleton />);
 
     expect(screen.getByText("Boards")).toBeTruthy();
-    expect(screen.getByText("Activity")).toBeTruthy();
     expect(screen.getByText("Members")).toBeTruthy();
     expect(screen.getByText("Connecting…")).toBeTruthy();
+    // Removed with the feature it stood for.
+    expect(screen.queryByText("Activity")).toBeNull();
   });
 
   it("offers a way out while the server wakes up", () => {
@@ -50,10 +51,10 @@ describe("BoardSkeleton", () => {
     // Real labels for their width, but inert -- no button, and none of the
     // hover or cursor affordances the loaded header's controls carry.
     expect(container.querySelector("button")).toBeNull();
-    const activity = screen.getByText("Activity").closest("span")!;
-    expect(activity.className).not.toContain("cursor-pointer");
-    expect(activity.className).not.toContain("hover:");
-    expect(activity.getAttribute("aria-hidden")).toBe("true");
+    const members = screen.getByText("Members").closest("span")!;
+    expect(members.className).not.toContain("cursor-pointer");
+    expect(members.className).not.toContain("hover:");
+    expect(members.getAttribute("aria-hidden")).toBe("true");
   });
 
   it("lays out the same column geometry as a loaded board", () => {

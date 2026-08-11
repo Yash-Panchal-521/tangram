@@ -79,7 +79,7 @@ on anyone's first minute.
 
 Chosen for v2:
 
-### 1. Activity feed + undo — **done**
+### 1. Activity feed + undo — **built, then removed**
 
 Per-board timeline of who changed what and when, plus undo for the last operation.
 
@@ -89,12 +89,16 @@ already carrying `ActorId`, `OpType` and the full payload. This needs an endpoin
 not new architecture — no other feature here has that leverage. The real work is
 inverse-operation logic for undo.
 
-**Outcome.** The leverage held for the feed; the prediction about undo was right and then
-some. The stored payload records the state a mutation *produced*, never the state it
-replaced, so no inverse could be reconstructed after the fact — inverses are now captured
-at write time in two new nullable columns. Deleting a column additionally snapshots its
-cards, since the cascade takes them and undo would otherwise restore an empty column.
-Undo is scoped to your own operations. See `docs/decisions.md`.
+**Outcome.** Built, shipped, and then removed at the product owner's call — the feed was
+not what they wanted the board to be. The leverage prediction held: the feed itself was an
+endpoint and a UI over a log that already existed. The prediction about undo was right and
+then some — the stored payload records the state a mutation *produced*, never the state it
+replaced, so inverses had to be captured at write time in new columns, and `column.delete`
+had to snapshot its cards.
+
+All of that is gone: the panel, both endpoints, the inverse columns and the snapshots.
+The `operations` log stays, because resync reads it. Deleting a column or a card is now
+final, which puts the weight back on the confirmations. See `docs/decisions.md`.
 
 ### 2. Workspace and board management — **done**
 
@@ -124,8 +128,7 @@ in the frontend reducer.
 **Outcome.** Due dates and assignees are done — two columns on `Card`, flowing through the
 existing update path, so no new operation type and no new reducer case were needed at all.
 The prediction was right about the other two: **labels and comments each need their own
-table**, and comments raise undo questions this codebase has not had to answer. Both are
-recorded as not started rather than half-built. See `docs/decisions.md`.
+table**. Both are recorded as not started rather than half-built. See `docs/decisions.md`.
 
 *Not selected: command palette and keyboard shortcuts.*
 

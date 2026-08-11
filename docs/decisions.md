@@ -520,7 +520,7 @@ anchors behind and made three later tests fail against a DOM they never
 rendered. `availableSteps` takes a root parameter partly so that test can use a
 detached node.
 
-## v2 phase 2, feature 1 — activity feed and undo
+## v2 phase 2, feature 1 — activity feed and undo *(removed; see the entry at the end)*
 
 The leverage was real: the append-only `operations` table already carried
 `ActorId`, `OpType`, the payload and a per-board `Seq`. The feed is a projection
@@ -911,3 +911,49 @@ status back as turned down, and an unknown token exited to sign in.
   appending a second `border-*` leaves the winner to stylesheet order. `Input` and
   `PasswordInput` still have a latent case where an `error` border loses to
   `focus-visible:border-accent`.
+
+
+## v2 — removing the activity feed and undo
+
+Both were built, shipped, manually tested, and then removed on the product
+owner's call: the feed was not what they wanted the board to be. Recorded here
+because a feature that existed and stopped existing is a decision, and because
+what it leaves behind is not obvious.
+
+**What went.** The activity panel and its header button, `GET /boards/{id}/activity`,
+`POST /boards/{id}/undo`, the Ctrl+Z handler, `BuildUndoAsync` and both summary
+functions, the `ActivityEntry` / `ActivityResponse` / `ColumnSnapshot` DTOs, and
+four columns on `operations`: `inverse_op_type`, `inverse_payload`, `undone_at`,
+`undo_of_seq`. The `(board_id, actor_id, seq)` index went with them — it existed
+to answer "the newest thing this person did that is still undoable", and nothing
+asks that any more.
+
+**What stayed, and why.** The `operations` table itself. Resync reads it: a
+client that reconnects asks for everything after the seq it last saw and replays
+it, which is what makes the reconnect banner recover rather than reload. It is
+now the table's only reader.
+
+**What this costs, stated plainly.** Deleting a column or a card is final. It was
+recoverable while undo existed — `column.delete` snapshotted its cards precisely
+so a restore would not bring back an empty column. Those snapshots are gone, so
+the confirmation dialogs are now the only thing between a person and the loss,
+which is why they still name the consequence and the card (S4.2).
+
+**The migration is one-way for the data**, not just the schema. `Down` re-adds
+the four columns, but they come back empty and cannot be backfilled: an inverse
+records the state an operation *replaced*, and the payload only ever recorded
+what it produced. Restoring undo later means it works from that point forward
+and never over history.
+
+**Two tests were rewritten rather than deleted**, because their subject survived
+the feature that motivated them. `Seeded_columns_are_not_recorded_as_work_the_user_did`
+now queries the operations table directly instead of the feed — seeding must
+still leave no rows, because resync replays them and a reconnecting client must
+not be told to add three columns that were there from the start. The due-date
+test now asserts that a field-only edit still appends an operation, which is what
+keeps a reconnecting client in agreement with the server.
+
+Two more were replaced outright: `Undoing_an_edit_restores_the_whole_card` became
+`One_edit_applies_every_field_it_names`, and both restore tests became
+`Deleting_a_card_is_final` and `Deleting_a_column_takes_its_cards_and_is_final` —
+pinning the new behaviour rather than the old one.

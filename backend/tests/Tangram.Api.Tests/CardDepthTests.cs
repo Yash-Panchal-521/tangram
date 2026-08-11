@@ -129,39 +129,40 @@ public class CardDepthTests(TangramWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task Undoing_an_edit_restores_the_whole_card_not_just_its_text()
+    public async Task One_edit_applies_every_field_it_names()
     {
-        // The inverse is a full CardResponse, so undo has to put the due date and
-        // assignee back exactly as they were -- including back to nothing.
-        var (owner, workspaceId, board, card) = await SeedAsync("undo-depth-uid");
-        var editorId = await AddMemberAsync(owner, workspaceId, "undo-depth-editor", "Editor");
+        // The panel is one form and a save is one request, so all four fields
+        // have to land together -- splitting them would be several operations
+        // for what a person did once.
+        var (owner, workspaceId, board, card) = await SeedAsync("edit-depth-uid");
+        var editorId = await AddMemberAsync(owner, workspaceId, "edit-depth-editor", "Editor");
+        var due = new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero);
 
         await owner.PatchAsJsonAsync($"/boards/{board.Id}/cards/{card.Id}",
-            new UpdateCardRequest("With depth", "Details", new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero), editorId));
+            new UpdateCardRequest("With depth", "Details", due, editorId));
 
-        await owner.PostAsync($"/boards/{board.Id}/undo", null);
-
-        var restored = await ReadCardAsync(owner, board.Id, card.Id);
-        Assert.Equal("Task", restored.Title);
-        Assert.Null(restored.DueAt);
-        Assert.Null(restored.AssigneeId);
+        var edited = await ReadCardAsync(owner, board.Id, card.Id);
+        Assert.Equal("With depth", edited.Title);
+        Assert.Equal("Details", edited.Description);
+        Assert.Equal(due, edited.DueAt);
+        Assert.Equal(editorId, edited.AssigneeId);
     }
 
     [Fact]
-    public async Task Restoring_a_deleted_card_brings_its_due_date_and_assignee_back()
+    public async Task Deleting_a_card_is_final()
     {
+        // It was recoverable while undo existed -- the delete stored the whole
+        // card as its inverse. It no longer does, so the confirmation naming the
+        // card is the only thing between a person and losing it.
         var (owner, workspaceId, board, card) = await SeedAsync("restore-depth-uid");
         var editorId = await AddMemberAsync(owner, workspaceId, "restore-depth-editor", "Editor");
-        var due = new DateTimeOffset(2026, 10, 5, 0, 0, 0, TimeSpan.Zero);
         await owner.PatchAsJsonAsync($"/boards/{board.Id}/cards/{card.Id}",
-            new UpdateCardRequest(null, "Details", due, editorId));
+            new UpdateCardRequest(null, "Details", new DateTimeOffset(2026, 10, 5, 0, 0, 0, TimeSpan.Zero), editorId));
 
         await owner.DeleteAsync($"/boards/{board.Id}/cards/{card.Id}");
-        await owner.PostAsync($"/boards/{board.Id}/undo", null);
 
-        var restored = await ReadCardAsync(owner, board.Id, card.Id);
-        Assert.Equal(due, restored.DueAt);
-        Assert.Equal(editorId, restored.AssigneeId);
+        var detail = await owner.GetFromJsonAsync<BoardDetailResponse>($"/boards/{board.Id}");
+        Assert.DoesNotContain(detail!.Columns.SelectMany(c => c.Cards), c => c.Id == card.Id);
     }
 
     [Fact]
