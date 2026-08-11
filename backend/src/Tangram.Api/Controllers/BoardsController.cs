@@ -187,6 +187,9 @@ public class BoardsController(
         var board = await db.Boards
             .Include(b => b.Columns)
             .ThenInclude(c => c.Cards)
+            .ThenInclude(card => card.CardLabels)
+            .ThenInclude(cl => cl.Label)
+            .Include(b => b.Labels)
             .FirstOrDefaultAsync(b => b.Id == boardId, ct);
 
         if (board is null)
@@ -202,7 +205,14 @@ public class BoardsController(
                 c.Rank,
                 c.Cards
                     .OrderBy(card => card.Rank, StringComparer.Ordinal)
-                    .Select(card => new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId, card.CreatedAt, card.UpdatedAt, card.Priority?.ToString()))
+                    .Select(card => new CardResponse(
+                        card.Id, card.ColumnId, card.Title, card.Description, card.Rank,
+                        card.DueAt, card.AssigneeId, card.CreatedAt, card.UpdatedAt,
+                        card.Priority?.ToString(),
+                        card.CardLabels
+                            .Select(cl => new LabelResponse(cl.Label.Id, cl.Label.Name, cl.Label.Color))
+                            .OrderBy(l => l.Name, StringComparer.OrdinalIgnoreCase)
+                            .ToList()))
                     .ToList()))
             .ToList();
 
@@ -213,6 +223,10 @@ public class BoardsController(
             ?? MembershipRole.Viewer;
 
         return Ok(new BoardDetailResponse(
-            board.Id, board.WorkspaceId, board.Name, role.ToString(), board.Seq, columns));
+            board.Id, board.WorkspaceId, board.Name, role.ToString(), board.Seq, columns,
+            board.Labels
+                .Select(l => new LabelResponse(l.Id, l.Name, l.Color))
+                .OrderBy(l => l.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList()));
     }
 }

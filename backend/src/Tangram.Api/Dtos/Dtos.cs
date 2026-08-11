@@ -85,9 +85,18 @@ public record UpdateCardRequest(
     // A string rather than the enum, so an unknown level is a 400 the caller
     // can read instead of a silent deserialization to the first member.
     string? Priority = null,
-    bool ClearPriority = false);
+    bool ClearPriority = false,
+    // Set semantics: the complete list replaces whatever was there. Null means
+    // "this edit says nothing about labels", so no Clear flag is needed -- an
+    // empty list already expresses "remove them all" unambiguously.
+    List<Guid>? LabelIds = null);
 
 public record MoveCardRequest(Guid TargetColumnId, Guid? BeforeCardId);
+
+public record LabelResponse(Guid Id, string Name, string Color);
+public record CreateLabelRequest(string Name, string? Color);
+public record UpdateLabelRequest(string? Name, string? Color);
+public record LabelDeletedPayload(Guid Id);
 
 // CreatedAt/UpdatedAt are on the entity and were simply never exposed. The detail
 // view shows them, and they cost nothing to carry: this record is also the
@@ -103,7 +112,11 @@ public record CardResponse(
     DateTimeOffset CreatedAt = default,
     DateTimeOffset UpdatedAt = default,
     // Null means nobody has set one, which is a state rather than a gap.
-    string? Priority = null);
+    string? Priority = null,
+    // The whole set, every time. A card's labels are a field of the card in the
+    // same way its assignee is, which is what lets them ride the existing card
+    // operations instead of needing add/remove ops of their own.
+    List<LabelResponse>? Labels = null);
 public record CardDeletedPayload(Guid Id, Guid ColumnId);
 
 public record ColumnWithCardsResponse(Guid Id, string Name, string Rank, List<CardResponse> Cards);
@@ -112,7 +125,10 @@ public record ColumnWithCardsResponse(Guid Id, string Name, string Rank, List<Ca
 // Role is the caller's own role, so the client can render a read-only board for
 // viewers instead of showing edit controls that every mutation would reject.
 public record BoardDetailResponse(
-    Guid Id, Guid WorkspaceId, string Name, string Role, long Seq, List<ColumnWithCardsResponse> Columns);
+    Guid Id, Guid WorkspaceId, string Name, string Role, long Seq, List<ColumnWithCardsResponse> Columns,
+    // The board's whole label vocabulary, which the picker needs even for
+    // labels no card currently carries.
+    List<LabelResponse>? Labels = null);
 
 public record OperationBroadcast(long Seq, string OpType, object Payload);
 public record ResyncResult(bool NeedsSnapshot, List<OperationBroadcast> Operations);

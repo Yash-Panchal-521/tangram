@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CardDetailModal } from "@/components/board/detail/CardDetailModal";
@@ -19,6 +19,7 @@ const CARD: CardResponse = {
   createdAt: "2026-08-01T09:00:00.000Z",
   updatedAt: "2026-08-04T14:30:00.000Z",
   priority: null,
+  labels: [],
 };
 
 const STATUSES = [
@@ -31,25 +32,35 @@ const MEMBERS: MemberResponse[] = [
   { userId: "u-2", displayName: "Sara R.", email: "sara@example.com", role: "Editor" },
 ];
 
+const LABELS = [
+  { id: "l-1", name: "Bug", color: "red" as const },
+  { id: "l-2", name: "Chore", color: "blue" as const },
+];
+
 function mount(overrides: Partial<Parameters<typeof CardDetailModal>[0]> = {}) {
   const onClose = vi.fn();
   const onCommit = vi.fn(async () => {});
   const onMove = vi.fn(async () => {});
   const onDelete = vi.fn(async () => {});
+  const onCreateLabel = vi.fn(async () => {});
+  const onDeleteLabel = vi.fn(async () => {});
   render(
     <CardDetailModal
       card={CARD}
       readOnly={false}
       members={MEMBERS}
       statuses={STATUSES}
+      labels={LABELS}
       onClose={onClose}
       onCommit={onCommit}
       onMove={onMove}
       onDelete={onDelete}
+      onCreateLabel={onCreateLabel}
+      onDeleteLabel={onDeleteLabel}
       {...overrides}
     />
   );
-  return { onClose, onCommit, onMove, onDelete };
+  return { onClose, onCommit, onMove, onDelete, onCreateLabel, onDeleteLabel };
 }
 
 const summary = () => screen.getByRole("button", { name: /Summary/ });
@@ -219,7 +230,132 @@ describe("CardDetailModal — priority", () => {
 
   it("reads None for a viewer when nothing is set", () => {
     mount({ readOnly: true });
-    expect(screen.getByText("None")).toBeTruthy();
+
+    // Labels reads "None" too, so scope to the row rather than the document.
+    const row = screen.getByText("Priority").closest("div")!;
+    expect(within(row).getByText("None")).toBeTruthy();
+  });
+});
+
+describe("CardDetailModal — labels", () => {
+  it("shows the card's labels as named chips, not colour alone", () => {
+    // Seven hues at chip size are not reliably distinguishable, and two people
+    // can pick colours that read identically to someone who cannot separate
+    // them. The name is the signal; the colour is a second one on top.
+    mount({ card: { ...CARD, labels: [LABELS[0]] } });
+
+    expect(screen.getByText("Bug")).toBeTruthy();
+  });
+
+  it("applies a label as the whole set, not an add instruction", async () => {
+    // Set semantics all the way through: the card's labels are a field of the
+    // card, which is why this rides the ordinary card update.
+    const user = userEvent.setup();
+    const { onCommit } = mount();
+
+    await user.click(screen.getByRole("button", { name: "Add a label" }));
+    await user.click(screen.getByRole("button", { name: "Bug" }));
+
+    await waitFor(() => expect(onCommit).toHaveBeenCalledWith({ labelIds: ["l-1"] }));
+  });
+
+  it("removes one by sending the set without it", async () => {
+    const user = userEvent.setup();
+    const { onCommit } = mount({ card: { ...CARD, labels: [LABELS[0], LABELS[1]] } });
+
+    await user.click(screen.getByRole("button", { name: "Remove Bug" }));
+
+    await waitFor(() => expect(onCommit).toHaveBeenCalledWith({ labelIds: ["l-2"] }));
+  });
+
+  it("creates a label from inside the picker", async () => {
+    // A label is nearly always invented at the moment someone wants to apply
+    // it. Sending them to a settings screen first is how labels end up unused.
+    const user = userEvent.setup();
+    const { onCreateLabel } = mount();
+
+    await user.click(screen.getByRole("button", { name: "Add a label" }));
+    await user.type(screen.getByLabelText("New label name"), "Blocked");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    await waitFor(() => expect(onCreateLabel).toHaveBeenCalledWith("Blocked", "grey"));
+  });
+
+  it("creates with the colour that was picked", async () => {
+    const user = userEvent.setup();
+    const { onCreateLabel } = mount();
+
+    await user.click(screen.getByRole("button", { name: "Add a label" }));
+    await user.click(screen.getByRole("button", { name: "green" }));
+    await user.type(screen.getByLabelText("New label name"), "Ready");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    await waitFor(() => expect(onCreateLabel).toHaveBeenCalledWith("Ready", "green"));
+  });
+
+  it("refuses to create a nameless label", async () => {
+    const user = userEvent.setup();
+    const { onCreateLabel } = mount();
+
+    await user.click(screen.getByRole("button", { name: "Add a label" }));
+
+    expect((screen.getByRole("button", { name: "Add" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(onCreateLabel).not.toHaveBeenCalled();
+  });
+
+  it("deletes a label from the board, not just from the card", async () => {
+    const user = userEvent.setup();
+    const { onDeleteLabel } = mount();
+
+    await user.click(screen.getByRole("button", { name: "Add a label" }));
+    await user.click(screen.getByRole("button", { name: "Delete the label Bug" }));
+
+    await waitFor(() => expect(onDeleteLabel).toHaveBeenCalledWith("l-1"));
+  });
+
+  it("names the next action when the board has no labels yet (S2.3)", async () => {
+    const user = userEvent.setup();
+    mount({ labels: [] });
+
+    await user.click(screen.getByRole("button", { name: "Add a label" }));
+
+    expect(screen.getByText(/Make the first one below/)).toBeTruthy();
+  });
+
+  it("closes the picker on Escape without closing the card (S5.3)", async () => {
+    // Both the picker and the card listen on `document`, so an unpaused card
+    // takes the same Escape and closes underneath its own popover.
+    const user = userEvent.setup();
+    const { onClose } = mount();
+
+    await user.click(screen.getByRole("button", { name: "Add a label" }));
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: "Labels" })).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("closes the calendar on Escape without closing the card either", async () => {
+    // Same stacking problem, and the date picker already publishes the flag
+    // that solves it — it just was not being listened to.
+    const user = userEvent.setup();
+    const { onClose } = mount();
+
+    await user.click(screen.getByLabelText("Due"));
+    expect(screen.getByRole("dialog", { name: "Choose a date" })).toBeTruthy();
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: "Choose a date" })).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("gives a viewer chips with no picker and no remove (S8.1)", () => {
+    mount({ readOnly: true, card: { ...CARD, labels: [LABELS[0]] } });
+
+    expect(screen.getByText("Bug")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Add a label" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Remove/ })).toBeNull();
   });
 });
 
@@ -395,10 +531,13 @@ describe("CardDetailModal — live updates", () => {
         readOnly={false}
         members={MEMBERS}
         statuses={STATUSES}
+        labels={LABELS}
         onClose={vi.fn()}
         onCommit={vi.fn(async () => {})}
         onMove={vi.fn(async () => {})}
         onDelete={vi.fn(async () => {})}
+        onCreateLabel={vi.fn(async () => {})}
+        onDeleteLabel={vi.fn(async () => {})}
       />
     );
 
@@ -408,10 +547,13 @@ describe("CardDetailModal — live updates", () => {
         readOnly={false}
         members={MEMBERS}
         statuses={STATUSES}
+        labels={LABELS}
         onClose={vi.fn()}
         onCommit={vi.fn(async () => {})}
         onMove={vi.fn(async () => {})}
         onDelete={vi.fn(async () => {})}
+        onCreateLabel={vi.fn(async () => {})}
+        onDeleteLabel={vi.fn(async () => {})}
       />
     );
 

@@ -21,6 +21,8 @@ import {
   api,
   type BoardDetailResponse,
   type CardResponse,
+  type LabelColor,
+  type LabelResponse,
   type MemberResponse,
   type UpdateCardRequest,
   type WorkspaceMembersResponse,
@@ -443,6 +445,13 @@ export function BoardView({ boardId }: { boardId: string }) {
                   dueAt: update.clearDueAt ? null : update.dueAt ?? c.dueAt,
                   assigneeId: update.clearAssignee ? null : update.assigneeId ?? c.assigneeId,
                   priority: update.clearPriority ? null : update.priority ?? c.priority,
+                  // Set semantics, resolved against the board's vocabulary --
+                  // the request carries ids and the card carries whole labels.
+                  labels: update.labelIds
+                    ? update.labelIds
+                        .map((id) => current.labels.find((l) => l.id === id))
+                        .filter((l): l is LabelResponse => l !== undefined)
+                    : c.labels,
                 }
               : c
           ),
@@ -469,6 +478,40 @@ export function BoardView({ boardId }: { boardId: string }) {
           beforeCardId,
         }),
       (current) => moveCardOptimistic(current, cardId, target?.id ?? targetColumnId, beforeCardId),
+      "rethrow"
+    );
+  }
+
+  async function handleCreateLabel(name: string, color: LabelColor) {
+    // No optimistic update: the server assigns the id, and inventing one would
+    // leave a duplicate on screen until the broadcast replaced it -- the same
+    // reason creating a card shows a placeholder rather than a real row.
+    await runMutation(
+      "add that label",
+      async () => api.post(`/boards/${boardId}/labels`, await getToken(), { name, color }),
+      undefined,
+      "rethrow"
+    );
+  }
+
+  async function handleDeleteLabel(labelId: string) {
+    await runMutation(
+      "delete that label",
+      async () => api.delete(`/boards/${boardId}/labels/${labelId}`, await getToken()),
+      // Off the vocabulary and off every card carrying it. The server cascades
+      // the join rows but broadcasts one operation, so the client has to do
+      // both halves or the label lingers on cards until a reload.
+      (current) => ({
+        ...current,
+        labels: current.labels.filter((l) => l.id !== labelId),
+        columns: current.columns.map((col) => ({
+          ...col,
+          cards: col.cards.map((c) => ({
+            ...c,
+            labels: c.labels.filter((l) => l.id !== labelId),
+          })),
+        })),
+      }),
       "rethrow"
     );
   }
@@ -826,10 +869,13 @@ export function BoardView({ boardId }: { boardId: string }) {
           readOnly={!canEdit}
           members={members}
           statuses={board.columns.map((c) => ({ id: c.id, name: c.name }))}
+          labels={board.labels}
           onClose={closeCard}
           onCommit={(update) => handleUpdateCard(openCardValue.id, update)}
           onMove={(targetColumnId) => handleSetCardColumn(openCardValue.id, targetColumnId)}
           onDelete={() => handleDeleteCard(openCardValue.id)}
+          onCreateLabel={handleCreateLabel}
+          onDeleteLabel={handleDeleteLabel}
         />
       )}
 

@@ -108,6 +108,11 @@ export default function KitchenSinkPage() {
           full-screen sheet and the columns stack. Here because it is otherwise unreachable
           without signing in and opening a board.
         </p>
+        <p className="text-xs text-text-dim">
+          The label picker both applies labels and manages the board&apos;s vocabulary, because a
+          label is nearly always invented at the moment someone wants to apply it — sending them
+          to a settings screen first is how labels end up unused.
+        </p>
         <CardDetailDemo />
       </section>
 

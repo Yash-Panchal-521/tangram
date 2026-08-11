@@ -1,4 +1,9 @@
-import type { BoardDetailResponse, CardResponse, ColumnResponse } from "@/lib/api";
+import type {
+  BoardDetailResponse,
+  CardResponse,
+  ColumnResponse,
+  LabelResponse,
+} from "@/lib/api";
 
 function byRank<T extends { rank: string }>(items: T[]): T[] {
   return [...items].sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0));
@@ -93,7 +98,52 @@ export function applyOperation(
       const { id } = payload as { id: string };
       return removeColumn(board, id);
     }
+    // The board's label vocabulary. Which labels a *card* carries arrives on
+    // the card operations above, because that is a field of the card -- there
+    // is deliberately no card.label.add.
+    case "label.create":
+    case "label.update":
+      return upsertLabel(board, payload as LabelResponse);
+    case "label.delete": {
+      const { id } = payload as { id: string };
+      return removeLabel(board, id);
+    }
     default:
       return board;
   }
+}
+
+/** Replaces by id so a create and an update share one path, and both are idempotent. */
+function upsertLabel(board: BoardDetailResponse, label: LabelResponse): BoardDetailResponse {
+  const existing = board.labels.some((l) => l.id === label.id);
+  const labels = existing
+    ? board.labels.map((l) => (l.id === label.id ? label : l))
+    : [...board.labels, label];
+
+  return {
+    ...board,
+    labels: labels.sort((a, b) => a.name.localeCompare(b.name)),
+  };
+}
+
+/**
+ * Removes the label, and strips it from every card carrying it.
+ *
+ * The server cascades the join rows but broadcasts only `label.delete` — one
+ * operation for one action. Without this the label would vanish from the picker
+ * and stay on the cards until a reload, which reads as the delete half-working.
+ */
+function removeLabel(board: BoardDetailResponse, labelId: string): BoardDetailResponse {
+  return {
+    ...board,
+    labels: board.labels.filter((l) => l.id !== labelId),
+    columns: board.columns.map((col) => ({
+      ...col,
+      cards: col.cards.map((c) =>
+        c.labels.some((l) => l.id === labelId)
+          ? { ...c, labels: c.labels.filter((l) => l.id !== labelId) }
+          : c
+      ),
+    })),
+  };
 }

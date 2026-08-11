@@ -3,7 +3,12 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { CardDetailModal } from "@/components/board/detail/CardDetailModal";
-import type { CardResponse, MemberResponse, UpdateCardRequest } from "@/lib/api";
+import type {
+  CardResponse,
+  LabelResponse,
+  MemberResponse,
+  UpdateCardRequest,
+} from "@/lib/api";
 
 // Here because the modal is otherwise unreachable without signing in and
 // opening a board, which makes it the one surface nobody can eyeball. The board
@@ -23,6 +28,11 @@ const STATUSES = [
 
 export function CardDetailDemo() {
   const [open, setOpen] = useState<"editor" | "viewer" | null>(null);
+  const [labels, setLabels] = useState<LabelResponse[]>([
+    { id: "l-1", name: "Design system", color: "purple" },
+    { id: "l-2", name: "Bug", color: "red" },
+    { id: "l-3", name: "Chore", color: "grey" },
+  ]);
   const [card, setCard] = useState<CardResponse>({
     id: "demo-card",
     columnId: "col-doing",
@@ -35,6 +45,10 @@ export function CardDetailDemo() {
     createdAt: "2026-08-01T09:12:00.000Z",
     updatedAt: "2026-08-09T16:40:00.000Z",
     priority: "High",
+    labels: [
+      { id: "l-1", name: "Design system", color: "purple" },
+      { id: "l-2", name: "Bug", color: "red" },
+    ],
   });
 
   // Applies locally so the demo behaves, with the same merge rule the board
@@ -47,6 +61,11 @@ export function CardDetailDemo() {
       dueAt: update.clearDueAt ? null : update.dueAt ?? c.dueAt,
       assigneeId: update.clearAssignee ? null : update.assigneeId ?? c.assigneeId,
       priority: update.clearPriority ? null : update.priority ?? c.priority,
+      labels: update.labelIds
+        ? update.labelIds
+            .map((id) => labels.find((l) => l.id === id))
+            .filter((l): l is LabelResponse => l !== undefined)
+        : c.labels,
       updatedAt: new Date().toISOString(),
     }));
   }
@@ -70,6 +89,14 @@ export function CardDetailDemo() {
           onCommit={commit}
           onMove={async (targetColumnId) => setCard((c) => ({ ...c, columnId: targetColumnId }))}
           onDelete={async () => setOpen(null)}
+          labels={labels}
+          onCreateLabel={async (name, color) =>
+            setLabels((ls) => [...ls, { id: `l-${ls.length + 1}-${name}`, name, color }])
+          }
+          onDeleteLabel={async (labelId) => {
+            setLabels((ls) => ls.filter((l) => l.id !== labelId));
+            setCard((c) => ({ ...c, labels: c.labels.filter((l) => l.id !== labelId) }));
+          }}
         />
       )}
     </div>

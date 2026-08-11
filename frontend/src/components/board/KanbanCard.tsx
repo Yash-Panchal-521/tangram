@@ -1,5 +1,6 @@
 import { Avatar } from "@/components/ui/Avatar";
 import { PriorityIcon } from "@/components/ui/PriorityIcon";
+import { LabelChip } from "@/components/ui/LabelChip";
 import { dueLabel, dueStatus } from "@/lib/dueDate";
 import type { CardResponse } from "@/lib/api";
 
@@ -22,7 +23,7 @@ export function KanbanCard({
   assigneeName = null,
 }: {
   card: Pick<CardResponse, "title" | "description"> &
-    Partial<Pick<CardResponse, "dueAt" | "assigneeId" | "priority">>;
+    Partial<Pick<CardResponse, "dueAt" | "assigneeId" | "priority" | "labels">>;
   draggable?: boolean;
   pending?: boolean;
   /** Resolves an assignee id to a name. Anyone who has left the workspace
@@ -55,6 +56,18 @@ export function KanbanCard({
             <circle cx="7" cy="8" r="1" />
           </svg>
         </span>
+      )}
+
+      {/* Above the title, not below it. A label says what *kind* of work this
+          is, which frames the title rather than qualifying it — and putting
+          them at the bottom would push them under the due pill where they
+          compete with it for the same glance. */}
+      {card.labels && card.labels.length > 0 && (
+        <div className={`flex flex-wrap gap-1 ${draggable ? "pr-5" : ""}`}>
+          {card.labels.map((l) => (
+            <LabelChip key={l.id} label={l} size="sm" />
+          ))}
+        </div>
       )}
 
       {/* Clamped: a card is a summary. Before this, one long paragraph grew a

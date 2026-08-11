@@ -6,9 +6,10 @@ import { PriorityIcon } from "@/components/ui/PriorityIcon";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { Select } from "@/components/ui/Select";
 import { ContextRow } from "@/components/board/detail/ContextRow";
+import { LabelPicker } from "@/components/board/detail/LabelPicker";
 import { dueLabel, formatDueDate, toDateInputValue } from "@/lib/dueDate";
 import { PRIORITIES } from "@/lib/priority";
-import type { CardPriority, CardResponse, MemberResponse } from "@/lib/api";
+import type { CardPriority, CardResponse, LabelColor, LabelResponse, MemberResponse } from "@/lib/api";
 
 /** A column, reduced to what the status control needs. */
 export interface StatusOption {
@@ -32,13 +33,19 @@ export function ContextPanel({
   readOnly,
   members,
   statuses,
+  labels,
   onCommit,
   onMove,
+  onCreateLabel,
+  onDeleteLabel,
+  onOverlayOpenChange,
 }: {
   card: CardResponse;
   readOnly: boolean;
   members: MemberResponse[];
   statuses: StatusOption[];
+  /** The board's whole label vocabulary, for the picker. */
+  labels: LabelResponse[];
   onCommit: (update: {
     assigneeId?: string | null;
     clearAssignee?: boolean;
@@ -46,8 +53,18 @@ export function ContextPanel({
     clearDueAt?: boolean;
     priority?: CardPriority | null;
     clearPriority?: boolean;
+    labelIds?: string[];
   }) => Promise<void>;
   onMove: (targetColumnId: string) => Promise<void>;
+  onCreateLabel: (name: string, color: LabelColor) => Promise<void>;
+  onDeleteLabel: (labelId: string) => Promise<void>;
+  /**
+   * True while the calendar or the label picker is stacked above the card.
+   *
+   * Both trap the keyboard and both listen on `document`, so the modal has to
+   * stand down or one Escape closes the popover and the card together.
+   */
+  onOverlayOpenChange: (open: boolean) => void;
 }) {
   const statusId = useId();
   const assigneeId = useId();
@@ -197,6 +214,7 @@ export function ContextPanel({
           ) : (
             <DatePicker
               id={dueId}
+              onOpenChange={onOverlayOpenChange}
               value={toDateInputValue(card.dueAt)}
               onChange={(next) =>
                 void run("due", () =>
@@ -208,6 +226,18 @@ export function ContextPanel({
               }
             />
           )}
+        </ContextRow>
+
+        <ContextRow label="Labels">
+          <LabelPicker
+            available={labels}
+            selected={card.labels}
+            readOnly={readOnly}
+            onApply={(labelIds) => onCommit({ labelIds })}
+            onCreate={onCreateLabel}
+            onDelete={onDeleteLabel}
+            onOpenChange={onOverlayOpenChange}
+          />
         </ContextRow>
 
         {error && (

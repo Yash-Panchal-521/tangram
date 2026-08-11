@@ -87,7 +87,18 @@ export interface CardResponse {
   updatedAt: string;
   /** Null means nobody has set one — a state, not a gap. See CardPriority. */
   priority: CardPriority | null;
+  /** The whole set. Labels are a field of the card, like its assignee. */
+  labels: LabelResponse[];
 }
+
+export interface LabelResponse {
+  id: string;
+  name: string;
+  /** A palette name, never a hex — see lib/labelColors.ts for the mapping. */
+  color: LabelColor;
+}
+
+export type LabelColor = "grey" | "red" | "orange" | "yellow" | "green" | "blue" | "purple";
 
 /** Jira's five levels. Ordered most to least urgent. */
 export type CardPriority = "Highest" | "High" | "Medium" | "Low" | "Lowest";
@@ -108,6 +119,8 @@ export interface UpdateCardRequest {
   clearAssignee?: boolean;
   priority?: CardPriority | null;
   clearPriority?: boolean;
+  /** Set semantics: this list replaces the card's labels. Omit to leave alone. */
+  labelIds?: string[];
 }
 
 export interface ColumnWithCardsResponse {
@@ -125,6 +138,8 @@ export interface BoardDetailResponse {
   /** The *caller's* role in this board's workspace, not a property of the board. */
   role: MembershipRole;
   columns: ColumnWithCardsResponse[];
+  /** The board's whole vocabulary, including labels no card currently carries. */
+  labels: LabelResponse[];
 }
 
 export interface MeResponse {

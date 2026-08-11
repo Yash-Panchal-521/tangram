@@ -28,4 +28,5 @@ public class Card
     public DateTimeOffset UpdatedAt { get; set; }
 
     public Column Column { get; set; } = null!;
+    public ICollection<CardLabel> CardLabels { get; set; } = new List<CardLabel>();
 }

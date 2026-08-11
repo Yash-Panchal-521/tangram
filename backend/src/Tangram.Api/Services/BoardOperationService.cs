@@ -27,6 +27,10 @@ public interface IBoardOperationService
     Task<CardResponse> UpdateCardAsync(Guid boardId, Guid cardId, UpdateCardRequest request, CancellationToken ct);
     Task DeleteCardAsync(Guid boardId, Guid cardId, CancellationToken ct);
     Task<CardResponse> MoveCardAsync(Guid boardId, Guid cardId, Guid targetColumnId, Guid? beforeCardId, CancellationToken ct);
+
+    Task<LabelResponse> CreateLabelAsync(Guid boardId, string name, string? color, CancellationToken ct);
+    Task<LabelResponse> UpdateLabelAsync(Guid boardId, Guid labelId, UpdateLabelRequest request, CancellationToken ct);
+    Task DeleteLabelAsync(Guid boardId, Guid labelId, CancellationToken ct);
 }
 
 // Raised when what an undo would act on is no longer there -- someone else
@@ -150,7 +154,7 @@ public class BoardOperationService(
         };
         db.Cards.Add(card);
 
-        var response = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId, card.CreatedAt, card.UpdatedAt, card.Priority?.ToString());
+        var response = ToResponse(card);
         await SaveAsync(boardId, new Pending("card.create", response), ct);
         return response;
     }
@@ -221,9 +225,39 @@ public class BoardOperationService(
             card.Priority = CardPriorityParser.Parse(request.Priority);
         }
 
+        if (request.LabelIds is not null)
+        {
+            // Set semantics: the list given replaces whatever was there. No
+            // Clear flag is needed because an empty list already says "none"
+            // unambiguously, unlike a null due date.
+            var wanted = request.LabelIds.Distinct().ToList();
+
+            // Every id must be a label on *this* board. Without the check, a
+            // caller could attach another board's label and put a name on the
+            // card that nobody looking at it can resolve.
+            // The entities, not just their ids: the response is built from this
+            // card's navigation property, so a join row carrying only a LabelId
+            // would leave `cl.Label` null and take the whole request with it.
+            var labels = await db.Labels
+                .Where(l => l.BoardId == boardId && wanted.Contains(l.Id))
+                .ToListAsync(ct);
+
+            if (labels.Count != wanted.Count)
+            {
+                throw new BoardOperationConflictException(
+                    "One of those labels isn't on this board any more.");
+            }
+
+            card.CardLabels.Clear();
+            foreach (var label in labels)
+            {
+                card.CardLabels.Add(new CardLabel { CardId = card.Id, LabelId = label.Id, Label = label });
+            }
+        }
+
         card.UpdatedAt = DateTimeOffset.UtcNow;
 
-        var response = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId, card.CreatedAt, card.UpdatedAt, card.Priority?.ToString());
+        var response = ToResponse(card);
         // Still emitted as "card.rename" rather than a new op type: the
         // operations log holds historical card.rename rows that resync replays,
         // so introducing card.update would mean every client had to understand
@@ -263,14 +297,19 @@ public class BoardOperationService(
         card.Rank = RankService.GenerateBetween(lower, upper);
         card.UpdatedAt = DateTimeOffset.UtcNow;
 
-        var response = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId, card.CreatedAt, card.UpdatedAt, card.Priority?.ToString());
+        var response = ToResponse(card);
         await SaveAsync(boardId, new Pending("card.move", response), ct);
         return response;
     }
 
     private async Task<Card> LoadCardOrConflictAsync(Guid boardId, Guid cardId, CancellationToken ct)
     {
-        var card = await db.Cards.Include(c => c.Column).FirstOrDefaultAsync(c => c.Id == cardId, ct);
+        var card = await db.Cards
+            .Include(c => c.Column)
+            // Labels come back on every CardResponse, and this is the only
+            // loader the card operations use.
+            .Include(c => c.CardLabels).ThenInclude(cl => cl.Label)
+            .FirstOrDefaultAsync(c => c.Id == cardId, ct);
         if (card is null || card.Column.BoardId != boardId)
         {
             throw Conflict("That card has since been deleted.");
@@ -312,9 +351,119 @@ public class BoardOperationService(
         return column;
     }
 
+    /// <summary>
+    /// The wire shape of a card, including its labels.
+    /// </summary>
+    /// <remarks>
+    /// One place, because this record is both the REST response and the
+    /// broadcast payload -- a field added to one and missed on the other is a
+    /// client that disagrees with itself after a reconnect.
+    ///
+    /// Requires <c>CardLabels</c> to be loaded. An unloaded collection would
+    /// serialise as an empty list, which reads as "this card has no labels"
+    /// rather than as the bug it is, so the only loader that feeds this
+    /// includes them.
+    /// </remarks>
+    private static CardResponse ToResponse(Card card) =>
+        new(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt,
+            card.AssigneeId, card.CreatedAt, card.UpdatedAt, card.Priority?.ToString(),
+            card.CardLabels
+                .Select(cl => new LabelResponse(cl.Label.Id, cl.Label.Name, cl.Label.Color))
+                .OrderBy(l => l.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList());
+
+    public async Task<LabelResponse> CreateLabelAsync(
+        Guid boardId, string name, string? color, CancellationToken ct)
+    {
+        await EnsureCanMutateAsync(boardId, ct);
+
+        var trimmed = name.Trim();
+        // Compared case-insensitively even though the unique index is not.
+        // "Bug" and "bug" are the same label to a person, and two of them make
+        // the picker useless.
+        var clash = await db.Labels.AnyAsync(
+            l => l.BoardId == boardId && l.Name.ToLower() == trimmed.ToLower(), ct);
+        if (clash)
+        {
+            throw new BoardOperationConflictException($"This board already has a label called \"{trimmed}\".");
+        }
+
+        var label = new Label
+        {
+            Id = Guid.NewGuid(),
+            BoardId = boardId,
+            Name = trimmed,
+            Color = LabelColors.Normalize(color ?? LabelColors.Default),
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        db.Labels.Add(label);
+
+        var response = new LabelResponse(label.Id, label.Name, label.Color);
+        await SaveAsync(boardId, new Pending("label.create", response), ct);
+        return response;
+    }
+
+    public async Task<LabelResponse> UpdateLabelAsync(
+        Guid boardId, Guid labelId, UpdateLabelRequest request, CancellationToken ct)
+    {
+        await EnsureCanMutateAsync(boardId, ct);
+
+        var label = await LoadLabelOnBoardAsync(boardId, labelId, ct);
+
+        if (request.Name is not null)
+        {
+            var trimmed = request.Name.Trim();
+            var clash = await db.Labels.AnyAsync(
+                l => l.BoardId == boardId && l.Id != labelId && l.Name.ToLower() == trimmed.ToLower(), ct);
+            if (clash)
+            {
+                throw new BoardOperationConflictException($"This board already has a label called \"{trimmed}\".");
+            }
+            label.Name = trimmed;
+        }
+
+        if (request.Color is not null)
+        {
+            label.Color = LabelColors.Normalize(request.Color);
+        }
+
+        var response = new LabelResponse(label.Id, label.Name, label.Color);
+        await SaveAsync(boardId, new Pending("label.update", response), ct);
+        return response;
+    }
+
+    public async Task DeleteLabelAsync(Guid boardId, Guid labelId, CancellationToken ct)
+    {
+        await EnsureCanMutateAsync(boardId, ct);
+
+        var label = await LoadLabelOnBoardAsync(boardId, labelId, ct);
+
+        // The join rows go with it by cascade. Deliberately not refused when the
+        // label is in use: a label nobody can retire because it is on something
+        // is a vocabulary that only ever grows.
+        db.Labels.Remove(label);
+
+        await SaveAsync(boardId, new Pending("label.delete", new LabelDeletedPayload(labelId)), ct);
+    }
+
+    private async Task<Label> LoadLabelOnBoardAsync(Guid boardId, Guid labelId, CancellationToken ct)
+    {
+        var label = await db.Labels.FirstOrDefaultAsync(l => l.Id == labelId, ct);
+        if (label is null || label.BoardId != boardId)
+        {
+            throw new BoardOperationNotFoundException("Label not found on this board.");
+        }
+        return label;
+    }
+
     private async Task<Card> LoadCardOnBoardAsync(Guid boardId, Guid cardId, CancellationToken ct)
     {
-        var card = await db.Cards.Include(c => c.Column).FirstOrDefaultAsync(c => c.Id == cardId, ct);
+        var card = await db.Cards
+            .Include(c => c.Column)
+            // Labels come back on every CardResponse, and this is the only
+            // loader the card operations use.
+            .Include(c => c.CardLabels).ThenInclude(cl => cl.Label)
+            .FirstOrDefaultAsync(c => c.Id == cardId, ct);
         if (card is null || card.Column.BoardId != boardId)
         {
             throw new BoardOperationNotFoundException("Card not found on this board.");

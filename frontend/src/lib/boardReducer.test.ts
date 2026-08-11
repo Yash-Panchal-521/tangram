@@ -9,6 +9,7 @@ function card(id: string, columnId: string, rank: string, title = id): CardRespo
     id, columnId, title, description: null, rank, dueAt: null, assigneeId: null,
     createdAt: "2026-08-01T00:00:00.000Z", updatedAt: "2026-08-01T00:00:00.000Z",
     priority: null,
+    labels: [],
   };
 }
 
@@ -19,6 +20,7 @@ function board(): BoardDetailResponse {
     seq: 10,
     name: "Roadmap",
     role: "Editor",
+    labels: [],
     columns: [
       {
         id: "todo",
@@ -233,5 +235,62 @@ describe("card depth carried through the reducer", () => {
     const back = restored.columns.flatMap((col) => col.cards).find((c) => c.id === "c9")!;
     expect(back.dueAt).toBe("2026-10-01T00:00:00.000Z");
     expect(back.assigneeId).toBe("u-3");
+  });
+});
+
+describe("applyOperation — labels", () => {
+  const label = (id: string, name: string) => ({ id, name, color: "red" as const });
+
+  it("adds a label to the board's vocabulary", () => {
+    const next = applyOperation(board(), "label.create", label("l-1", "Bug"));
+
+    expect(next.labels.map((l) => l.name)).toEqual(["Bug"]);
+  });
+
+  it("replaces by id, so a rename is not a second label", () => {
+    // Same reason every other op replaces by id: resync replays operations a
+    // client may already have applied.
+    const created = applyOperation(board(), "label.create", label("l-1", "Bug"));
+    const renamed = applyOperation(created, "label.update", label("l-1", "Defect"));
+
+    expect(renamed.labels).toHaveLength(1);
+    expect(renamed.labels[0].name).toBe("Defect");
+  });
+
+  it("is idempotent, so replaying a create twice is harmless", () => {
+    const once = applyOperation(board(), "label.create", label("l-1", "Bug"));
+    const twice = applyOperation(once, "label.create", label("l-1", "Bug"));
+
+    expect(twice.labels).toHaveLength(1);
+  });
+
+  it("keeps the vocabulary sorted, wherever a label arrives from", () => {
+    let next = applyOperation(board(), "label.create", label("l-2", "Zebra"));
+    next = applyOperation(next, "label.create", label("l-1", "Apple"));
+
+    expect(next.labels.map((l) => l.name)).toEqual(["Apple", "Zebra"]);
+  });
+
+  it("strips a deleted label off every card carrying it", () => {
+    // The server cascades the join rows but broadcasts one operation. Without
+    // this the label would vanish from the picker and linger on the cards,
+    // which reads as the delete half-working.
+    const withLabel = applyOperation(board(), "label.create", label("l-1", "Bug"));
+    const tagged = applyOperation(withLabel, "card.rename", {
+      ...card("c1", "todo", "a"),
+      labels: [label("l-1", "Bug")],
+    });
+    expect(tagged.columns[0].cards[0].labels).toHaveLength(1);
+
+    const deleted = applyOperation(tagged, "label.delete", { id: "l-1" });
+
+    expect(deleted.labels).toHaveLength(0);
+    expect(deleted.columns.flatMap((c) => c.cards).every((c) => c.labels.length === 0)).toBe(true);
+  });
+
+  it("leaves an unknown label delete alone rather than throwing", () => {
+    const next = applyOperation(board(), "label.delete", { id: "never-existed" });
+
+    expect(next.labels).toEqual([]);
   });
 });

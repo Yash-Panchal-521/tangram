@@ -5,7 +5,13 @@ import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { InlineEdit } from "@/components/ui/InlineEdit";
 import { ContextPanel, type StatusOption } from "@/components/board/detail/ContextPanel";
 import { useDialog } from "@/lib/useDialog";
-import type { CardResponse, MemberResponse, UpdateCardRequest } from "@/lib/api";
+import type {
+  CardResponse,
+  LabelColor,
+  LabelResponse,
+  MemberResponse,
+  UpdateCardRequest,
+} from "@/lib/api";
 
 /**
  * The card, as a ticket.
@@ -36,10 +42,13 @@ export function CardDetailModal({
   readOnly,
   members,
   statuses,
+  labels,
   onClose,
   onCommit,
   onMove,
   onDelete,
+  onCreateLabel,
+  onDeleteLabel,
 }: {
   card: CardResponse;
   readOnly: boolean;
@@ -48,22 +57,30 @@ export function CardDetailModal({
   members: MemberResponse[];
   /** The board's columns, which are what "status" means here. */
   statuses: StatusOption[];
+  /** The board's label vocabulary, including labels this card doesn't carry. */
+  labels: LabelResponse[];
   onClose: () => void;
   /** Must reject on failure — that is how a field knows to revert and explain. */
   onCommit: (update: UpdateCardRequest) => Promise<void>;
   onMove: (targetColumnId: string) => Promise<void>;
   onDelete: () => Promise<void>;
+  onCreateLabel: (name: string, color: LabelColor) => Promise<void>;
+  onDeleteLabel: (labelId: string) => Promise<void>;
 }) {
   const headingId = useId();
   const panelRef = useRef<HTMLDivElement | null>(null);
   const { confirm, dialog } = useConfirm();
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // The calendar and the label picker both stack above this modal.
+  const [overlayOpen, setOverlayOpen] = useState(false);
 
-  // Paused while a confirmation is stacked above. Both listen on `document`, so
-  // an unpaused modal would take the same Escape and close underneath its own
-  // dialog. The inline editors don't need this — they stop Escape themselves.
-  useDialog({ containerRef: panelRef, onClose, paused: confirming });
+  // Paused while anything is stacked above: the delete confirmation, the
+  // calendar, or the label picker. All of them listen on `document`, so an
+  // unpaused modal takes the same Escape and closes underneath its own popover.
+  // The inline editors are the exception — they stop Escape at the element, so
+  // it never reaches `document` at all.
+  useDialog({ containerRef: panelRef, onClose, paused: confirming || overlayOpen });
 
   async function handleDelete() {
     setConfirming(true);
@@ -177,8 +194,12 @@ export function CardDetailModal({
                   readOnly={readOnly}
                   members={members}
                   statuses={statuses}
+                  labels={labels}
                   onCommit={onCommit}
                   onMove={onMove}
+                  onCreateLabel={onCreateLabel}
+                  onDeleteLabel={onDeleteLabel}
+                  onOverlayOpenChange={setOverlayOpen}
                 />
               </div>
             </div>

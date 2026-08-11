@@ -22,6 +22,8 @@ public class AppDbContext : DbContext
     public DbSet<Card> Cards => Set<Card>();
     public DbSet<Operation> Operations => Set<Operation>();
     public DbSet<Invitation> Invitations => Set<Invitation>();
+    public DbSet<Label> Labels => Set<Label>();
+    public DbSet<CardLabel> CardLabels => Set<CardLabel>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -67,6 +69,31 @@ public class AppDbContext : DbContext
             // "High" rather than "2" for anyone looking at the database.
             e.Property(c => c.Priority).HasConversion<string>();
             e.HasOne(c => c.Column).WithMany(col => col.Cards).HasForeignKey(c => c.ColumnId);
+        });
+
+        modelBuilder.Entity<Label>(e =>
+        {
+            e.HasQueryFilter(l => _currentUser.WorkspaceIds.Contains(l.Board.WorkspaceId));
+
+            // Two labels called "Bug" on one board are indistinguishable to a
+            // person and make the picker useless. Case-insensitive would be
+            // better still, but that needs a citext column or a computed index;
+            // the API trims and compares case-insensitively before writing.
+            e.HasIndex(l => new { l.BoardId, l.Name }).IsUnique();
+
+            e.HasOne(l => l.Board).WithMany(b => b.Labels).HasForeignKey(l => l.BoardId);
+        });
+
+        modelBuilder.Entity<CardLabel>(e =>
+        {
+            // The pair is the identity -- a label is either on a card or not,
+            // and applying it twice is the same state, not a second row.
+            e.HasKey(cl => new { cl.CardId, cl.LabelId });
+
+            e.HasQueryFilter(cl => _currentUser.WorkspaceIds.Contains(cl.Label.Board.WorkspaceId));
+
+            e.HasOne(cl => cl.Card).WithMany(c => c.CardLabels).HasForeignKey(cl => cl.CardId);
+            e.HasOne(cl => cl.Label).WithMany(l => l.CardLabels).HasForeignKey(cl => cl.LabelId);
         });
 
         modelBuilder.Entity<Invitation>(e =>

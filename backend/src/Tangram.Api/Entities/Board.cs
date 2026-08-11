@@ -22,4 +22,5 @@ public class Board
     public Workspace Workspace { get; set; } = null!;
     public ICollection<Column> Columns { get; set; } = new List<Column>();
     public ICollection<Operation> Operations { get; set; } = new List<Operation>();
+    public ICollection<Label> Labels { get; set; } = new List<Label>();
 }
