@@ -3,6 +3,7 @@
 import { useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { DatePicker } from "@/components/ui/DatePicker";
 import { Select } from "@/components/ui/Select";
 import { useDialog } from "@/lib/useDialog";
 import { dueLabel, formatDueDate, fromDateInputValue, toDateInputValue } from "@/lib/dueDate";
@@ -49,6 +50,7 @@ export function CardDetailPanel({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [pickingDate, setPickingDate] = useState(false);
 
   const dirty =
     title !== card.title ||
@@ -66,7 +68,15 @@ export function CardDetailPanel({
   // resolves, and "Unassigned" is the honest thing to show rather than an id.
   const assigneeName = members.find((m) => m.userId === card.assigneeId)?.displayName ?? null;
 
-  useDialog({ containerRef: panelRef, onClose: requestClose, paused: confirming });
+  // Paused for the calendar as well as the confirmation. Both stack on top of
+  // this panel and both listen on `document`, so an unpaused panel would take
+  // the same Escape and close underneath them -- discarding the edit in the
+  // confirmation's case, and the whole panel in the calendar's.
+  useDialog({
+    containerRef: panelRef,
+    onClose: requestClose,
+    paused: confirming || pickingDate,
+  });
 
   /**
    * Every route out of the panel goes through here — Escape, the close button
@@ -223,12 +233,11 @@ export function CardDetailPanel({
                   {card.dueAt ? `${formatDueDate(card.dueAt)} · ${dueLabel(card.dueAt)}` : "No due date."}
                 </p>
               ) : (
-                <input
+                <DatePicker
                   id={dueId}
-                  type="date"
                   value={due}
-                  onChange={(e) => setDue(e.target.value)}
-                  className="w-full text-[13px] bg-surface-2 border border-border rounded-lg px-2.5 py-1.5 outline-none focus-visible:border-accent"
+                  onChange={setDue}
+                  onOpenChange={setPickingDate}
                 />
               )}
             </div>

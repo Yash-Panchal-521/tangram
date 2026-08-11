@@ -3,6 +3,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CardDetailPanel } from "@/components/board/CardDetailPanel";
+import { addDays, todayValue } from "@/lib/calendar";
 import type { CardResponse } from "@/lib/api";
 
 afterEach(cleanup);
@@ -124,11 +125,18 @@ describe("CardDetailPanel — saving", () => {
     const user = userEvent.setup();
     const { onSave } = renderPanel();
 
-    await user.type(screen.getByLabelText("Due"), "2026-09-15");
+    // Through the picker rather than by typing: the field is a calendar now,
+    // and the day has to survive the trip to UTC midnight unchanged. Expected
+    // from the same helpers the picker uses, so this does not break at midnight.
+    await user.click(screen.getByLabelText("Due"));
+    await user.click(screen.getByRole("button", { name: "Tomorrow" }));
     await user.keyboard("{Control>}{Enter}{/Control}");
 
     expect(onSave).toHaveBeenCalledWith(
-      expect.objectContaining({ dueAt: "2026-09-15T00:00:00.000Z", clearDueAt: false })
+      expect.objectContaining({
+        dueAt: `${addDays(todayValue(), 1)}T00:00:00.000Z`,
+        clearDueAt: false,
+      })
     );
   });
 
@@ -140,12 +148,28 @@ describe("CardDetailPanel — saving", () => {
       card: { ...CARD, dueAt: "2026-09-15T00:00:00.000Z" },
     });
 
-    await user.clear(screen.getByLabelText("Due"));
+    await user.click(screen.getByLabelText("Due"));
+    await user.click(screen.getByRole("button", { name: /Clear due date/ }));
     await user.keyboard("{Control>}{Enter}{/Control}");
 
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({ dueAt: null, clearDueAt: true })
     );
+  });
+
+  it("does not close the panel when Escape dismisses the calendar", async () => {
+    // Both listen on `document`. An unpaused panel would take the same Escape
+    // and close underneath the calendar, losing every edit it was holding.
+    const user = userEvent.setup();
+    const { onClose } = renderPanel();
+
+    await user.type(screen.getByLabelText("Title"), "!");
+    await user.click(screen.getByLabelText("Due"));
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: "Choose a date" })).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Title")).toBeTruthy();
   });
 
   it("assigns to a workspace member", async () => {

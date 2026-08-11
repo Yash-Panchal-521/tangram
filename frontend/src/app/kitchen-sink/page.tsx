@@ -1,4 +1,5 @@
 import { ConfirmDialogDemo } from "@/app/kitchen-sink/ConfirmDialogDemo";
+import { DatePickerDemo } from "@/app/kitchen-sink/DatePickerDemo";
 import { InviteChipsDemo } from "@/app/kitchen-sink/InviteChipsDemo";
 import { BoardSkeleton } from "@/components/board/BoardSkeleton";
 import { Avatar } from "@/components/ui/Avatar";
@@ -71,6 +72,16 @@ export default function KitchenSinkPage() {
           </div>
           <Skeleton className="h-6 w-16 rounded-full shrink-0" />
         </div>
+      </section>
+
+      <section className="flex flex-col gap-3 max-w-sm">
+        <h2 className="text-sm font-semibold text-text-muted">Date picker</h2>
+        <p className="text-xs text-text-dim">
+          Replaces <code>&lt;input type=&quot;date&quot;&gt;</code>, whose calendar is the
+          browser&apos;s and takes none of the app&apos;s tokens. Arrow keys move a day, Page
+          moves a month, Home and End reach the ends of the week.
+        </p>
+        <DatePickerDemo />
       </section>
 
       <section className="flex flex-col gap-3">

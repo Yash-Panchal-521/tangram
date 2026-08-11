@@ -139,6 +139,13 @@ trust it, then lose an edit through the one that was missed.
 |---|---|---|
 | 5.1 | Set a due date | Shows on the card |
 | 5.2 | Set it to today | Reads as due today — not yesterday |
+| 5.1a | Open the Due field | A calendar in the app's own styling, **not** the browser's |
+| 5.1b | Switch to dark mode, reopen it | Follows the theme — the native one never did |
+| 5.1c | Press **Tomorrow** | One click, no grid needed |
+| 5.1d | Arrow keys, then Enter | Moves a day; Up/Down a week; Page a month; Home/End the week's ends |
+| 5.1e | Arrow past the end of a month | Carries into the next one, and the grid keeps six rows |
+| 5.1f | Press Escape | Closes the calendar — **and leaves the card panel open** |
+| 5.1g | Open it with no date set | Look for a Clear button — there isn't one |
 | 5.3 | Assign to a workspace member | Their name/avatar appears |
 | 5.4 | Change title **and** due date, save once | One entry in the activity feed, not three |
 | 5.5 | Clear the due date | Actually clears, and stays cleared after reload |
