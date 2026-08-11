@@ -100,8 +100,16 @@ export function expiresIn(iso: string, now: number = Date.now()): string {
  * both absolute despite one looking relative, and a phishing page reached
  * straight after a real sign-in is a convincing place to ask for a password
  * again.
+ *
+ * The fallback is generic so a caller can pass `null` to mean "nobody asked for
+ * a destination" — which is not the same as "go to the default". Sign-up needs
+ * that distinction: a brand-new account belongs on the welcome screen, but only
+ * when no destination was requested.
  */
-export function safeNextPath(raw: string | null, fallback: string): string {
+export function safeNextPath<T extends string | null>(
+  raw: string | null,
+  fallback: T
+): string | T {
   if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return fallback;
   // Backslashes because some browsers normalise "/\evil.example" to a
   // protocol-relative URL.

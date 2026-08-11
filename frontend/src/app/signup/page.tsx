@@ -27,10 +27,11 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Where to land afterwards. Someone who arrived from an invite link has to be
-  // returned to it -- signing up is a detour they took to accept, and dropping
-  // them on a board they aren't in yet loses the invitation entirely.
-  const [next, setNext] = useState("/board");
+  // An explicitly requested destination, or null when nobody asked for one.
+  // Someone who arrived from an invite link has to be returned to it -- signing
+  // up is a detour they took to accept, and dropping them on a board they aren't
+  // in yet loses the invitation entirely.
+  const [next, setNext] = useState<string | null>(null);
 
   const { token: inviteToken, offer } = useInviteOffer();
 
@@ -52,7 +53,13 @@ export default function SignupPage() {
       // Already signed in and holding an invite: send them to decide, not to
       // auto-accept. Creating an account for an invitation is unambiguous
       // consent; arriving here with a session already open is not.
-      router.replace(inviteToken ? `/invite/${encodeURIComponent(inviteToken)}` : next);
+      //
+      // Otherwise /board, not /welcome: this branch is somebody who already had
+      // an account before opening this page, so whether they have a board is
+      // genuinely unknown and the resolver is the right place to ask.
+      router.replace(
+        inviteToken ? `/invite/${encodeURIComponent(inviteToken)}` : (next ?? "/board")
+      );
     }
   }, [loading, user, router, next, inviteToken]);
 
@@ -62,7 +69,7 @@ export default function SignupPage() {
   // tick of empty field.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setNext(safeNextPath(new URLSearchParams(window.location.search).get("next"), "/board"));
+    setNext(safeNextPath(new URLSearchParams(window.location.search).get("next"), null));
   }, []);
 
   // Seeds the address from the invitation itself rather than from the URL, so a
@@ -90,11 +97,22 @@ export default function SignupPage() {
       // is what presence avatars and cursor labels would then show forever.
       await credential.user.getIdToken(true);
 
-      // Straight back to the invitation, which accepts and then opens the board.
-      // Never /welcome: the first-run setup decides by asking "do you have a
-      // board?", and reaching it before the accept lands would offer to build a
-      // workspace to somebody who just joined one.
-      router.replace(inviteToken ? buildInviteReturnPath(inviteToken) : next);
+      // Straight to the destination, never via /board.
+      //
+      // /board exists to answer "which board should this person open?" by
+      // fetching their workspaces -- a question with no answer for an account
+      // created two lines ago. Routing through it showed a board skeleton for
+      // one frame and then replaced it with the welcome screen, which reads as
+      // a glitch rather than a step. This page is the one place that *knows*
+      // the account is new, so it says so instead of asking.
+      //
+      // An invitation still goes back to the invite page, which accepts and
+      // then opens the board it just joined -- also skipping /welcome, whose
+      // "do you have a board?" check would offer to build a workspace to
+      // somebody who has just joined one.
+      router.replace(
+        inviteToken ? buildInviteReturnPath(inviteToken) : (next ?? "/welcome")
+      );
     } catch (err) {
       setError(friendlyAuthError(err));
       signingUpRef.current = false;
@@ -209,9 +227,9 @@ export default function SignupPage() {
           href={
             inviteToken
               ? buildInviteLoginPath(inviteToken)
-              : next === "/board"
-                ? "/login"
-                : `/login?next=${encodeURIComponent(next)}`
+              : next
+                ? `/login?next=${encodeURIComponent(next)}`
+                : "/login"
           }
           className="text-accent font-medium hover:underline"
         >

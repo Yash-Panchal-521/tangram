@@ -119,4 +119,14 @@ describe("safeNextPath", () => {
   it("refuses the backslash variant browsers normalise", () => {
     expect(safeNextPath("/\\evil.example", "/board")).toBe("/board");
   });
+
+  it("can report that nobody asked for a destination", () => {
+    // Distinct from "go to the default". Sign-up needs the difference: a
+    // brand-new account belongs on /welcome, but only when no destination was
+    // requested -- and routing it through /board to find that out flashed a
+    // board skeleton for a frame before replacing it.
+    expect(safeNextPath(null, null)).toBeNull();
+    expect(safeNextPath("https://evil.example", null)).toBeNull();
+    expect(safeNextPath("/invite/abc", null)).toBe("/invite/abc");
+  });
 });
