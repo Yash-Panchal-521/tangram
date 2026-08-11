@@ -1,4 +1,5 @@
 import { Avatar } from "@/components/ui/Avatar";
+import { PriorityIcon } from "@/components/ui/PriorityIcon";
 import { dueLabel, dueStatus } from "@/lib/dueDate";
 import type { CardResponse } from "@/lib/api";
 
@@ -21,7 +22,7 @@ export function KanbanCard({
   assigneeName = null,
 }: {
   card: Pick<CardResponse, "title" | "description"> &
-    Partial<Pick<CardResponse, "dueAt" | "assigneeId">>;
+    Partial<Pick<CardResponse, "dueAt" | "assigneeId" | "priority">>;
   draggable?: boolean;
   pending?: boolean;
   /** Resolves an assignee id to a name. Anyone who has left the workspace
@@ -67,8 +68,13 @@ export function KanbanCard({
         <p className="text-xs text-text-muted leading-snug line-clamp-2">{card.description}</p>
       )}
 
-      {(card.dueAt || assigneeName) && (
+      {(card.dueAt || assigneeName || card.priority) && (
         <div className="flex items-center gap-2 pt-0.5">
+          {/* Ahead of the due pill: how urgent something is changes whether you
+              care about its deadline, so it is read first. Icon only -- a word
+              would cost the width the title needs, and the icon carries its own
+              label for anyone not reading shapes. */}
+          {card.priority && <PriorityIcon priority={card.priority} size={13} />}
           {card.dueAt && (
             <span
               className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-medium ${

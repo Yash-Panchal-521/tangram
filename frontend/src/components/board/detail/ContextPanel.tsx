@@ -2,11 +2,13 @@
 
 import { useId, useState } from "react";
 import { Avatar } from "@/components/ui/Avatar";
+import { PriorityIcon } from "@/components/ui/PriorityIcon";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { Select } from "@/components/ui/Select";
 import { ContextRow } from "@/components/board/detail/ContextRow";
 import { dueLabel, formatDueDate, toDateInputValue } from "@/lib/dueDate";
-import type { CardResponse, MemberResponse } from "@/lib/api";
+import { PRIORITIES } from "@/lib/priority";
+import type { CardPriority, CardResponse, MemberResponse } from "@/lib/api";
 
 /** A column, reduced to what the status control needs. */
 export interface StatusOption {
@@ -37,12 +39,20 @@ export function ContextPanel({
   readOnly: boolean;
   members: MemberResponse[];
   statuses: StatusOption[];
-  onCommit: (update: { assigneeId?: string | null; clearAssignee?: boolean; dueAt?: string | null; clearDueAt?: boolean }) => Promise<void>;
+  onCommit: (update: {
+    assigneeId?: string | null;
+    clearAssignee?: boolean;
+    dueAt?: string | null;
+    clearDueAt?: boolean;
+    priority?: CardPriority | null;
+    clearPriority?: boolean;
+  }) => Promise<void>;
   onMove: (targetColumnId: string) => Promise<void>;
 }) {
   const statusId = useId();
   const assigneeId = useId();
   const dueId = useId();
+  const priorityId = useId();
   const [moreOpen, setMoreOpen] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -133,6 +143,49 @@ export function ContextPanel({
                 </option>
               ))}
             </Select>
+          )}
+        </ContextRow>
+
+        <ContextRow label="Priority" htmlFor={readOnly ? undefined : priorityId}>
+          {readOnly ? (
+            <div className="flex items-center gap-1.5 pt-1.5">
+              {card.priority ? (
+                <>
+                  <PriorityIcon priority={card.priority} />
+                  <span className="text-[13px]">{card.priority}</span>
+                </>
+              ) : (
+                <span className="text-[13px] text-text-dim italic">None</span>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              {/* Beside the control rather than inside it: a native select
+                  cannot render an icon in its options, and the value is what
+                  people scan for. */}
+              {card.priority && <PriorityIcon priority={card.priority} />}
+              <Select
+                id={priorityId}
+                value={card.priority ?? ""}
+                disabled={pending === "priority"}
+                onChange={(e) =>
+                  void run("priority", () =>
+                    onCommit({
+                      priority: (e.target.value || null) as CardPriority | null,
+                      clearPriority: e.target.value === "",
+                    })
+                  )
+                }
+                className="bg-surface"
+              >
+                <option value="">None</option>
+                {PRIORITIES.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </Select>
+            </div>
           )}
         </ContextRow>
 

@@ -63,6 +63,9 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Card>(e =>
         {
             e.HasQueryFilter(c => _currentUser.WorkspaceIds.Contains(c.Column.Board.WorkspaceId));
+            // Stored as a string, like MembershipRole, so the column reads as
+            // "High" rather than "2" for anyone looking at the database.
+            e.Property(c => c.Priority).HasConversion<string>();
             e.HasOne(c => c.Column).WithMany(col => col.Cards).HasForeignKey(c => c.ColumnId);
         });
 

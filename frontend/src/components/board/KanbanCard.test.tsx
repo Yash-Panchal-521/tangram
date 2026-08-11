@@ -124,3 +124,55 @@ describe("KanbanCard — pending", () => {
     expect(screen.getByText("Adding…")).toBeTruthy();
   });
 });
+
+describe("KanbanCard — priority", () => {
+  it("shows the priority without needing the card opened", () => {
+    // The point of putting it on the face: urgency should be readable while
+    // scanning a column, not one click away.
+    render(<KanbanCard card={{ title: "Urgent", description: null, priority: "Highest" }} />);
+
+    expect(screen.getByRole("img", { name: "Highest priority" })).toBeTruthy();
+  });
+
+  it("says the level in words, not only in shape and colour", () => {
+    // Five levels rendered as chevrons are indistinguishable to a screen
+    // reader, and the two urgent ones share a colour with each other.
+    render(<KanbanCard card={{ title: "Low", description: null, priority: "Lowest" }} />);
+
+    expect(screen.getByLabelText("Lowest priority")).toBeTruthy();
+  });
+
+  it("shows nothing when nobody has set one", () => {
+    render(<KanbanCard card={{ title: "Plain", description: null, priority: null }} />);
+
+    expect(screen.queryByRole("img", { name: /priority/ })).toBeNull();
+  });
+
+  it("puts priority before the due date", () => {
+    // Urgency changes whether you care about the deadline, so it is read first.
+    const { container } = render(
+      <KanbanCard card={{ title: "Both", description: null, priority: "High", dueAt: day(3) }} />
+    );
+
+    const row = container.querySelector(".items-center.gap-2")!;
+    const icon = screen.getByRole("img", { name: "High priority" });
+    const due = screen.getByText("in 3d");
+    expect(row.compareDocumentPosition(icon) & Node.DOCUMENT_POSITION_CONTAINED_BY).toBeTruthy();
+    expect(icon.compareDocumentPosition(due) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("gives the five levels distinguishable shapes, not just colours", () => {
+    // Someone who cannot separate red from grey still has to tell Highest from
+    // High, and Low from Lowest — so direction and doubling carry it.
+    const shapes = (["Highest", "High", "Medium", "Low", "Lowest"] as const).map((p) => {
+      cleanup();
+      const { container } = render(
+        <KanbanCard card={{ title: p, description: null, priority: p }} />
+      );
+      const svg = container.querySelector('[role="img"]')!;
+      return svg.innerHTML;
+    });
+
+    expect(new Set(shapes).size).toBe(5);
+  });
+});

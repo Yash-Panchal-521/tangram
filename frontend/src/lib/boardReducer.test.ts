@@ -8,6 +8,7 @@ function card(id: string, columnId: string, rank: string, title = id): CardRespo
   return {
     id, columnId, title, description: null, rank, dueAt: null, assigneeId: null,
     createdAt: "2026-08-01T00:00:00.000Z", updatedAt: "2026-08-01T00:00:00.000Z",
+    priority: null,
   };
 }
 

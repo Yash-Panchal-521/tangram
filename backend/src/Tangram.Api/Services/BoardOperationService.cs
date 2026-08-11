@@ -150,7 +150,7 @@ public class BoardOperationService(
         };
         db.Cards.Add(card);
 
-        var response = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId, card.CreatedAt, card.UpdatedAt);
+        var response = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId, card.CreatedAt, card.UpdatedAt, card.Priority?.ToString());
         await SaveAsync(boardId, new Pending("card.create", response), ct);
         return response;
     }
@@ -207,9 +207,23 @@ public class BoardOperationService(
             card.AssigneeId = request.AssigneeId;
         }
 
+        if (request.ClearPriority)
+        {
+            card.Priority = null;
+        }
+        else if (request.Priority is not null)
+        {
+            // Already validated by the controller, which is where a malformed
+            // request becomes a 400. Parsing again here rather than trusting it
+            // keeps the service correct on its own terms -- it is the shared
+            // spine, and a second caller would otherwise inherit the check by
+            // accident.
+            card.Priority = CardPriorityParser.Parse(request.Priority);
+        }
+
         card.UpdatedAt = DateTimeOffset.UtcNow;
 
-        var response = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId, card.CreatedAt, card.UpdatedAt);
+        var response = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId, card.CreatedAt, card.UpdatedAt, card.Priority?.ToString());
         // Still emitted as "card.rename" rather than a new op type: the
         // operations log holds historical card.rename rows that resync replays,
         // so introducing card.update would mean every client had to understand
@@ -249,7 +263,7 @@ public class BoardOperationService(
         card.Rank = RankService.GenerateBetween(lower, upper);
         card.UpdatedAt = DateTimeOffset.UtcNow;
 
-        var response = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId, card.CreatedAt, card.UpdatedAt);
+        var response = new CardResponse(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt, card.AssigneeId, card.CreatedAt, card.UpdatedAt, card.Priority?.ToString());
         await SaveAsync(boardId, new Pending("card.move", response), ct);
         return response;
     }

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
+import { PriorityIcon } from "@/components/ui/PriorityIcon";
 import { Select } from "@/components/ui/Select";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
@@ -120,6 +121,23 @@ export default function KitchenSinkPage() {
         </p>
         <div className="h-[260px] flex rounded-lg border border-border overflow-hidden">
           <BoardSkeleton />
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold text-text-muted">Priority</h2>
+        <p className="text-xs text-text-dim">
+          Direction carries the meaning, colour reinforces it, and the extremes are doubled.
+          Five levels rendered only in shades of red would be indistinguishable to anyone who
+          can&apos;t separate them — and on a card face this icon is often 13px with no label.
+        </p>
+        <div className="flex items-center gap-5">
+          {(["Highest", "High", "Medium", "Low", "Lowest"] as const).map((p) => (
+            <span key={p} className="flex items-center gap-1.5 text-[11px] text-text-muted">
+              <PriorityIcon priority={p} size={14} />
+              {p}
+            </span>
+          ))}
         </div>
       </section>
 

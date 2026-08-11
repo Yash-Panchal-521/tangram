@@ -18,6 +18,7 @@ const CARD: CardResponse = {
   assigneeId: null,
   createdAt: "2026-08-01T09:00:00.000Z",
   updatedAt: "2026-08-04T14:30:00.000Z",
+  priority: null,
 };
 
 const STATUSES = [
@@ -153,6 +154,72 @@ describe("CardDetailModal — editing", () => {
     const select = screen.getByLabelText("Assignee") as HTMLSelectElement;
     expect(select.value).toBe("gone");
     expect(screen.getByText("Someone who has left the workspace")).toBeTruthy();
+  });
+});
+
+describe("CardDetailModal — priority", () => {
+  it("offers the five levels plus None, most urgent first", () => {
+    mount();
+
+    const select = screen.getByLabelText("Priority") as HTMLSelectElement;
+    expect([...select.options].map((o) => o.textContent)).toEqual([
+      "None",
+      "Highest",
+      "High",
+      "Medium",
+      "Low",
+      "Lowest",
+    ]);
+  });
+
+  it("starts at None rather than a level nobody chose", () => {
+    // Jira defaults to Medium. A priority on every card is a priority on
+    // nothing — the field only informs when some cards go without.
+    mount();
+    expect((screen.getByLabelText("Priority") as HTMLSelectElement).value).toBe("");
+  });
+
+  it("sets a level", async () => {
+    const user = userEvent.setup();
+    const { onCommit } = mount();
+
+    await user.selectOptions(screen.getByLabelText("Priority"), "High");
+
+    await waitFor(() =>
+      expect(onCommit).toHaveBeenCalledWith({ priority: "High", clearPriority: false })
+    );
+  });
+
+  it("clears back to None with the flag, not a bare null", async () => {
+    // Same reason clearDueAt exists: JSON cannot tell "absent" from "null", so
+    // without the flag an edit would leave the priority alone instead.
+    const user = userEvent.setup();
+    const { onCommit } = mount({ card: { ...CARD, priority: "High" } });
+
+    await user.selectOptions(screen.getByLabelText("Priority"), "");
+
+    await waitFor(() =>
+      expect(onCommit).toHaveBeenCalledWith({ priority: null, clearPriority: true })
+    );
+  });
+
+  it("shows the icon beside the control once a level is set", () => {
+    mount({ card: { ...CARD, priority: "Highest" } });
+
+    expect(screen.getByRole("img", { name: "Highest priority" })).toBeTruthy();
+  });
+
+  it("is text with no control for a viewer (S8.1)", () => {
+    mount({ readOnly: true, card: { ...CARD, priority: "Medium" } });
+
+    expect(screen.queryByLabelText("Priority")).toBeNull();
+    expect(screen.getByText("Medium")).toBeTruthy();
+    expect(screen.getByRole("img", { name: "Medium priority" })).toBeTruthy();
+  });
+
+  it("reads None for a viewer when nothing is set", () => {
+    mount({ readOnly: true });
+    expect(screen.getByText("None")).toBeTruthy();
   });
 });
 

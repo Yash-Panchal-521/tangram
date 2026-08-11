@@ -442,6 +442,7 @@ export function BoardView({ boardId }: { boardId: string }) {
                   // optimistic view disagree with the broadcast that follows.
                   dueAt: update.clearDueAt ? null : update.dueAt ?? c.dueAt,
                   assigneeId: update.clearAssignee ? null : update.assigneeId ?? c.assigneeId,
+                  priority: update.clearPriority ? null : update.priority ?? c.priority,
                 }
               : c
           ),

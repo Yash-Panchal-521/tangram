@@ -85,7 +85,12 @@ export interface CardResponse {
   assigneeId: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Null means nobody has set one — a state, not a gap. See CardPriority. */
+  priority: CardPriority | null;
 }
+
+/** Jira's five levels. Ordered most to least urgent. */
+export type CardPriority = "Highest" | "High" | "Medium" | "Low" | "Lowest";
 
 /**
  * Every field-level edit to a card, in one request.
@@ -101,6 +106,8 @@ export interface UpdateCardRequest {
   assigneeId?: string | null;
   clearDueAt?: boolean;
   clearAssignee?: boolean;
+  priority?: CardPriority | null;
+  clearPriority?: boolean;
 }
 
 export interface ColumnWithCardsResponse {

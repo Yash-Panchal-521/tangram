@@ -84,6 +84,83 @@ public class CardDepthTests(TangramWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task A_new_card_has_no_priority_until_somebody_sets_one()
+    {
+        // Not defaulted to Medium, which is what Jira does. A priority on every
+        // card is a priority on nothing -- the field only carries information
+        // when some cards go without.
+        var (client, _, board, card) = await SeedAsync("priority-default-uid");
+
+        var fresh = await ReadCardAsync(client, board.Id, card.Id);
+        Assert.Null(fresh.Priority);
+    }
+
+    [Fact]
+    public async Task Priority_can_be_set_changed_and_cleared()
+    {
+        var (client, _, board, card) = await SeedAsync("priority-uid");
+
+        await client.PatchAsJsonAsync($"/boards/{board.Id}/cards/{card.Id}",
+            new UpdateCardRequest(null, null, null, null, Priority: "High"));
+        Assert.Equal("High", (await ReadCardAsync(client, board.Id, card.Id)).Priority);
+
+        await client.PatchAsJsonAsync($"/boards/{board.Id}/cards/{card.Id}",
+            new UpdateCardRequest(null, null, null, null, Priority: "Lowest"));
+        Assert.Equal("Lowest", (await ReadCardAsync(client, board.Id, card.Id)).Priority);
+
+        // Clearing and leaving alone are different requests, for the same reason
+        // ClearDueAt exists: JSON cannot express the difference on its own.
+        await client.PatchAsJsonAsync($"/boards/{board.Id}/cards/{card.Id}",
+            new UpdateCardRequest(null, null, null, null, ClearPriority: true));
+        Assert.Null((await ReadCardAsync(client, board.Id, card.Id)).Priority);
+    }
+
+    [Fact]
+    public async Task An_edit_that_says_nothing_about_priority_leaves_it_alone()
+    {
+        var (client, _, board, card) = await SeedAsync("priority-untouched-uid");
+        await client.PatchAsJsonAsync($"/boards/{board.Id}/cards/{card.Id}",
+            new UpdateCardRequest(null, null, null, null, Priority: "Highest"));
+
+        await client.PatchAsJsonAsync($"/boards/{board.Id}/cards/{card.Id}",
+            new UpdateCardRequest("Renamed", null, null, null));
+
+        var after = await ReadCardAsync(client, board.Id, card.Id);
+        Assert.Equal("Renamed", after.Title);
+        Assert.Equal("Highest", after.Priority);
+    }
+
+    [Fact]
+    public async Task Case_does_not_matter_when_setting_a_priority()
+    {
+        var (client, _, board, card) = await SeedAsync("priority-case-uid");
+
+        await client.PatchAsJsonAsync($"/boards/{board.Id}/cards/{card.Id}",
+            new UpdateCardRequest(null, null, null, null, Priority: "mEdIuM"));
+
+        Assert.Equal("Medium", (await ReadCardAsync(client, board.Id, card.Id)).Priority);
+    }
+
+    [Theory]
+    [InlineData("Urgent")]
+    [InlineData("7")]
+    [InlineData("")]
+    public async Task An_unrecognised_priority_is_refused_rather_than_coerced(string value)
+    {
+        // Enum.TryParse accepts any number, so "7" would otherwise be stored as
+        // a priority nothing can render and no filter matches. And an
+        // unrecognised name would silently become the first member -- Highest,
+        // the loudest possible wrong answer.
+        var (client, _, board, card) = await SeedAsync($"priority-bad-{value.Length}-uid");
+
+        var response = await client.PatchAsJsonAsync($"/boards/{board.Id}/cards/{card.Id}",
+            new UpdateCardRequest(null, null, null, null, Priority: value));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Null((await ReadCardAsync(client, board.Id, card.Id)).Priority);
+    }
+
+    [Fact]
     public async Task A_card_reports_when_it_was_created_and_last_changed()
     {
         // Both live on the entity and were simply never exposed. The detail view

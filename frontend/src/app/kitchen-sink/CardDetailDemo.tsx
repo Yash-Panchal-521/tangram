@@ -34,6 +34,7 @@ export function CardDetailDemo() {
     assigneeId: "u-2",
     createdAt: "2026-08-01T09:12:00.000Z",
     updatedAt: "2026-08-09T16:40:00.000Z",
+    priority: "High",
   });
 
   // Applies locally so the demo behaves, with the same merge rule the board
@@ -45,6 +46,7 @@ export function CardDetailDemo() {
       description: update.description !== undefined ? update.description : c.description,
       dueAt: update.clearDueAt ? null : update.dueAt ?? c.dueAt,
       assigneeId: update.clearAssignee ? null : update.assigneeId ?? c.assigneeId,
+      priority: update.clearPriority ? null : update.priority ?? c.priority,
       updatedAt: new Date().toISOString(),
     }));
   }

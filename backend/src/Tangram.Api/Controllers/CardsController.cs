@@ -34,6 +34,13 @@ public class CardsController(IBoardOperationService boardOperations) : Controlle
             return ValidationProblem("Card title is required.");
         }
 
+        // A 400 rather than a coerced value: Enum.TryParse accepts any number,
+        // so "7" would otherwise be stored as a priority nothing can render.
+        if (request.Priority is not null && !CardPriorityParser.TryParse(request.Priority, out _))
+        {
+            return ValidationProblem($"Priority must be one of {CardPriorityParser.AllowedValues}.");
+        }
+
         try
         {
             return Ok(await boardOperations.UpdateCardAsync(

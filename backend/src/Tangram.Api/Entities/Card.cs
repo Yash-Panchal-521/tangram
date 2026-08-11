@@ -14,6 +14,10 @@ public class Card
     // different zones to disagree about whether something is overdue.
     public DateTimeOffset? DueAt { get; set; }
 
+    // Null means nobody has said — see CardPriority for why that is a state
+    // worth keeping rather than defaulting to Medium.
+    public CardPriority? Priority { get; set; }
+
     // No FK constraint on purpose: memberships change, and a removed member
     // must not either block their removal or cascade-delete the cards they were
     // assigned. An assignee who is no longer a member simply stops resolving,

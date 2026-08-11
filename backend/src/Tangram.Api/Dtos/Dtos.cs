@@ -81,7 +81,11 @@ public record UpdateCardRequest(
     DateTimeOffset? DueAt,
     Guid? AssigneeId,
     bool ClearDueAt = false,
-    bool ClearAssignee = false);
+    bool ClearAssignee = false,
+    // A string rather than the enum, so an unknown level is a 400 the caller
+    // can read instead of a silent deserialization to the first member.
+    string? Priority = null,
+    bool ClearPriority = false);
 
 public record MoveCardRequest(Guid TargetColumnId, Guid? BeforeCardId);
 
@@ -97,7 +101,9 @@ public record CardResponse(
     DateTimeOffset? DueAt = null,
     Guid? AssigneeId = null,
     DateTimeOffset CreatedAt = default,
-    DateTimeOffset UpdatedAt = default);
+    DateTimeOffset UpdatedAt = default,
+    // Null means nobody has set one, which is a state rather than a gap.
+    string? Priority = null);
 public record CardDeletedPayload(Guid Id, Guid ColumnId);
 
 public record ColumnWithCardsResponse(Guid Id, string Name, string Rank, List<CardResponse> Cards);
