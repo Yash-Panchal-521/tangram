@@ -176,3 +176,28 @@ describe("KanbanCard — priority", () => {
     expect(new Set(shapes).size).toBe(5);
   });
 });
+
+describe("KanbanCard — comments", () => {
+  it("shows how many there are", () => {
+    render(<KanbanCard card={{ title: "Discussed", description: null, commentCount: 3 }} />);
+
+    expect(screen.getByText("3")).toBeTruthy();
+  });
+
+  it("says nothing when there are none", () => {
+    // A "0" on every card would be noise on the row where width is scarcest,
+    // and the missing icon already carries the same information.
+    const { container } = render(
+      <KanbanCard card={{ title: "Quiet", description: null, commentCount: 0 }} />
+    );
+
+    expect(container.textContent).not.toContain("0");
+  });
+
+  it("counts in words too, for anyone who never sees the speech bubble", () => {
+    render(<KanbanCard card={{ title: "Discussed", description: null, commentCount: 2 }} />);
+
+    // The number alone reads as a quantity of nothing in particular.
+    expect(screen.getByText(/comments/)).toBeTruthy();
+  });
+});

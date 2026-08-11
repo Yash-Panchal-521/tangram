@@ -31,6 +31,11 @@ public interface IBoardOperationService
     Task<LabelResponse> CreateLabelAsync(Guid boardId, string name, string? color, CancellationToken ct);
     Task<LabelResponse> UpdateLabelAsync(Guid boardId, Guid labelId, UpdateLabelRequest request, CancellationToken ct);
     Task DeleteLabelAsync(Guid boardId, Guid labelId, CancellationToken ct);
+
+    Task<List<CommentResponse>> GetCommentsAsync(Guid boardId, Guid cardId, CancellationToken ct);
+    Task<CommentResponse> AddCommentAsync(Guid boardId, Guid cardId, string body, CancellationToken ct);
+    Task<CommentResponse> EditCommentAsync(Guid boardId, Guid commentId, string body, CancellationToken ct);
+    Task DeleteCommentAsync(Guid boardId, Guid commentId, CancellationToken ct);
 }
 
 // Raised when what an undo would act on is no longer there -- someone else
@@ -154,7 +159,7 @@ public class BoardOperationService(
         };
         db.Cards.Add(card);
 
-        var response = ToResponse(card);
+        var response = ToResponse(card, commentCount: 0);
         await SaveAsync(boardId, new Pending("card.create", response), ct);
         return response;
     }
@@ -257,7 +262,7 @@ public class BoardOperationService(
 
         card.UpdatedAt = DateTimeOffset.UtcNow;
 
-        var response = ToResponse(card);
+        var response = ToResponse(card, await CountCommentsAsync(cardId, ct));
         // Still emitted as "card.rename" rather than a new op type: the
         // operations log holds historical card.rename rows that resync replays,
         // so introducing card.update would mean every client had to understand
@@ -297,7 +302,7 @@ public class BoardOperationService(
         card.Rank = RankService.GenerateBetween(lower, upper);
         card.UpdatedAt = DateTimeOffset.UtcNow;
 
-        var response = ToResponse(card);
+        var response = ToResponse(card, await CountCommentsAsync(cardId, ct));
         await SaveAsync(boardId, new Pending("card.move", response), ct);
         return response;
     }
@@ -364,13 +369,24 @@ public class BoardOperationService(
     /// rather than as the bug it is, so the only loader that feeds this
     /// includes them.
     /// </remarks>
-    private static CardResponse ToResponse(Card card) =>
+    private static CardResponse ToResponse(Card card, int commentCount) =>
         new(card.Id, card.ColumnId, card.Title, card.Description, card.Rank, card.DueAt,
             card.AssigneeId, card.CreatedAt, card.UpdatedAt, card.Priority?.ToString(),
             card.CardLabels
                 .Select(cl => new LabelResponse(cl.Label.Id, cl.Label.Name, cl.Label.Color))
                 .OrderBy(l => l.Name, StringComparer.OrdinalIgnoreCase)
-                .ToList());
+                .ToList(),
+            commentCount);
+
+    /// <remarks>
+    /// A count rather than <c>Include(c =&gt; c.Comments)</c>. This record is the
+    /// broadcast payload, so a wrong count here overwrites the number on
+    /// everyone else's card — but loading every comment on a card to render a
+    /// badge is the cost this field exists to avoid. One indexed COUNT, on the
+    /// (card_id, created_at) index the thread already needs.
+    /// </remarks>
+    private Task<int> CountCommentsAsync(Guid cardId, CancellationToken ct) =>
+        db.Comments.CountAsync(c => c.CardId == cardId, ct);
 
     public async Task<LabelResponse> CreateLabelAsync(
         Guid boardId, string name, string? color, CancellationToken ct)
@@ -444,6 +460,123 @@ public class BoardOperationService(
         db.Labels.Remove(label);
 
         await SaveAsync(boardId, new Pending("label.delete", new LabelDeletedPayload(labelId)), ct);
+    }
+
+    /// <summary>The card's thread, oldest first — the order a conversation reads in.</summary>
+    /// <remarks>
+    /// Readable by any member, including viewers. Reading a discussion is not a
+    /// mutation, and a viewer who can see the card but not why it is the shape
+    /// it is has been given half the information.
+    /// </remarks>
+    public async Task<List<CommentResponse>> GetCommentsAsync(Guid boardId, Guid cardId, CancellationToken ct)
+    {
+        // The query filter hides cards outside the caller's workspaces, so a
+        // miss here is "not found or not yours" -- the same conflation used
+        // everywhere else.
+        await LoadCardOnBoardAsync(boardId, cardId, ct);
+
+        return await db.Comments
+            .Where(c => c.CardId == cardId)
+            .OrderBy(c => c.CreatedAt)
+            .Join(db.Users, c => c.AuthorId, u => u.Id, (c, u) => new { Comment = c, u.DisplayName })
+            .Select(x => new CommentResponse(
+                x.Comment.Id, x.Comment.CardId, x.Comment.AuthorId, x.DisplayName,
+                x.Comment.Body, x.Comment.CreatedAt, x.Comment.EditedAt))
+            .ToListAsync(ct);
+    }
+
+    public async Task<CommentResponse> AddCommentAsync(
+        Guid boardId, Guid cardId, string body, CancellationToken ct)
+    {
+        await EnsureCanMutateAsync(boardId, ct);
+        await LoadCardOnBoardAsync(boardId, cardId, ct);
+
+        var comment = new Comment
+        {
+            Id = Guid.NewGuid(),
+            CardId = cardId,
+            AuthorId = currentUser.UserId,
+            Body = body,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        db.Comments.Add(comment);
+
+        var response = await ToResponseAsync(comment, ct);
+        await SaveAsync(boardId, new Pending("comment.create", response), ct);
+        return response;
+    }
+
+    public async Task<CommentResponse> EditCommentAsync(
+        Guid boardId, Guid commentId, string body, CancellationToken ct)
+    {
+        await EnsureCanMutateAsync(boardId, ct);
+
+        var comment = await LoadCommentOnBoardAsync(boardId, commentId, ct);
+        EnsureAuthor(comment);
+
+        comment.Body = body;
+        // Recorded rather than folded into CreatedAt: a comment somebody replied
+        // to may no longer say what it said when they replied, and the reader
+        // needs to be able to tell.
+        comment.EditedAt = DateTimeOffset.UtcNow;
+
+        var response = await ToResponseAsync(comment, ct);
+        await SaveAsync(boardId, new Pending("comment.edit", response), ct);
+        return response;
+    }
+
+    public async Task DeleteCommentAsync(Guid boardId, Guid commentId, CancellationToken ct)
+    {
+        await EnsureCanMutateAsync(boardId, ct);
+
+        var comment = await LoadCommentOnBoardAsync(boardId, commentId, ct);
+        EnsureAuthor(comment);
+
+        var cardId = comment.CardId;
+        db.Comments.Remove(comment);
+
+        await SaveAsync(boardId, new Pending("comment.delete", new CommentDeletedPayload(commentId, cardId)), ct);
+    }
+
+    /// <remarks>
+    /// Author only, for both editing and deleting — including for owners.
+    /// Putting words in somebody's mouth, or removing what they said, is a
+    /// different power from managing a board, and giving it to a role that was
+    /// granted for a different reason is not something to do by accident. If
+    /// moderation is ever wanted it should be an explicit decision with its own
+    /// conversation.
+    /// </remarks>
+    private void EnsureAuthor(Comment comment)
+    {
+        if (comment.AuthorId != currentUser.UserId)
+        {
+            throw new BoardOperationForbiddenException("You can only change your own comments.");
+        }
+    }
+
+    private async Task<CommentResponse> ToResponseAsync(Comment comment, CancellationToken ct)
+    {
+        var authorName = await db.Users
+            .Where(u => u.Id == comment.AuthorId)
+            .Select(u => u.DisplayName)
+            .FirstOrDefaultAsync(ct);
+
+        return new CommentResponse(
+            comment.Id, comment.CardId, comment.AuthorId, authorName ?? "Someone",
+            comment.Body, comment.CreatedAt, comment.EditedAt);
+    }
+
+    private async Task<Comment> LoadCommentOnBoardAsync(Guid boardId, Guid commentId, CancellationToken ct)
+    {
+        var comment = await db.Comments
+            .Include(c => c.Card).ThenInclude(card => card.Column)
+            .FirstOrDefaultAsync(c => c.Id == commentId, ct);
+
+        if (comment is null || comment.Card.Column.BoardId != boardId)
+        {
+            throw new BoardOperationNotFoundException("Comment not found on this board.");
+        }
+        return comment;
     }
 
     private async Task<Label> LoadLabelOnBoardAsync(Guid boardId, Guid labelId, CancellationToken ct)

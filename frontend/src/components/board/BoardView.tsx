@@ -21,7 +21,9 @@ import {
   api,
   type BoardDetailResponse,
   type CardResponse,
+  type CommentResponse,
   type LabelColor,
+  type MeResponse,
   type LabelResponse,
   type MemberResponse,
   type UpdateCardRequest,
@@ -118,9 +120,27 @@ export function BoardView({ boardId }: { boardId: string }) {
   const [activeCard, setActiveCard] = useState<CardResponse | null>(null);
   // Which card is open lives in the URL — see useCardParam for why.
   const { openCardId, openCard: openCardById, closeCard } = useCardParam();
+  // The open card's thread. Held here rather than in the modal because every
+  // other piece of sync lives here, and a comment arriving from someone else is
+  // a broadcast like any other -- the modal would otherwise need its own
+  // connection to hear about it.
+  //
+  // Not in `board`: comments are unbounded, and the board carries only a count
+  // so that rendering it does not mean loading every conversation on it.
+  // Keyed by card, not a bare list. Clearing it in an effect when the card
+  // closed was both a cascading render and a race: opening a second card showed
+  // the first one's thread until the fetch landed. Tagging it means a thread is
+  // simply not this card's, and renders as empty without anyone clearing it.
+  const [thread, setThread] = useState<{ cardId: string; items: CommentResponse[] } | null>(null);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
+  const [commentsReload, setCommentsReload] = useState(0);
   // Workspace roster, for the assignee picker and for putting a name on the
   // avatar a card shows. Fetched once the board is known.
   const [members, setMembers] = useState<MemberResponse[]>([]);
+  // Our internal id, not the Firebase uid. A comment records the former, and the
+  // thread needs to know which comments are yours to offer edit and delete.
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [presentUsers, setPresentUsers] = useState<PresenceUser[]>([]);
   const [remoteCursors, setRemoteCursors] = useState<Record<string, CursorUpdate>>({});
 
@@ -179,15 +199,21 @@ export function BoardView({ boardId }: { boardId: string }) {
     (async () => {
       try {
         const token = await getToken();
-        const roster = await api.get<WorkspaceMembersResponse>(
-          `/workspaces/${workspaceId}/members`,
-          token
-        );
-        if (!cancelled) setMembers(roster.members);
+        // Fetched together: both are "who is who", both are non-fatal, and one
+        // round trip is cheaper than two for state the board can live without.
+        const [roster, me] = await Promise.all([
+          api.get<WorkspaceMembersResponse>(`/workspaces/${workspaceId}/members`, token),
+          api.get<MeResponse>("/me", token),
+        ]);
+        if (!cancelled) {
+          setMembers(roster.members);
+          setCurrentUserId(me.id);
+        }
       } catch {
         // Non-fatal by design: without the roster the assignee picker has no
-        // options and cards show no avatar, but nothing else on the board
-        // depends on it. Failing the whole surface over it would be worse.
+        // options and cards show no avatar, and without `me` the thread simply
+        // offers nobody edit or delete. Failing the whole surface over either
+        // would be worse -- and the server is the authority on both anyway.
       }
     })();
 
@@ -219,6 +245,32 @@ export function BoardView({ boardId }: { boardId: string }) {
     function applyOp(op: OperationBroadcast) {
       lastSeenSeqRef.current = Math.max(lastSeenSeqRef.current, op.seq);
       setBoard((prev) => (prev ? applyOperation(prev, op.opType, op.payload) : prev));
+
+      // The board only carries the count; the thread itself is separate state,
+      // so comment operations have to be applied to both. Replacing by id keeps
+      // this idempotent like every other case -- resync replays operations a
+      // client may already have applied.
+      if (op.opType.startsWith("comment.")) {
+        const payload = op.payload as CommentResponse & { id: string; cardId: string };
+        setThread((prev) => {
+          // Only the open card's thread is held, so anything else is for a card
+          // nobody is reading and is dropped.
+          if (!prev || prev.cardId !== payload.cardId) return prev;
+
+          // Replacing by id keeps this idempotent like every other case --
+          // resync replays operations a client may already have applied.
+          const items =
+            op.opType === "comment.delete"
+              ? prev.items.filter((c) => c.id !== payload.id)
+              : prev.items.some((c) => c.id === payload.id)
+                ? prev.items.map((c) => (c.id === payload.id ? payload : c))
+                : op.opType === "comment.create"
+                  ? [...prev.items, payload]
+                  : prev.items;
+
+          return { ...prev, items };
+        });
+      }
     }
 
     async function resyncAfterReconnect(connection: HubConnection) {
@@ -478,6 +530,71 @@ export function BoardView({ boardId }: { boardId: string }) {
           beforeCardId,
         }),
       (current) => moveCardOptimistic(current, cardId, target?.id ?? targetColumnId, beforeCardId),
+      "rethrow"
+    );
+  }
+
+  // Fetched when a card opens, and again on a deliberate retry. Not part of the
+  // board load: most cards on a board are not being read, and their
+  // conversations are not worth the bytes.
+  useEffect(() => {
+    if (!openCardId) return;
+
+    const cardId = openCardId;
+    let cancelled = false;
+
+    (async () => {
+      // Set inside the async body rather than before it, so nothing is assigned
+      // synchronously while the effect runs.
+      setCommentsLoading(true);
+      setCommentsError(null);
+      try {
+        const token = await getToken();
+        const items = await api.get<CommentResponse[]>(
+          `/boards/${boardId}/cards/${cardId}/comments`,
+          token
+        );
+        if (!cancelled) setThread({ cardId, items });
+      } catch (err) {
+        if (!cancelled) setCommentsError(friendlyError(err, "load the comments").message);
+      } finally {
+        if (!cancelled) setCommentsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [openCardId, boardId, getToken, commentsReload]);
+
+  async function handleAddComment(body: string) {
+    if (!openCardId) return;
+    // No optimistic append: the server assigns the id and the timestamp, and a
+    // temporary one would leave a duplicate until the broadcast replaced it --
+    // the same reason a new card gets a placeholder rather than a real row.
+    await runMutation(
+      "add that comment",
+      async () =>
+        api.post(`/boards/${boardId}/cards/${openCardId}/comments`, await getToken(), { body }),
+      undefined,
+      "rethrow"
+    );
+  }
+
+  async function handleEditComment(commentId: string, body: string) {
+    await runMutation(
+      "save that comment",
+      async () => api.patch(`/boards/${boardId}/comments/${commentId}`, await getToken(), { body }),
+      undefined,
+      "rethrow"
+    );
+  }
+
+  async function handleDeleteComment(commentId: string) {
+    await runMutation(
+      "delete that comment",
+      async () => api.delete(`/boards/${boardId}/comments/${commentId}`, await getToken()),
+      undefined,
       "rethrow"
     );
   }
@@ -876,6 +993,19 @@ export function BoardView({ boardId }: { boardId: string }) {
           onDelete={() => handleDeleteCard(openCardValue.id)}
           onCreateLabel={handleCreateLabel}
           onDeleteLabel={handleDeleteLabel}
+          comments={{
+            // Only when it is this card's. A thread left over from the
+            // previously opened card renders as empty rather than as someone
+            // else's conversation.
+            items: thread?.cardId === openCardId ? thread.items : [],
+            loading: commentsLoading,
+            error: commentsError,
+            currentUserId: currentUserId,
+            onAdd: handleAddComment,
+            onEdit: handleEditComment,
+            onDelete: handleDeleteComment,
+            onRetry: () => setCommentsReload((n) => n + 1),
+          }}
         />
       )}
 

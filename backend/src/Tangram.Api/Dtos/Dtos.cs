@@ -98,6 +98,21 @@ public record CreateLabelRequest(string Name, string? Color);
 public record UpdateLabelRequest(string? Name, string? Color);
 public record LabelDeletedPayload(Guid Id);
 
+// AuthorName is resolved server-side: the client has the workspace roster, but
+// not for somebody who has since left, and a comment must still say who wrote it.
+public record CommentResponse(
+    Guid Id,
+    Guid CardId,
+    Guid AuthorId,
+    string AuthorName,
+    string Body,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? EditedAt);
+
+public record CreateCommentRequest(string Body);
+public record UpdateCommentRequest(string Body);
+public record CommentDeletedPayload(Guid Id, Guid CardId);
+
 // CreatedAt/UpdatedAt are on the entity and were simply never exposed. The detail
 // view shows them, and they cost nothing to carry: this record is also the
 // broadcast payload for card operations, so a resyncing client gets them too.
@@ -116,7 +131,11 @@ public record CardResponse(
     // The whole set, every time. A card's labels are a field of the card in the
     // same way its assignee is, which is what lets them ride the existing card
     // operations instead of needing add/remove ops of their own.
-    List<LabelResponse>? Labels = null);
+    List<LabelResponse>? Labels = null,
+    // A count, not the comments. A card's labels are bounded and travel with
+    // it; its comments are not, and loading every one on every card just to
+    // render the board would be paying for the whole thread to show a number.
+    int CommentCount = 0);
 public record CardDeletedPayload(Guid Id, Guid ColumnId);
 
 public record ColumnWithCardsResponse(Guid Id, string Name, string Rank, List<CardResponse> Cards);
@@ -128,7 +147,11 @@ public record BoardDetailResponse(
     Guid Id, Guid WorkspaceId, string Name, string Role, long Seq, List<ColumnWithCardsResponse> Columns,
     // The board's whole label vocabulary, which the picker needs even for
     // labels no card currently carries.
-    List<LabelResponse>? Labels = null);
+    List<LabelResponse>? Labels = null,
+    // A count, not the comments. A card's labels are bounded and travel with
+    // it; its comments are not, and loading every one on every card just to
+    // render the board would be paying for the whole thread to show a number.
+    int CommentCount = 0);
 
 public record OperationBroadcast(long Seq, string OpType, object Payload);
 public record ResyncResult(bool NeedsSnapshot, List<OperationBroadcast> Operations);

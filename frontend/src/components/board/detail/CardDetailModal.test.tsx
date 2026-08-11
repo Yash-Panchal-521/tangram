@@ -20,6 +20,7 @@ const CARD: CardResponse = {
   updatedAt: "2026-08-04T14:30:00.000Z",
   priority: null,
   labels: [],
+  commentCount: 0,
 };
 
 const STATUSES = [
@@ -44,6 +45,9 @@ function mount(overrides: Partial<Parameters<typeof CardDetailModal>[0]> = {}) {
   const onDelete = vi.fn(async () => {});
   const onCreateLabel = vi.fn(async () => {});
   const onDeleteLabel = vi.fn(async () => {});
+  const onAddComment = vi.fn(async () => {});
+  const onEditComment = vi.fn(async () => {});
+  const onDeleteComment = vi.fn(async () => {});
   render(
     <CardDetailModal
       card={CARD}
@@ -58,9 +62,25 @@ function mount(overrides: Partial<Parameters<typeof CardDetailModal>[0]> = {}) {
       onCreateLabel={onCreateLabel}
       onDeleteLabel={onDeleteLabel}
       {...overrides}
+      // Last, and merged: spreading `overrides` over a whole `comments` object
+      // would replace it, quietly handing the thread undefined callbacks.
+      comments={{
+        items: [],
+        loading: false,
+        error: null,
+        currentUserId: "u-1",
+        onAdd: onAddComment,
+        onEdit: onEditComment,
+        onDelete: onDeleteComment,
+        onRetry: vi.fn(),
+        ...(overrides.comments ?? {}),
+      }}
     />
   );
-  return { onClose, onCommit, onMove, onDelete, onCreateLabel, onDeleteLabel };
+  return {
+    onClose, onCommit, onMove, onDelete, onCreateLabel, onDeleteLabel,
+    onAddComment, onEditComment, onDeleteComment,
+  };
 }
 
 const summary = () => screen.getByRole("button", { name: /Summary/ });
@@ -359,6 +379,139 @@ describe("CardDetailModal — labels", () => {
   });
 });
 
+const COMMENTS = [
+  {
+    id: "cm-1", cardId: "card-1", authorId: "u-2", authorName: "Sara R.",
+    body: "Looks right to me", createdAt: "2026-08-04T10:00:00.000Z", editedAt: null,
+  },
+  {
+    id: "cm-2", cardId: "card-1", authorId: "u-1", authorName: "You",
+    body: "Thanks", createdAt: "2026-08-04T11:00:00.000Z", editedAt: null,
+  },
+];
+
+describe("CardDetailModal — comments", () => {
+  it("reads oldest first, the order the conversation happened in", () => {
+    mount({ comments: { items: COMMENTS } as never });
+
+    const bodies = screen.getAllByText(/Looks right to me|Thanks/).map((el) => el.textContent);
+    expect(bodies).toEqual(["Looks right to me", "Thanks"]);
+  });
+
+  it("invites the first one rather than just reporting emptiness (S2.3)", () => {
+    mount();
+    expect(screen.getByText("No comments yet.")).toBeTruthy();
+  });
+
+  it("sends a comment on the shortcut, not on a bare Enter", async () => {
+    // A comment long enough to need two lines is common, so Enter cannot mean
+    // submit.
+    const user = userEvent.setup();
+    const { onAddComment } = mount();
+
+    const box = screen.getByLabelText("Add a comment");
+    await user.click(box);
+    await user.keyboard("First line{Enter}second line");
+    expect(onAddComment).not.toHaveBeenCalled();
+
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    await waitFor(() =>
+      expect(onAddComment).toHaveBeenCalledWith(["First line", "second line"].join("\n"))
+    );
+  });
+
+  it("keeps what you wrote when sending fails", async () => {
+    // The one thing a comment box must not do is lose the thing somebody
+    // typed, so the draft is only cleared on success.
+    const user = userEvent.setup();
+    mount({
+      comments: {
+        items: [],
+        onAdd: vi.fn(async () => {
+          throw new Error("Couldn't send that — check your connection.");
+        }),
+      } as never,
+    });
+
+    await user.type(screen.getByLabelText("Add a comment"), "Worth keeping");
+    await user.click(screen.getByRole("button", { name: "Comment" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("check your connection");
+    expect((screen.getByLabelText("Add a comment") as HTMLTextAreaElement).value).toBe(
+      "Worth keeping"
+    );
+  });
+
+  it("offers edit and delete on your own comment only", async () => {
+    mount({ comments: { items: COMMENTS, currentUserId: "u-1" } as never });
+
+    // Two comments, one of them yours.
+    expect(screen.getAllByRole("button", { name: "Edit this comment" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Delete this comment" })).toHaveLength(1);
+  });
+
+  it("shows that a comment was edited, because a reply may predate the rewrite", () => {
+    mount({
+      comments: {
+        items: [{ ...COMMENTS[0], editedAt: "2026-08-04T12:00:00.000Z" }],
+      } as never,
+    });
+
+    expect(screen.getByText("edited")).toBeTruthy();
+  });
+
+  it("confirms before deleting one (S4.2)", async () => {
+    const user = userEvent.setup();
+    const { onDeleteComment } = mount({
+      comments: { items: COMMENTS, currentUserId: "u-1" } as never,
+    });
+
+    await user.click(screen.getByRole("button", { name: "Delete this comment" }));
+
+    expect(screen.getByText("Delete this comment?")).toBeTruthy();
+    expect(onDeleteComment).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Delete comment" }));
+    await waitFor(() => expect(onDeleteComment).toHaveBeenCalledWith("cm-2"));
+  });
+
+  it("shows a loading state and then an error with a retry (S2.1)", async () => {
+    const user = userEvent.setup();
+    const onRetry = vi.fn();
+    const { unmount } = { unmount: () => {} };
+    void unmount;
+
+    mount({ comments: { items: [], loading: true } as never });
+    expect(screen.getByRole("status").textContent).toContain("Loading comments");
+
+    cleanup();
+    mount({ comments: { items: [], error: "Can't reach Tangram right now.", onRetry } as never });
+    expect(screen.getByRole("alert").textContent).toContain("Can't reach Tangram");
+
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(onRetry).toHaveBeenCalled();
+  });
+
+  it("gives a viewer the thread to read but nothing to write with (S8.1)", () => {
+    mount({ readOnly: true, comments: { items: COMMENTS } as never });
+
+    expect(screen.getByText("Looks right to me")).toBeTruthy();
+    expect(screen.queryByLabelText("Add a comment")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit this comment" })).toBeNull();
+  });
+
+  it("keeps Escape in the composer from closing the card", async () => {
+    const user = userEvent.setup();
+    const { onClose } = mount();
+
+    await user.click(screen.getByLabelText("Add a comment"));
+    await user.keyboard("{Escape}");
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
 describe("CardDetailModal — status", () => {
   it("lists the board's columns and moves the card", async () => {
     // Jira's status dropdown, mapped onto columns — which is what status
@@ -538,6 +691,16 @@ describe("CardDetailModal — live updates", () => {
         onDelete={vi.fn(async () => {})}
         onCreateLabel={vi.fn(async () => {})}
         onDeleteLabel={vi.fn(async () => {})}
+        comments={{
+          items: [],
+          loading: false,
+          error: null,
+          currentUserId: "u-1",
+          onAdd: vi.fn(async () => {}),
+          onEdit: vi.fn(async () => {}),
+          onDelete: vi.fn(async () => {}),
+          onRetry: vi.fn(),
+        }}
       />
     );
 
@@ -554,6 +717,16 @@ describe("CardDetailModal — live updates", () => {
         onDelete={vi.fn(async () => {})}
         onCreateLabel={vi.fn(async () => {})}
         onDeleteLabel={vi.fn(async () => {})}
+        comments={{
+          items: [],
+          loading: false,
+          error: null,
+          currentUserId: "u-1",
+          onAdd: vi.fn(async () => {}),
+          onEdit: vi.fn(async () => {}),
+          onDelete: vi.fn(async () => {}),
+          onRetry: vi.fn(),
+        }}
       />
     );
 

@@ -29,4 +29,5 @@ public class Card
 
     public Column Column { get; set; } = null!;
     public ICollection<CardLabel> CardLabels { get; set; } = new List<CardLabel>();
+    public ICollection<Comment> Comments { get; set; } = new List<Comment>();
 }

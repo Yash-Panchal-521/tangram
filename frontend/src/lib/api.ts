@@ -89,6 +89,20 @@ export interface CardResponse {
   priority: CardPriority | null;
   /** The whole set. Labels are a field of the card, like its assignee. */
   labels: LabelResponse[];
+  /** A count, not the thread — comments are unbounded and fetched on demand. */
+  commentCount: number;
+}
+
+export interface CommentResponse {
+  id: string;
+  cardId: string;
+  authorId: string;
+  /** Resolved server-side, so a former member's comment still says who wrote it. */
+  authorName: string;
+  body: string;
+  createdAt: string;
+  /** Null until edited. Shown, because a reply may predate a rewrite. */
+  editedAt: string | null;
 }
 
 export interface LabelResponse {

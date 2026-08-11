@@ -38,7 +38,6 @@ export function ContextPanel({
   onMove,
   onCreateLabel,
   onDeleteLabel,
-  onOverlayOpenChange,
 }: {
   card: CardResponse;
   readOnly: boolean;
@@ -58,13 +57,6 @@ export function ContextPanel({
   onMove: (targetColumnId: string) => Promise<void>;
   onCreateLabel: (name: string, color: LabelColor) => Promise<void>;
   onDeleteLabel: (labelId: string) => Promise<void>;
-  /**
-   * True while the calendar or the label picker is stacked above the card.
-   *
-   * Both trap the keyboard and both listen on `document`, so the modal has to
-   * stand down or one Escape closes the popover and the card together.
-   */
-  onOverlayOpenChange: (open: boolean) => void;
 }) {
   const statusId = useId();
   const assigneeId = useId();
@@ -214,7 +206,6 @@ export function ContextPanel({
           ) : (
             <DatePicker
               id={dueId}
-              onOpenChange={onOverlayOpenChange}
               value={toDateInputValue(card.dueAt)}
               onChange={(next) =>
                 void run("due", () =>
@@ -236,7 +227,6 @@ export function ContextPanel({
             onApply={(labelIds) => onCommit({ labelIds })}
             onCreate={onCreateLabel}
             onDelete={onDeleteLabel}
-            onOpenChange={onOverlayOpenChange}
           />
         </ContextRow>
 

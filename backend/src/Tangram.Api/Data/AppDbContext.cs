@@ -24,6 +24,7 @@ public class AppDbContext : DbContext
     public DbSet<Invitation> Invitations => Set<Invitation>();
     public DbSet<Label> Labels => Set<Label>();
     public DbSet<CardLabel> CardLabels => Set<CardLabel>();
+    public DbSet<Comment> Comments => Set<Comment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -94,6 +95,16 @@ public class AppDbContext : DbContext
 
             e.HasOne(cl => cl.Card).WithMany(c => c.CardLabels).HasForeignKey(cl => cl.CardId);
             e.HasOne(cl => cl.Label).WithMany(l => l.CardLabels).HasForeignKey(cl => cl.LabelId);
+        });
+
+        modelBuilder.Entity<Comment>(e =>
+        {
+            e.HasQueryFilter(c => _currentUser.WorkspaceIds.Contains(c.Card.Column.Board.WorkspaceId));
+
+            // The thread is always read whole, oldest first, for one card.
+            e.HasIndex(c => new { c.CardId, c.CreatedAt });
+
+            e.HasOne(c => c.Card).WithMany(card => card.Comments).HasForeignKey(c => c.CardId);
         });
 
         modelBuilder.Entity<Invitation>(e =>

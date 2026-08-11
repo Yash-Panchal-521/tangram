@@ -10,6 +10,7 @@ function card(id: string, columnId: string, rank: string, title = id): CardRespo
     createdAt: "2026-08-01T00:00:00.000Z", updatedAt: "2026-08-01T00:00:00.000Z",
     priority: null,
     labels: [],
+    commentCount: 0,
   };
 }
 

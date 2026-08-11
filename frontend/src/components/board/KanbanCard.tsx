@@ -23,7 +23,7 @@ export function KanbanCard({
   assigneeName = null,
 }: {
   card: Pick<CardResponse, "title" | "description"> &
-    Partial<Pick<CardResponse, "dueAt" | "assigneeId" | "priority" | "labels">>;
+    Partial<Pick<CardResponse, "dueAt" | "assigneeId" | "priority" | "labels" | "commentCount">>;
   draggable?: boolean;
   pending?: boolean;
   /** Resolves an assignee id to a name. Anyone who has left the workspace
@@ -81,13 +81,35 @@ export function KanbanCard({
         <p className="text-xs text-text-muted leading-snug line-clamp-2">{card.description}</p>
       )}
 
-      {(card.dueAt || assigneeName || card.priority) && (
+      {(card.dueAt || assigneeName || card.priority || (card.commentCount ?? 0) > 0) && (
         <div className="flex items-center gap-2 pt-0.5">
           {/* Ahead of the due pill: how urgent something is changes whether you
               care about its deadline, so it is read first. Icon only -- a word
               would cost the width the title needs, and the icon carries its own
               label for anyone not reading shapes. */}
           {card.priority && <PriorityIcon priority={card.priority} size={13} />}
+          {/* Only when there are some. A "0" on every card would be noise on
+              the one row where width is scarcest, and the absence of the icon
+              already says the same thing. */}
+          {(card.commentCount ?? 0) > 0 && (
+            <span
+              className="inline-flex items-center gap-1 text-[11px] text-text-dim"
+              title={`${card.commentCount} comment${card.commentCount === 1 ? "" : "s"}`}
+            >
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path
+                  d="M10.5 7.5a1 1 0 0 1-1 1H4L1.5 10.5V2.5a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1z"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              {card.commentCount}
+              {/* The number alone reads as a quantity of nothing in particular
+                  to a screen reader, which never sees the speech bubble. */}
+              <span className="sr-only"> comments</span>
+            </span>
+          )}
           {card.dueAt && (
             <span
               className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-medium ${

@@ -197,6 +197,16 @@ public class BoardsController(
             return NotFound();
         }
 
+        // One grouped query for the whole board, rather than Include-ing every
+        // comment on it. `card.Comments.Count` on an unloaded collection is
+        // silently 0, which would put "no comments" on every card that has them
+        // -- wrong in the direction nobody notices.
+        var commentCounts = await db.Comments
+            .Where(c => c.Card.Column.BoardId == boardId)
+            .GroupBy(c => c.CardId)
+            .Select(g => new { CardId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.CardId, x => x.Count, ct);
+
         var columns = board.Columns
             .OrderBy(c => c.Rank, StringComparer.Ordinal)
             .Select(c => new ColumnWithCardsResponse(
@@ -212,7 +222,8 @@ public class BoardsController(
                         card.CardLabels
                             .Select(cl => new LabelResponse(cl.Label.Id, cl.Label.Name, cl.Label.Color))
                             .OrderBy(l => l.Name, StringComparer.OrdinalIgnoreCase)
-                            .ToList()))
+                            .ToList(),
+                        commentCounts.GetValueOrDefault(card.Id)))
                     .ToList()))
             .ToList();
 

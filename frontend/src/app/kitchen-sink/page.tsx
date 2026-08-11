@@ -113,6 +113,13 @@ export default function KitchenSinkPage() {
           label is nearly always invented at the moment someone wants to apply it — sending them
           to a settings screen first is how labels end up unused.
         </p>
+        <p className="text-xs text-text-dim">
+          The comment thread runs oldest-first under the description, with the composer above
+          it — reversed from a chat window because the card is read top to bottom rather than
+          scrolled, so the conversation continues the order the card already started. Ctrl or ⌘
+          plus Enter sends; a bare Enter makes a paragraph. Edit and delete appear on your own
+          comments only, and a failed send keeps the draft.
+        </p>
         <CardDetailDemo />
       </section>
 

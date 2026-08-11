@@ -108,6 +108,18 @@ export function applyOperation(
       const { id } = payload as { id: string };
       return removeLabel(board, id);
     }
+    // Only the *count* on the card is board state. The thread itself lives with
+    // whoever has the card open, because it is unbounded and most cards on the
+    // board are not being read.
+    case "comment.create":
+      return shiftCommentCount(board, (payload as { cardId: string }).cardId, 1);
+    case "comment.delete":
+      return shiftCommentCount(board, (payload as { cardId: string }).cardId, -1);
+    case "comment.edit":
+      // Nothing on the board changes: the body is inside the thread, and the
+      // count is the same. Named anyway so it is clear this was considered
+      // rather than forgotten.
+      return board;
     default:
       return board;
   }
@@ -143,6 +155,30 @@ function removeLabel(board: BoardDetailResponse, labelId: string): BoardDetailRe
         c.labels.some((l) => l.id === labelId)
           ? { ...c, labels: c.labels.filter((l) => l.id !== labelId) }
           : c
+      ),
+    })),
+  };
+}
+
+/**
+ * Nudges a card's comment badge.
+ *
+ * A delta rather than a value, because the broadcast carries the comment, not a
+ * recount — and asking the server for one on every comment would be a request
+ * per keystroke's worth of conversation. Clamped at zero so a delete that
+ * arrives twice cannot push the badge negative.
+ */
+function shiftCommentCount(
+  board: BoardDetailResponse,
+  cardId: string,
+  delta: number
+): BoardDetailResponse {
+  return {
+    ...board,
+    columns: board.columns.map((col) => ({
+      ...col,
+      cards: col.cards.map((c) =>
+        c.id === cardId ? { ...c, commentCount: Math.max(0, c.commentCount + delta) } : c
       ),
     })),
   };

@@ -4,9 +4,11 @@ import { useId, useRef, useState } from "react";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { InlineEdit } from "@/components/ui/InlineEdit";
 import { ContextPanel, type StatusOption } from "@/components/board/detail/ContextPanel";
+import { CommentThread } from "@/components/board/detail/CommentThread";
 import { useDialog } from "@/lib/useDialog";
 import type {
   CardResponse,
+  CommentResponse,
   LabelColor,
   LabelResponse,
   MemberResponse,
@@ -49,6 +51,7 @@ export function CardDetailModal({
   onDelete,
   onCreateLabel,
   onDeleteLabel,
+  comments,
 }: {
   card: CardResponse;
   readOnly: boolean;
@@ -66,31 +69,43 @@ export function CardDetailModal({
   onDelete: () => Promise<void>;
   onCreateLabel: (name: string, color: LabelColor) => Promise<void>;
   onDeleteLabel: (labelId: string) => Promise<void>;
+  /**
+   * The card's thread, owned by the board.
+   *
+   * Grouped into one prop rather than eight loose ones — and owned upstream
+   * because a comment from someone else arrives as a broadcast, and every other
+   * piece of sync already lives there.
+   */
+  comments: {
+    items: CommentResponse[];
+    loading: boolean;
+    error: string | null;
+    currentUserId: string | null;
+    onAdd: (body: string) => Promise<void>;
+    onEdit: (commentId: string, body: string) => Promise<void>;
+    onDelete: (commentId: string) => Promise<void>;
+    onRetry: () => void;
+  };
 }) {
   const headingId = useId();
   const panelRef = useRef<HTMLDivElement | null>(null);
   const { confirm, dialog } = useConfirm();
-  const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  // The calendar and the label picker both stack above this modal.
-  const [overlayOpen, setOverlayOpen] = useState(false);
 
-  // Paused while anything is stacked above: the delete confirmation, the
-  // calendar, or the label picker. All of them listen on `document`, so an
-  // unpaused modal takes the same Escape and closes underneath its own popover.
-  // The inline editors are the exception — they stop Escape at the element, so
-  // it never reaches `document` at all.
-  useDialog({ containerRef: panelRef, onClose, paused: confirming || overlayOpen });
+  // Nothing here says "stand down while the calendar is open". `useDialog`
+  // keeps its own stack and only the topmost dialog answers a key, so the
+  // confirmation, the calendar and the label picker each take Escape without
+  // this modal needing to hear about them. The inline editors are a separate
+  // case — they stop Escape at the element, so it never reaches `document`.
+  useDialog({ containerRef: panelRef, onClose });
 
   async function handleDelete() {
-    setConfirming(true);
     const confirmed = await confirm({
       title: `Delete "${card.title}"?`,
       body: "Everyone on the board sees this immediately, and it can't be undone.",
       confirmLabel: "Delete card",
       tone: "danger",
     });
-    setConfirming(false);
     if (!confirmed) return;
 
     setDeleting(true);
@@ -186,6 +201,23 @@ export function CardDetailModal({
                   placeholder="Add a description…"
                   onCommit={(next) => onCommit({ description: next || null })}
                 />
+
+                {/* Under the description, in the left column: both are what the
+                    work *is*, as opposed to how it is tracked. Jira puts
+                    activity here for the same reason. */}
+                <div className="mt-6">
+                  <CommentThread
+                    comments={comments.items}
+                    currentUserId={comments.currentUserId}
+                    loading={comments.loading}
+                    error={comments.error}
+                    readOnly={readOnly}
+                    onAdd={comments.onAdd}
+                    onEdit={comments.onEdit}
+                    onDelete={comments.onDelete}
+                    onRetry={comments.onRetry}
+                  />
+                </div>
               </div>
 
               <div className="lg:basis-[38%] shrink-0">
@@ -199,7 +231,6 @@ export function CardDetailModal({
                   onMove={onMove}
                   onCreateLabel={onCreateLabel}
                   onDeleteLabel={onDeleteLabel}
-                  onOverlayOpenChange={setOverlayOpen}
                 />
               </div>
             </div>
