@@ -22,6 +22,40 @@ describe("BoardSkeleton", () => {
     expect(header.className).toContain("h-[52px]");
   });
 
+  it("carries every control the loaded header has", () => {
+    // This drifted once already: the skeleton still described the header as it
+    // stood before the activity feed, the workspace home and the account menu
+    // existed, so three controls appeared out of nowhere on arrival.
+    render(<BoardSkeleton />);
+
+    expect(screen.getByText("Boards")).toBeTruthy();
+    expect(screen.getByText("Activity")).toBeTruthy();
+    expect(screen.getByText("Members")).toBeTruthy();
+    expect(screen.getByText("Connecting…")).toBeTruthy();
+  });
+
+  it("offers a way out while the server wakes up", () => {
+    // A cold start takes up to a minute. Both crumbs are real links because
+    // nothing about them depends on the board, and being stuck on a page that
+    // is still deciding what it is would otherwise mean using the back button.
+    const { container } = render(<BoardSkeleton />);
+
+    const out = container.querySelectorAll('a[href="/boards"]');
+    expect(out.length).toBe(2);
+  });
+
+  it("does not invite a click on a control that cannot work yet", () => {
+    const { container } = render(<BoardSkeleton />);
+
+    // Real labels for their width, but inert -- no button, and none of the
+    // hover or cursor affordances the loaded header's controls carry.
+    expect(container.querySelector("button")).toBeNull();
+    const activity = screen.getByText("Activity").closest("span")!;
+    expect(activity.className).not.toContain("cursor-pointer");
+    expect(activity.className).not.toContain("hover:");
+    expect(activity.getAttribute("aria-hidden")).toBe("true");
+  });
+
   it("lays out the same column geometry as a loaded board", () => {
     const { container } = render(<BoardSkeleton />);
 

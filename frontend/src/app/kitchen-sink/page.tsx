@@ -1,5 +1,6 @@
 import { ConfirmDialogDemo } from "@/app/kitchen-sink/ConfirmDialogDemo";
 import { InviteChipsDemo } from "@/app/kitchen-sink/InviteChipsDemo";
+import { BoardSkeleton } from "@/components/board/BoardSkeleton";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -69,6 +70,19 @@ export default function KitchenSinkPage() {
             <Skeleton className="h-2.5 w-48 rounded" />
           </div>
           <Skeleton className="h-6 w-16 rounded-full shrink-0" />
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold text-text-muted">Board skeleton</h2>
+        <p className="text-xs text-text-dim">
+          Here so its header can be compared against the loaded one by eye. It drifted once
+          without anyone noticing — the skeleton still described the header as it stood before
+          the activity feed, the workspace home and the account menu existed, and three
+          controls appeared out of nowhere on arrival.
+        </p>
+        <div className="h-[260px] flex rounded-lg border border-border overflow-hidden">
+          <BoardSkeleton />
         </div>
       </section>
 
