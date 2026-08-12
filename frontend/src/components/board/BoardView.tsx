@@ -40,6 +40,9 @@ import { applyOperation, moveCardOptimistic } from "@/lib/boardReducer";
 import { friendlyError } from "@/lib/errorMessage";
 import { useSeenOnce } from "@/lib/useSeenOnce";
 import { useCardParam } from "@/lib/useCardParam";
+import { useBoardFilter } from "@/lib/useBoardFilter";
+import { BoardFilterBar } from "@/components/board/BoardFilterBar";
+import { countMatches, filterBoard, isFilterActive } from "@/lib/boardFilter";
 import { BOARD_TOUR } from "@/lib/boardTour";
 import { Walkthrough } from "@/components/onboarding/Walkthrough";
 import { BoardColumn } from "@/components/board/BoardColumn";
@@ -120,6 +123,7 @@ export function BoardView({ boardId }: { boardId: string }) {
   const [activeCard, setActiveCard] = useState<CardResponse | null>(null);
   // Which card is open lives in the URL — see useCardParam for why.
   const { openCardId, openCard: openCardById, closeCard } = useCardParam();
+  const { filter, setFilter, clear: clearFilter } = useBoardFilter();
   // The open card's thread. Held here rather than in the modal because every
   // other piece of sync lives here, and a comment arriving from someone else is
   // a broadcast like any other -- the modal would otherwise need its own
@@ -190,6 +194,23 @@ export function BoardView({ boardId }: { boardId: string }) {
   // simply absent, and the card falls back to showing no assignee rather than a
   // blank avatar nobody can identify.
   const memberNames = new Map(members.map((m) => [m.userId, m.displayName]));
+
+  // Pinned rather than read during render, because `Date.now()` in render is a
+  // different value on every pass and "recently updated" would flicker. Ticked
+  // only while that filter is on: a board left open overnight would otherwise
+  // keep answering with yesterday's idea of "recent".
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!filter.recent) return;
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, [filter.recent]);
+
+  // The board as the filter leaves it. Everything that draws the board reads
+  // this; everything that resolves a card by id keeps reading `board`, so a
+  // card open behind `?card=` stays open when a filter would have hidden it.
+  const visibleBoard = board ? filterBoard(board, filter, now) : null;
+  const filtering = isFilterActive(filter);
 
   const workspaceId = board?.workspaceId;
   useEffect(() => {
@@ -800,6 +821,23 @@ export function BoardView({ boardId }: { boardId: string }) {
         </div>
       </header>
 
+      {/* Below the header rather than inside it: the header identifies the
+          board and never changes, while this changes what you are looking at.
+          Hidden until there is something to filter — a search box over an empty
+          board is furniture. */}
+      {board.columns.length > 0 && (
+        <BoardFilterBar
+          filter={filter}
+          members={members}
+          labels={board.labels}
+          currentUserId={user?.uid ?? null}
+          matches={visibleBoard ? countMatches(visibleBoard) : 0}
+          total={countMatches(board)}
+          onChange={setFilter}
+          onClear={clearFilter}
+        />
+      )}
+
       {actionError && (
         <div
           role="alert"
@@ -878,10 +916,12 @@ export function BoardView({ boardId }: { boardId: string }) {
             </div>
           ) : (
           <div className="flex items-start gap-3.5 h-full" data-tour="columns">
-            {board.columns.map((column, i) => (
+            {(visibleBoard ?? board).columns.map((column, i) => (
               <BoardColumn
                 key={column.id}
                 column={column}
+                totalCards={board.columns[i]?.cards.length ?? column.cards.length}
+                filtering={filtering}
                 colorIndex={i}
                 disabled={!connected}
                 canEdit={canEdit}

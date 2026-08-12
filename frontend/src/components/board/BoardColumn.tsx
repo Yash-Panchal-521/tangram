@@ -18,6 +18,8 @@ const DOT_COLORS = ["#909090", "#4A9EFF", "#F5A623", "#4A9E62", "#8058A8"];
 
 export function BoardColumn({
   column,
+  totalCards,
+  filtering = false,
   colorIndex,
   disabled,
   canEdit,
@@ -29,7 +31,12 @@ export function BoardColumn({
   onDeleteColumn,
   onCardClick,
 }: {
+  /** Already filtered — `cards` is what should be drawn, not what exists. */
   column: ColumnWithCardsResponse;
+  /** How many cards the column actually holds, filter or no filter. */
+  totalCards?: number;
+  /** True when a filter is hiding something, which changes what "empty" means. */
+  filtering?: boolean;
   colorIndex: number;
   // Transient: the connection dropped. Controls stay visible but inert, since
   // the ability is coming back.
@@ -156,9 +163,15 @@ export function BoardColumn({
           </span>
         )}
         {/* Plain. A bordered pill gave the count the same weight as the name
-            it is qualifying, on every column, forever. */}
+            it is qualifying, on every column, forever.
+
+            Under a filter it reads "3 of 12", because otherwise a filtered
+            column and a nearly empty one are indistinguishable — and the second
+            is the more alarming reading. */}
         <span className="text-[11px] font-medium text-text-dim shrink-0 tabular-nums">
-          {column.cards.length}
+          {filtering && totalCards !== undefined && totalCards !== column.cards.length
+            ? `${column.cards.length} of ${totalCards}`
+            : column.cards.length}
         </span>
         <div className="flex-1" />
         {/* A menu, not a delete button revealed on hover.
@@ -222,7 +235,14 @@ export function BoardColumn({
             space, so there was nothing to aim a dragged card at (S2.3). */}
         {column.cards.length === 0 && !submitting && (
           <p className="rounded-lg border border-dashed border-border/80 px-3 py-5 text-center text-xs text-text-dim">
-            {canEdit ? "Empty — add a card, or drag one here." : "No cards in this column."}
+            {/* A filter hiding everything is not an empty column, and saying
+                "add a card" to someone who has just searched is answering a
+                question they did not ask (S2.3). */}
+            {filtering && totalCards
+              ? `No matches — ${totalCards} hidden by the filter.`
+              : canEdit
+                ? "Empty — add a card, or drag one here."
+                : "No cards in this column."}
           </p>
         )}
 
