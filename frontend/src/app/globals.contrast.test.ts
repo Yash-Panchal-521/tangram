@@ -26,6 +26,22 @@ function lstar(hex: string): number {
   return y <= 216 / 24389 ? y * (24389 / 27) : Math.cbrt(y) * 116 - 16;
 }
 
+function luminance(hex: string): number {
+  const v = hex.replace("#", "");
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(v.slice(i, i + 2), 16) / 255);
+  const lin = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+}
+
+/**
+ * WCAG contrast ratio — the right measure here, unlike for the surfaces above.
+ * This pair is text on a background, which is exactly what the ratio is for.
+ */
+function contrast(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((p, q) => q - p);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
 function tokensFor(theme: string, mode: string): Record<string, string> {
   const block = new RegExp(
     `\\[data-theme="${theme}"\\]\\[data-mode="${mode}"\\]\\s*\\{([^}]*)\\}`
@@ -64,6 +80,24 @@ describe("palette contrast", () => {
           expect(Math.round(apart * 10) / 10).toBeGreaterThanOrEqual(min);
         });
       }
+    }
+  }
+
+  for (const { id } of THEMES) {
+    for (const mode of modes) {
+      it(`${id} / ${mode}: text on the accent clears AA`, () => {
+        // Anything painted `bg-accent` puts `--accent-fg` on top at 13px, which
+        // is normal-size text: 4.5:1.
+        //
+        // Written after the auth panel was found hardcoding white on the accent
+        // instead of using the token. Once palettes were switchable that stopped
+        // being safe — Graphite's dark accent is #ededed, where white measured
+        // 1.17:1 — and measuring showed every dark palette failing between 1.17
+        // and 3.45. Two palettes also failed on their own pairing, which is what
+        // this pins.
+        const tokens = tokensFor(id, mode);
+        expect(contrast(tokens.accent, tokens["accent-fg"])).toBeGreaterThanOrEqual(4.5);
+      });
     }
   }
 
