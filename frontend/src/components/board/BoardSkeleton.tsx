@@ -1,6 +1,4 @@
-import Link from "next/link";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { TangramMark } from "@/components/ui/TangramMark";
 
 // Fixed, not random: the same shape has to render on the bootstrap page and
 // again on the board route, and a different silhouette each time would read as
@@ -14,21 +12,32 @@ const COLUMNS = [[false, true, false], [true, false], [false, false, true, false
  * The board's silhouette while it loads. Replaces a centred "Loading board…",
  * which told you nothing and then shoved the entire page aside on arrival.
  *
- * The header is the real one, not a placeholder strip -- it is 52px of chrome
+ * The header is the real one, not a placeholder strip — it is 52px of chrome
  * whose position never depends on the response, so drawing it for real means the
  * only thing that changes on load is the column contents (S2.2, S6.2).
  *
- * "For real" means the actual markup, classes and labels of anything the
- * response cannot change: the mark, the Boards crumb and the Members control.
- * Their widths then match by construction. The previous version guessed at them
- * with bars -- `w-16`, `w-14` -- and was already wrong by two controls, because
- * it still described the header as it stood before the workspace home and the
- * account menu existed. Grey bars are kept for exactly what the response
- * decides: the board's name, who is present, and whose account this is.
+ * **This has now drifted twice**, which says something about the shape of the
+ * problem rather than about either change. The first time it still described the
+ * header as it stood before the workspace home and the account menu existed. The
+ * second time the navigation moved to the sidebar and the columns became equal-
+ * width lanes, and this file kept drawing a *Boards* crumb and a *Members*
+ * control that no longer exist anywhere — promising, on every board load, two
+ * controls that would then vanish.
  *
- * The one thing that can still shift is the "View only" pill, which appears once
- * the caller's role is known. Pre-drawing it would mean guessing the role, and
- * guessing wrong shifts the same header for everyone else instead.
+ * The lesson is that "draw the real thing" only holds while somebody remembers
+ * this file exists. So its test now pins the header's actual contents in both
+ * directions: what must be here, and what must *not* be. A third drift should
+ * fail a test rather than wait to be noticed.
+ *
+ * There is no navigation here at all now, and that is correct rather than an
+ * omission: `AppShell` wraps this, so the sidebar — with the mark, the board
+ * list and Members — is already on screen and is the way out during a cold
+ * start. Drawing another would be drawing it twice.
+ *
+ * Two things are deliberately not pre-drawn, both for the same reason: the
+ * "View only" pill and the Create button appear only once the caller's role is
+ * known, and guessing a role wrong shifts the header for everyone it was
+ * guessed wrong for. A gap that fills is better than a control that disappears.
  */
 export function BoardSkeleton({ slow = false }: { slow?: boolean }) {
   return (
@@ -37,21 +46,7 @@ export function BoardSkeleton({ slow = false }: { slow?: boolean }) {
 
       <header className="h-[52px] shrink-0 flex items-center px-4.5 border-b border-border bg-surface">
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          {/* Both real links. Nothing about them depends on the board, and a
-              cold start can take a minute -- during which this is the only way
-              out of a page that is still deciding what it is. */}
-          <Link
-            href="/boards"
-            aria-label="All boards"
-            title="All boards"
-            className="w-6.5 h-6.5 rounded-md bg-accent flex items-center justify-center shrink-0 hover:opacity-85 transition-opacity"
-          >
-            <TangramMark size={14} color="var(--accent-fg)" />
-          </Link>
-          <Link href="/boards" className="text-xs text-text-dim hover:text-text-muted shrink-0">
-            Boards
-          </Link>
-          <span className="text-sm text-text-dim shrink-0">/</span>
+          {/* The board's name is the one thing here the response decides. */}
           <Skeleton className="h-3.5 w-32 rounded" />
         </div>
 
@@ -72,35 +67,21 @@ export function BoardSkeleton({ slow = false }: { slow?: boolean }) {
               response's business; that somebody will be is not. */}
           <Skeleton className="w-6 h-6 rounded-full" />
 
-          {/* Real icons and labels, so these occupy their exact final width --
-              but inert, and without the hover and pointer affordances, so
-              nothing invites a click that would do nothing. */}
-          <span
-            aria-hidden="true"
-            className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium text-text-dim whitespace-nowrap"
-          >
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
-              <circle cx="5.25" cy="4.5" r="2.25" stroke="currentColor" strokeWidth="1.2" />
-              <path
-                d="M1.25 11.5c0-1.8 1.79-3.25 4-3.25s4 1.45 4 3.25"
-                stroke="currentColor"
-                strokeWidth="1.2"
-                strokeLinecap="round"
-              />
-              <path
-                d="M10 2.6a2.25 2.25 0 010 3.8M11.4 8.5c1.35.42 2.35 1.6 2.35 3"
-                stroke="currentColor"
-                strokeWidth="1.2"
-                strokeLinecap="round"
-              />
-            </svg>
-            Members
-          </span>
-
           {/* The account menu's trigger is an Avatar at size sm. */}
           <Skeleton className="w-6 h-6 rounded-full" />
         </div>
       </header>
+
+      {/* The filter bar, which is 41px of chrome that appears on arrival for
+          any board with columns. Not role-dependent — a viewer filters too — so
+          unlike Create it can be drawn without guessing anything. */}
+      <div className="shrink-0 flex items-center gap-2 px-4.5 py-2 border-b border-border bg-surface">
+        <Skeleton className="h-7 w-[200px] rounded-md" />
+        <Skeleton className="h-7 w-[86px] rounded-md" />
+        <Skeleton className="h-7 w-[84px] rounded-md" />
+        <Skeleton className="h-7 w-[88px] rounded-md" />
+        <Skeleton className="h-7 w-[120px] rounded-md" />
+      </div>
 
       <div className="flex-1 overflow-hidden px-6 py-5 relative">
         {slow && (
@@ -118,14 +99,23 @@ export function BoardSkeleton({ slow = false }: { slow?: boolean }) {
           </p>
         )}
 
-        <div className="flex items-start gap-3.5 h-full">
+        {/* Lanes, equal-width, matching the loaded board: `flex-1 basis-0` so
+            three placeholders occupy exactly the width three real columns will,
+            whatever the window. A fixed 262px was right until the columns
+            started sharing the board between them. */}
+        <div className="flex items-stretch gap-3 h-full">
           {COLUMNS.map((cards, i) => (
-            <div key={i} className="flex-none w-[262px] h-full flex flex-col">
-              <div className="flex items-center gap-2 px-0.5 pb-3 shrink-0">
-                <Skeleton className="w-2 h-2 rounded-full shrink-0" />
+            <div
+              key={i}
+              className="flex-1 basis-0 min-w-[240px] h-full flex flex-col rounded-xl bg-surface-2/50 border border-border/70 p-2"
+            >
+              <div className="flex items-center gap-2 px-1 pb-2 shrink-0">
+                {/* A bar, as the loaded column head has — the dot became one
+                    because at 8px a circle is a smudge. */}
+                <Skeleton className="w-1 h-3.5 rounded-full shrink-0" />
                 <Skeleton className="h-2.5 w-20 rounded" />
               </div>
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 px-1">
                 {cards.map((tall, j) => (
                   <Skeleton
                     key={j}

@@ -11,7 +11,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { friendlyError } from "@/lib/errorMessage";
 import { Button } from "@/components/ui/Button";
-import { Select } from "@/components/ui/Select";
+import { SelectMenu } from "@/components/ui/SelectMenu";
 import { CopyInviteButton } from "@/components/workspace/CopyInviteButton";
 import {
   INVITE_ROLES,
@@ -175,20 +175,15 @@ export function InvitePanel({
           />
         </div>
 
-        <div className="w-full sm:w-[132px] shrink-0">
-          <Select
+        <div className="w-full sm:w-[132px] shrink-0 flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-text-muted">New additions</span>
+          <SelectMenu
             label="New additions"
             value={newRole}
             disabled={Boolean(progress)}
-            onChange={(e) => setNewRole(e.target.value as MembershipRole)}
-            className="bg-bg"
-          >
-            {INVITE_ROLES.map((role) => (
-              <option key={role} value={role}>
-                {role}
-              </option>
-            ))}
-          </Select>
+            options={INVITE_ROLES.map((role) => ({ value: role, label: role }))}
+            onChange={(role) => setNewRole(role as MembershipRole)}
+          />
         </div>
 
         <Button type="submit" disabled={!canSubmit} className="shrink-0">

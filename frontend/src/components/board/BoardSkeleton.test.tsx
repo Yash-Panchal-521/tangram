@@ -22,48 +22,64 @@ describe("BoardSkeleton", () => {
     expect(header.className).toContain("h-[52px]");
   });
 
-  it("carries every control the loaded header has", () => {
-    // This drifted once already: the skeleton still described the header as it
-    // stood before the workspace home and the account menu existed, so controls
-    // appeared out of nowhere on arrival.
+  it("carries what the loaded header carries", () => {
     render(<BoardSkeleton />);
 
-    expect(screen.getByText("Boards")).toBeTruthy();
-    expect(screen.getByText("Members")).toBeTruthy();
     expect(screen.getByText("Connecting…")).toBeTruthy();
-    // Removed with the feature it stood for.
+  });
+
+  it("draws nothing the loaded header no longer has", () => {
+    // Pinned in both directions because this file has drifted twice: once
+    // describing a header from before the workspace home existed, and again
+    // after the navigation moved to the sidebar — promising a Boards crumb and
+    // a Members control on every load that then vanished on arrival.
+    render(<BoardSkeleton />);
+
+    expect(screen.queryByText("Boards")).toBeNull();
+    expect(screen.queryByText("Members")).toBeNull();
     expect(screen.queryByText("Activity")).toBeNull();
   });
 
-  it("offers a way out while the server wakes up", () => {
-    // A cold start takes up to a minute. Both crumbs are real links because
-    // nothing about them depends on the board, and being stuck on a page that
-    // is still deciding what it is would otherwise mean using the back button.
+  it("draws no navigation, because the shell around it already has", () => {
+    // AppShell wraps this, so the sidebar with the mark, the board list and
+    // Members is on screen throughout — including through a cold start, which
+    // is what the links here used to be for.
     const { container } = render(<BoardSkeleton />);
 
-    const out = container.querySelectorAll('a[href="/boards"]');
-    expect(out.length).toBe(2);
+    expect(container.querySelectorAll("a").length).toBe(0);
   });
 
   it("does not invite a click on a control that cannot work yet", () => {
     const { container } = render(<BoardSkeleton />);
 
-    // Real labels for their width, but inert -- no button, and none of the
-    // hover or cursor affordances the loaded header's controls carry.
     expect(container.querySelector("button")).toBeNull();
-    const members = screen.getByText("Members").closest("span")!;
-    expect(members.className).not.toContain("cursor-pointer");
-    expect(members.className).not.toContain("hover:");
-    expect(members.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("leaves room for the filter bar, which is not role-dependent", () => {
+    // 41px of chrome that arrives with any board that has columns. Unlike
+    // Create it needs no guess about the caller's role, so pre-drawing it costs
+    // nothing and saves a shift (S6.2).
+    const { container } = render(<BoardSkeleton />);
+
+    expect(container.querySelectorAll(".h-7").length).toBeGreaterThanOrEqual(5);
+  });
+
+  it("does not guess at anything the role decides", () => {
+    // Create and the "View only" pill both appear only once the role is known,
+    // and guessing wrong shifts the header for everyone it was wrong about.
+    render(<BoardSkeleton />);
+
+    expect(screen.queryByText("Create")).toBeNull();
+    expect(screen.queryByText("View only")).toBeNull();
   });
 
   it("lays out the same column geometry as a loaded board", () => {
     const { container } = render(<BoardSkeleton />);
 
     // Matching widths and gaps are what make arrival shift nothing (S2.2, S6.2).
-    const columns = container.querySelectorAll(".w-\\[262px\\]");
+    const columns = container.querySelectorAll(".basis-0");
     expect(columns.length).toBe(3);
-    expect(container.querySelector(".gap-3\\.5")).not.toBeNull();
+    expect(container.querySelector(".gap-3")).not.toBeNull();
   });
 
   it("keeps the slow-load note out of the flow", () => {
@@ -73,7 +89,7 @@ describe("BoardSkeleton", () => {
     // In the flow it would push the columns down at ~4s and yank them back on
     // arrival: two layout shifts caused by explaining the wait.
     expect(note.className).toContain("absolute");
-    expect(container.querySelectorAll(".w-\\[262px\\]").length).toBe(3);
+    expect(container.querySelectorAll(".basis-0").length).toBe(3);
   });
 
   it("says nothing about the wait until it is actually slow (S2.4)", () => {

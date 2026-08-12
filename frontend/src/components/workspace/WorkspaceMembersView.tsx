@@ -17,10 +17,9 @@ import {
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Select } from "@/components/ui/Select";
+import { SelectMenu } from "@/components/ui/SelectMenu";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { UserMenu } from "@/components/ui/UserMenu";
-import { TangramMark } from "@/components/ui/TangramMark";
 import { useConfirm, type ConfirmOptions } from "@/components/ui/ConfirmDialog";
 import { friendlyError } from "@/lib/errorMessage";
 import { relativeTime } from "@/lib/relativeTime";
@@ -327,24 +326,21 @@ export function WorkspaceMembersView({ workspaceId }: { workspaceId: string }) {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <header className="h-[52px] shrink-0 flex items-center px-4.5 border-b border-border bg-surface">
+        {/* The mark and "back to board" both went to the sidebar, which
+            names the workspace and lists its boards — a better way back than a
+            button that guessed at /board. What is left is the page's own
+            title. */}
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <div className="w-6.5 h-6.5 rounded-md bg-accent flex items-center justify-center shrink-0">
-            <TangramMark size={14} color="var(--accent-fg)" />
-          </div>
-          <span className="text-sm font-semibold truncate">{workspace?.name ?? "Workspace"}</span>
-          <span className="text-sm text-text-dim shrink-0">/</span>
-          <span className="text-sm text-text-muted shrink-0">Members</span>
+          <span className="text-sm font-semibold truncate">Members</span>
+          {workspace && (
+            <>
+              <span className="text-sm text-text-dim shrink-0">·</span>
+              <span className="text-sm text-text-muted truncate">{workspace.name}</span>
+            </>
+          )}
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0">
-          <Link href="/board">
-            <Button variant="ghost" size="sm">
-              ← Back to board
-            </Button>
-          </Link>
-          <div className="w-px h-4.5 bg-border" />
-          <UserMenu />
-        </div>
+        <UserMenu />
       </header>
 
       <div className="flex-1 overflow-y-auto">
@@ -484,23 +480,16 @@ export function WorkspaceMembersView({ workspaceId }: { workspaceId: string }) {
 
                       {isOwner ? (
                         <div className="w-[122px] shrink-0" title={lastOwnerHint}>
-                          <Select
+                          <SelectMenu
                             key={`${member.userId}-${selectGeneration}`}
-                            aria-label={`Role for ${member.displayName}`}
+                            label={`Role for ${member.displayName}`}
                             value={member.role}
                             // Disabled rather than letting the server 400: the
                             // rule is knowable here, so say so up front.
                             disabled={busy || isLastOwner}
-                            onChange={(e) =>
-                              handleRoleChange(member, e.target.value as MembershipRole)
-                            }
-                          >
-                            {ROLES.map((role) => (
-                              <option key={role} value={role}>
-                                {role}
-                              </option>
-                            ))}
-                          </Select>
+                            options={ROLES.map((role) => ({ value: role, label: role }))}
+                            onChange={(role) => handleRoleChange(member, role as MembershipRole)}
+                          />
                         </div>
                       ) : (
                         <Badge tone={roleTone(member.role)} className="shrink-0">

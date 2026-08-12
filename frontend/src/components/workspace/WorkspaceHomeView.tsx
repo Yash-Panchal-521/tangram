@@ -10,7 +10,6 @@ import { relativeTime } from "@/lib/relativeTime";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { TangramMark } from "@/components/ui/TangramMark";
 import { UserMenu } from "@/components/ui/UserMenu";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 
@@ -161,10 +160,10 @@ export function WorkspaceHomeView() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <header className="h-[52px] shrink-0 flex items-center px-4.5 border-b border-border bg-surface">
+        {/* No mark. The sidebar carries it, along with the workspace and
+            every board — repeating it here would be repeating it. The header
+            says which page this is and nothing else. */}
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <div className="w-6.5 h-6.5 rounded-md bg-accent flex items-center justify-center shrink-0">
-            <TangramMark size={14} color="var(--accent-fg)" />
-          </div>
           <span className="text-sm font-semibold truncate">Your boards</span>
         </div>
         <UserMenu />
