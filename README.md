@@ -17,7 +17,15 @@ after 15 minutes idle on the free tier, so the first request after a quiet spell
 
 All five slices are in, deployed, and verified in production with two real accounts —
 presence, cursors, invites, RBAC and the read-only viewer UI all confirmed working end to
-end. [`docs/roadmap-v2.md`](docs/roadmap-v2.md) covers what comes next.
+end.
+
+Since then, **v2** added card depth and workspace management, and **v3** reworked the
+interface around Jira's shape — see [`docs/roadmap-v2.md`](docs/roadmap-v2.md) and
+[`docs/roadmap-v3.md`](docs/roadmap-v3.md). What v3 added, in one line each: the card
+opens as a two-column ticket with priority, labels and comments; the board filters,
+carries work-in-progress limits and has a settings panel; cards and columns are created
+from dialogs rather than a control per column; navigation moved to a sidebar; and the
+whole app has six switchable colour palettes.
 
 | Slice | Scope | State |
 |---|---|---|
@@ -37,8 +45,8 @@ end. [`docs/roadmap-v2.md`](docs/roadmap-v2.md) covers what comes next.
 - **Auth:** Firebase Authentication issues ID tokens (email/password); the backend
   validates them as JWT bearer tokens against Firebase's issuer/public keys — the
   backend never sees a password and does no auth logic of its own.
-- **Real-time sync spine (server-authoritative):** every mutation — eight operation
-  types across columns and cards — runs the same pipeline: authorize → validate →
+- **Real-time sync spine (server-authoritative):** every mutation — eleven operation
+  types across columns, cards and comments — runs the same pipeline: authorize → validate →
   assign the next per-board `seq` in a single atomic `UPDATE … RETURNING` → persist →
   append to the append-only `operations` log → broadcast `{seq, opType, payload}` to
   that board's SignalR group. Conflicts resolve by server `seq` order, never
@@ -63,8 +71,12 @@ end. [`docs/roadmap-v2.md`](docs/roadmap-v2.md) covers what comes next.
   two tabs don't flicker. On reconnect the client replays operations since its last
   seen `seq`; past a 200-operation gap the server tells it to refetch a snapshot.
 - **Theming:** CSS custom-property design tokens (`--bg`, `--surface`, `--accent`, …)
-  mapped into Tailwind's `@theme`, keyed by `[data-theme][data-mode]`. One finalized
-  theme (Terracotta, light + dark); more drop in without touching component code.
+  mapped into Tailwind's `@theme`, keyed by `[data-theme][data-mode]`. Six palettes ×
+  light/dark, switchable at runtime from the account menu and stored per browser; a
+  blocking script in `<head>` sets the attributes before first paint, so there is no
+  flash of the wrong palette. No component reads a colour, so a seventh is a stylesheet
+  block and a list entry. Surface separation and accent/text pairs are asserted in
+  `globals.contrast.test.ts` rather than left to judgement.
 
 ## Prerequisites
 
@@ -124,7 +136,7 @@ The API listens on `http://localhost:5286`. In Development, Swagger UI is at
 
 ### Running backend tests
 
-19 integration tests spin the API up in-memory (`WebApplicationFactory`) against the
+158 integration tests spin the API up in-memory (`WebApplicationFactory`) against the
 `tangram_test` database, with Firebase JWT validation swapped for a header-driven
 test handler.
 
@@ -160,13 +172,23 @@ the project rather than authorizing anything.
 
 Open `http://localhost:3000`.
 
+### Running frontend tests
+
+651 Vitest tests. They default to the **node** environment because most of what they
+cover is pure logic; files needing a DOM opt in per file with
+`// @vitest-environment jsdom` and use Testing Library. No Firebase config is required.
+
+```bash
+cd frontend && npm test
+```
+
 ## Using it
 
 1. **Sign up** at `/signup`, then name your workspace, pick a column template and
    optionally invite people on the `/welcome` screen. Everything there has a default;
    **Skip** produces a workspace, a board and three starter columns.
-2. **Invite someone** — click **Members** in the board header, enter one or more
-   addresses, pick a role per person, send.
+2. **Invite someone** — **Members** in the sidebar, enter one or more addresses, pick a
+   role per person, send.
 3. **Nothing emails them.** There is no mail delivery, so use **Copy invite** to get a
    ready-made message containing an `/invite/{token}` link, and send it yourself. That
    link is a credential — anyone who opens it can join — so send it directly rather
@@ -180,6 +202,14 @@ Open `http://localhost:3000`.
 
 To see real-time behaviour solo, open the same board URL in two tabs.
 
+**On the board:** **Create** (or press <kbd>c</kbd>) opens one dialog for a new card;
+<kbd>/</kbd> focuses search. Filters by person, label, priority and due window live in
+the URL, so a filtered board is a link you can send. Clicking a card opens it as a
+two-column ticket — description and comments left, status, assignee, priority, due date
+and labels right — also linkable, via `?card=`. Columns carry optional work-in-progress
+limits, which colour the lane without ever blocking a move. The account menu switches
+between six colour palettes in light or dark.
+
 ### Routes
 
 | Route | Purpose |
@@ -189,7 +219,7 @@ To see real-time behaviour solo, open the same board URL in two tabs.
 | `/invite/[token]` | Accept or decline an invitation; `?accept=1` on the way back from sign-up |
 | `/board` | Resolves which board to open from your memberships |
 | `/boards` | Every workspace and board you belong to |
-| `/board/[boardId]` | The collaborative board |
+| `/board/[boardId]` | The collaborative board; `?card=` opens a ticket, filter state rides the query string |
 | `/workspace/[workspaceId]/members` | Roster, invites, role management |
 | `/kitchen-sink` | Design-system component gallery |
 
@@ -326,15 +356,24 @@ frontend, then set `CORS__FRONTENDORIGIN` and redeploy the backend.
 
 ## Known gaps
 
-- **No workspace/board picker.** `/board` opens your first board; there's no screen
-  to switch between several.
-- **Invites are in-app only** — no email delivery, no shareable join link.
+- **Invites are in-app only** — no email delivery. The invitation link is copied and
+  sent by hand, because every transactional email service wants a custom domain and
+  this project has no budget for one.
 - **Presence is single-instance.** The tracker is in-memory, so horizontal scaling needs
   a Redis-backed `IPresenceTracker`. Deliberately not built: free hosting gives exactly
   one instance, so it would be code nothing exercises.
-- **No frontend tests.** 20 on the backend, none on the front — despite the sync
-  reducer, rank ordering and invite parsing all being pure, testable logic.
-- **"Add column" still uses `window.prompt`.** Every other dialog is in-app.
+- **No card key.** Nothing here has a `TAN-14` to quote in a standup. It needs a
+  per-board counter with the same atomic-increment care as `seq`, which is schema rather
+  than decoration — so the card header deliberately leaves the space empty rather than
+  filling it with a word that is true of everything.
+- **No swimlanes.** The board groups by column only. Grouping by assignee or priority
+  was scoped for v3 and not built.
+- **Theme is per-device.** Stored in `localStorage`, so it does not follow you between
+  browsers — see [docs/decisions.md](docs/decisions.md) for why a database column could
+  only sit on top of that rather than replace it.
+- **A third of the UI is verified by test rather than by eye.** Everything behind
+  sign-in was built without being seen in a browser, because the tooling driving these
+  checks does not enter passwords.
 
 See [docs/decisions.md](docs/decisions.md) for the architecture decisions and
 divergences behind each slice.

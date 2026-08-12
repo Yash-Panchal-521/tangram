@@ -1,4 +1,12 @@
-# Manual test pass — everything after the MVP
+# Manual test pass — everything after the MVP *(superseded, except §12)*
+
+> **v3 reworked the board and this document was not written for it.** Roughly half the
+> checks below refer to controls that no longer exist — per-column add buttons, the old
+> card panel, a board with no filter bar, no sidebar and no settings panel. Use
+> [`manual-test.md`](manual-test.md) for the current app.
+>
+> **§12 (invitations) is still accurate** and is not repeated there; v3 did not touch that
+> flow. The rest is kept for the record of what was checked at the time.
 
 Covers every commit from `459dbc5` onwards: v2 phase 1 (scopes A–C6), phase 2
 (features 2 and 3 — feature 1 was built and then removed, see §9), the welcome

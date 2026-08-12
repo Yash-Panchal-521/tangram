@@ -116,7 +116,7 @@ be unable to put anything on it.
 
 Verified: 53 backend tests and 169 frontend tests green.
 
-### 3. Card depth — **partly done**: due dates and assignees
+### 3. Card depth — **done**, the second half in v3
 
 Coloured labels, due dates with overdue styling, assignment to a member, and a comment
 thread per card.
@@ -128,7 +128,10 @@ in the frontend reducer.
 **Outcome.** Due dates and assignees are done — two columns on `Card`, flowing through the
 existing update path, so no new operation type and no new reducer case were needed at all.
 The prediction was right about the other two: **labels and comments each need their own
-table**. Both are recorded as not started rather than half-built. See `docs/decisions.md`.
+table**. Both were left not started rather than half-built, and both were built in v3 —
+labels as a field of the card rather than as their own operations, comments fetched per
+card rather than with the board. See [`decisions.md`](decisions.md) and
+[`roadmap-v3.md`](roadmap-v3.md).
 
 *Not selected: command palette and keyboard shortcuts.*
 

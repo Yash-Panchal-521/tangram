@@ -22,6 +22,24 @@ and friends. Raw hex is allowed only where a value identifies a *thing* rather t
 theme — the per-person avatar palette and the decorative column dots — and each such use
 carries a comment saying why. Lint enforces this.
 
+**S1.2a — Tokens must actually differ, and a test says so.** Two surfaces that touch have
+to be at least **4 L\*** apart, and a border at least **6–8 L\*** from whatever it sits on.
+Every palette failed this the day it was written: `--surface-2` sat 0.7–2.4 L\* from `--bg`
+in light mode, so the board's lanes were invisible against the board. Use CIE L\*, not the
+WCAG ratio — the ratio is built for text and is almost flat here, scoring every failing
+pair between 1.02 and 1.06, which cannot tell "invisible" from "subtle".
+[`globals.contrast.test.ts`](../frontend/src/app/globals.contrast.test.ts) enforces it.
+
+**S1.2b — Never paint a surface token at reduced opacity to make it subtle.** `bg-surface-2/50`
+halves the separation the palette was chosen to provide; the lanes read as one flat field in
+every theme despite tokens that measured fine. If a surface should be subtler, pick a subtler
+token — do not dilute a correct one.
+
+**S1.2c — Text on the accent is `--accent-fg`, never `white`.** That held while there was one
+palette with a deep terracotta accent and broke the moment palettes were switchable: Graphite's
+dark accent is `#ededed`, where white measured **1.17:1**. Every dark palette failed. The pair
+`--accent` / `--accent-fg` must clear **4.5:1**, which the same test pins.
+
 **S1.3 — Never append conflicting Tailwind classes.** `cn()` is a plain join with no
 conflict resolution, so a second `border-*` or `px-*` is decided by stylesheet order, not
 by argument order. Replace the class set outright, or branch:

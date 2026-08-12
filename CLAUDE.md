@@ -10,6 +10,9 @@ rationale live elsewhere and should not be duplicated here:
 
 - [`docs/decisions.md`](docs/decisions.md) — why each decision was made, per slice
 - [`docs/roadmap-v2.md`](docs/roadmap-v2.md) — what v2 is, in two phases
+- [`docs/roadmap-v3.md`](docs/roadmap-v3.md) — v3: the interface reworked around Jira's
+  shape, what it deliberately skipped, and what it found already broken
+- [`docs/manual-test.md`](docs/manual-test.md) — the by-hand pass for the current app
 - [`README.md`](README.md) — architecture, setup, deployment, known gaps
 - `git log` — commit messages are written as decision records; search them first
 
@@ -154,8 +157,8 @@ dev server holding port 3000, still running the old environment.
 ## Tests
 
 ```bash
-cd backend && dotnet test    # 96 integration tests, needs tangram_test on :5433
-cd frontend && npm test      # 245 Vitest tests, node by default
+cd backend && dotnet test    # 158 integration tests, needs tangram_test on :5433
+cd frontend && npm test      # 651 Vitest tests, node by default
 ```
 
 Backend tests are self-sufficient — a module initializer in `TestEnvironment.cs` seeds

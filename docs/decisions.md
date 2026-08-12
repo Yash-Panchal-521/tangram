@@ -958,7 +958,154 @@ Two more were replaced outright: `Undoing_an_edit_restores_the_whole_card` becam
 `Deleting_a_card_is_final` and `Deleting_a_column_takes_its_cards_and_is_final` —
 pinning the new behaviour rather than the old one.
 
-## Themes live in the browser, not the account
+## v3 — the card as a ticket (phases 0–3)
+
+v3's whole premise is that the machine worked and nothing looked like a product,
+so every component here was researched against Atlassian's own documentation
+before it was built. Several decisions are places where Jira's answer was
+examined and **rejected**, which is the useful half of the record.
+
+- **A modal over a dimmed board, not a drawer and not a page.** The 420px drawer
+  could not hold two columns and a comment thread. A route change would have
+  meant moving the board into a layout to keep it mounted behind, and buys
+  nothing the query parameter does not: `?card=` matches what Jira does with
+  `?selectedIssue=`, so a card is linkable without leaving the board, Back
+  closes it, and a refresh reopens it. Navigating away would also throw the
+  board out, and on a kanban tool the surrounding columns *are* half the context.
+- **Description fields left, context fields right**, which is Jira's split: what
+  the work *is* against what you sort and filter by.
+- **Every field saves itself.** One Save button had made four fields share one
+  request's fate, and `runMutation` swallowed the failure and closed the panel
+  anyway — a rejected save was indistinguishable from a successful one. Per-field
+  saving needed each field to own its failure surface, which is the only reason
+  it is more code than a form.
+- **The panel used to hold a snapshot**, so someone else's edit to the open card
+  never appeared in it. Deriving the open card from the URL and looking it up in
+  board state fixed a live sync defect as a side effect of the layout change.
+- **Priority defaults to None, not Jira's Medium.** A priority on every card is a
+  priority on nothing. One nullable enum, no new operation type, no reducer case
+  — it flows through the existing update path exactly as due date did.
+- **Labels ride the card update rather than getting their own operations.** The
+  plan called for `card.label.add` / `card.label.remove`; the set a card carries
+  is a field of the card, and giving it two operation types would mean two more
+  inverses and two more reducer cases to describe one edit. Labels are
+  board-scoped, and the colours are data, so they take the documented hex
+  exception the avatar palette already has.
+- **Comments are fetched per card, not with the board.** Labels are bounded and
+  travel with the card; a thread is not, and putting it in the board payload
+  would make every board load pay for every conversation on it.
+- **A comment is not the activity feed that was removed.** That distinction was
+  flagged when comments were scoped and it holds: the removed feed was *derived
+  history*, machine-written from the operations log. A comment is authored. If a
+  "History" tab ever appears beside it, that is the old feature returning through
+  a side door.
+- **Enter is a newline; Ctrl/⌘+Enter sends.** A comment is prose often worth two
+  paragraphs, and a composer that submits on Enter costs the second one.
+- **Editing is marked, deleting confirms.** Both are the ordinary rules —
+  S4.2 says a confirmation names the consequence — but the edit marker also
+  matters for trust: an unmarked edit means a quoted comment can be silently
+  rewritten underneath the reply.
+
+## v3 — the board (phases 0–2)
+
+- **Columns became lanes with one menu.** The delete control had been
+  hover-only, which is invisible on touch and to anyone who does not think to
+  hover. Every column now carries the same `⋯` in the same place. `Menu` was
+  extracted at the third copy of it, not the second.
+- **Filter state lives in the URL.** A filtered board is a thing people send each
+  other; keeping it in React state would make that impossible and a refresh
+  destructive. It also means Back leaves the board rather than unwinding a filter
+  one keystroke at a time, which is the correct trade — the alternative traps
+  someone who typed six characters into pressing Back six times.
+- **No "Only My Work items" quick filter, which Jira ships.** Your own row is
+  first in the People menu instead. Two controls holding the same state disagree
+  the moment somebody uses both.
+- **Dragging stays enabled while filtered.** The instinct was to disable it, on
+  the assumption that dropping between two visible cards would rank against the
+  wrong neighbours. Reading `MoveCardAsync` showed the server ranks against the
+  true database neighbours regardless of what the client can see, so the
+  assumption was wrong and the restriction would have been pure loss.
+- **Work-in-progress limits are advisory and never enforced.** Atlassian
+  specifies red over and amber under, and both are signals. Blocking a move into
+  a full column strands the work in the stage before it, which is the opposite of
+  what a limit is for.
+- **Min-versus-max validation lives in the service, not the controller.** Setting
+  only a minimum has to be checked against the maximum already stored, which the
+  controller cannot see. The first version validated what the request contained
+  and accepted a minimum above an existing maximum; a test caught it.
+
+## v3 — creating things, and the settings panel
+
+- **One create dialog, not a button per column.** Jira has one create control,
+  and the per-column buttons were adding a row of chrome to every lane to save
+  one field. The dialog preselects the column you would have clicked in.
+- **The `c` shortcut yields to text.** It is a letter someone is about to type,
+  so it is ignored whenever an editable element has focus.
+- **Creating a card that the active filter would hide warns while you type**, and
+  offers to clear the filter rather than doing it. Creating something that
+  vanishes on submit reads as a failure.
+- **Seeding an empty board is one request for N columns.** A loop of creates that
+  fails halfway leaves a half-built workflow and no clear state to resume from;
+  one `SaveAsync` with N pending operations either builds the workflow or does
+  not.
+- **The settings panel finally gave column reordering a UI.** The endpoint and
+  the broadcast both shipped in v1 with nothing on the frontend calling them —
+  found while looking for somewhere to put the limits.
+
+## v3 — navigation moved to a sidebar
+
+- **One `GET /workspaces` gives the whole tree**, so the sidebar does not fan out
+  a request per workspace to find its boards.
+- **The workspace is derived from the open board** when the route only knows a
+  board id, rather than being stored separately and risking the two disagreeing.
+- **A failed sidebar load is swallowed deliberately.** Navigation is not the page;
+  degrading to no sidebar is better than failing the board over it — the same
+  reasoning as the assignee roster fetch in v2.
+- **Collapsed state is `localStorage` through `useSyncExternalStore`**, so two
+  tabs agree rather than drifting apart.
+
+## v3 — ranks were being compared with the wrong collation
+
+The most serious defect the project has had, and it predates v3 entirely. It
+surfaced as a 500 on `/move` (`ArgumentException: lower must sort before upper`)
+and was found to also explain duplicate ranks on append and boards drawing in an
+order the server had not computed.
+
+`RankService` builds keys from `0-9A-Za-z` and compares them with
+`string.CompareOrdinal`. Postgres was ordering the same strings under `en_US`,
+which ignores case and punctuation differences that the alphabet depends on — so
+`ORDER BY rank` returned neighbours that the service then rejected as
+out of order. Two components agreed on the alphabet and disagreed on the
+comparison.
+
+- **Both rank columns are `COLLATE "C"`.** Ordinal comparison in the database,
+  matching the code. Anything else means the ordering is only accidentally
+  correct.
+- **The migration renumbers every existing rank**, partitioned per board and per
+  column, into evenly spaced three-character keys that preserve the order as
+  displayed. Re-collating alone would have reordered live boards.
+- **The regression test was proved to fail without the fix** by altering the test
+  database's collation back and watching it break. A test that has never failed
+  is a claim, not evidence.
+
+## v3 — contrast is a test, not a habit
+
+Introducing six palettes exposed two faults that a single palette had hidden.
+
+- **Surfaces were 0.7–2.4 L\* apart in every palette**, so the lanes — the thing
+  that makes a kanban board legible — were invisible against the board behind
+  them. Found by eye on one palette, then measured and found in all six.
+- **CIE L\*, not WCAG contrast ratio, for surfaces.** The ratio is built for text
+  and is nearly flat at that end of the scale: every failing pair scored between
+  1.02 and 1.06, which does not distinguish "invisible" from "subtle". The ratio
+  is still the right measure for text on the accent, which is what it is for.
+- **White was hardcoded on the accent** in the auth panel. Safe with one palette;
+  once they were switchable, Graphite's dark accent is `#ededed` and white
+  measured 1.17:1 against it. Every dark palette failed between 1.17 and 3.45.
+- Both are now `globals.contrast.test.ts`, and the rules they encode are
+  S1.2a–S1.2c in [`ui-standards.md`](ui-standards.md).
+
+## v3 — themes live in the browser, not the account
 
 Six palettes, each with a full light and dark token set, chosen from the account
 menu and stored in `localStorage` under `tangram-theme`. No column, no endpoint,
