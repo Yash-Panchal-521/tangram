@@ -60,6 +60,22 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Column>(e =>
         {
             e.HasQueryFilter(c => _currentUser.WorkspaceIds.Contains(c.Board.WorkspaceId));
+            // Ordinal collation, because a rank is not text in any language.
+            //
+            // RankService builds keys from "0-9A-Za-z" and compares them with
+            // string.CompareOrdinal, where every uppercase letter sorts before
+            // every lowercase one. Postgres was ordering them under the
+            // database's en_US collation, which sorts case-insensitively and
+            // therefore disagreed — so ORDER BY rank returned a different
+            // sequence than the code that generated those ranks assumed.
+            //
+            // That was not cosmetic. The neighbours picked for a move came from
+            // one order while the board was drawn in another, so GenerateBetween
+            // was handed a lower that did not sort before its upper and threw;
+            // and "the last rank" queries returned the wrong maximum, so two
+            // appends could produce the same rank. Setting it here means no
+            // query can get it wrong later.
+            e.Property(c => c.Rank).UseCollation("C");
             e.HasOne(c => c.Board).WithMany(b => b.Columns).HasForeignKey(c => c.BoardId);
         });
 
@@ -69,6 +85,8 @@ public class AppDbContext : DbContext
             // Stored as a string, like MembershipRole, so the column reads as
             // "High" rather than "2" for anyone looking at the database.
             e.Property(c => c.Priority).HasConversion<string>();
+            // Same reasoning as Column.Rank above — cards rank identically.
+            e.Property(c => c.Rank).UseCollation("C");
             e.HasOne(c => c.Column).WithMany(col => col.Cards).HasForeignKey(c => c.ColumnId);
         });
 

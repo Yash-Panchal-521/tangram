@@ -103,6 +103,14 @@ by disabling the control rather than letting the request 400.
 **Ranks are fractional lexicographic strings.** Order by string comparison, never array
 position. Inserting or moving writes exactly one row.
 
+**And that comparison must be ordinal, in the database too.** `RankService` builds keys
+from `0-9A-Za-z` and compares with `CompareOrdinal`, where every uppercase letter sorts
+before every lowercase one. Postgres was ordering the same column under `en_US`, which
+sorts case-insensitively, so `ORDER BY rank` disagreed with the code that generated those
+ranks — moves picked the wrong neighbours and threw, appends collided on the same key, and
+the board drew in one order while the server computed in another. Both rank columns are
+`COLLATE "C"`; a new one must be too.
+
 ## Frontend traps
 
 **`cn()` is a plain join with no Tailwind conflict resolution** ([`lib/cn.ts`](frontend/src/lib/cn.ts)).
