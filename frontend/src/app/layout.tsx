@@ -25,7 +25,15 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
-      <body className="min-h-full flex flex-col bg-bg text-text">
+      {/* `h-full`, not `min-h-full`.
+
+          A min-height does not make a height definite, so every `h-full` and
+          `flex-1` below this resolved against `auto` — which is why the empty
+          board's centred message sat at the top of a viewport-tall area doing
+          nothing. Pages taller than the viewport still scroll; `html` is the
+          scroll container, and the shells that want to own their own scrolling
+          (the board) say `overflow-hidden` themselves. */}
+      <body className="h-full flex flex-col bg-bg text-text">
         <ThemeProvider>
           <AuthProvider>{children}</AuthProvider>
         </ThemeProvider>

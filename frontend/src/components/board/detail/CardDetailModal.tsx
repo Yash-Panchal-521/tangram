@@ -1,11 +1,12 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useId, useRef, useState, type RefObject } from "react";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { InlineEdit } from "@/components/ui/InlineEdit";
 import { ContextPanel, type StatusOption } from "@/components/board/detail/ContextPanel";
 import { CommentThread } from "@/components/board/detail/CommentThread";
 import { useDialog } from "@/lib/useDialog";
+import { useOutsideClick } from "@/lib/useOutsideClick";
 import type {
   CardResponse,
   CommentResponse,
@@ -131,108 +132,146 @@ export function CardDetailModal({
         aria-labelledby={headingId}
         className="fixed inset-0 z-50 flex items-start justify-center p-0 lg:p-8 lg:items-center pointer-events-none"
       >
-        <div className="pointer-events-auto w-full h-full lg:h-auto lg:w-full lg:max-w-[960px] lg:max-h-[88vh] bg-surface lg:border lg:border-border lg:rounded-xl shadow-lg flex flex-col overflow-hidden animate-[fade-up_0.2s_ease-out]">
-          {/* Header */}
-          <div className="flex items-center gap-3 px-5 py-3.5 border-b border-border shrink-0">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-text-dim">
-              Card
-            </span>
-            {readOnly && (
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-surface-2 border border-border text-text-muted">
-                View only
-              </span>
-            )}
-            <div className="flex-1" />
-            {!readOnly && (
+        {/* A fixed height, not one that fits its contents.
+
+            An empty card and a card with forty comments are the same panel, so
+            the panel is the same size for both: opening one card after another
+            no longer resizes the window under the pointer, and the Details
+            column does not float halfway up the screen because the description
+            happens to be one line. It is what makes this read as a view onto a
+            ticket rather than a box drawn around whatever was in it. Capped in
+            pixels as well as vh so a tall monitor gets a panel rather than a
+            column of empty space. */}
+        <div className="pointer-events-auto w-full h-full lg:h-[85vh] lg:max-h-[820px] lg:w-full lg:max-w-[1040px] bg-surface lg:border lg:border-border lg:rounded-xl shadow-lg flex flex-col overflow-hidden animate-[fade-up_0.2s_ease-out]">
+          {/* One header block, not two.
+
+              The eyebrow and the summary used to be separate bands with a rule
+              between them, which cost about 50px at the top of the panel to say
+              "Card" — a word that is true of every card. They are one block now
+              with a single rule beneath, the way Jira runs breadcrumb straight
+              into summary. */}
+          <div className="shrink-0 border-b border-border">
+            {/* No type icon and no "Card" eyebrow.
+
+                Both were Jira's shape borrowed without the substance underneath
+                it. Jira's tile is a *type* — Story, Bug, Task — and the text
+                beside it is the issue key, which is identity. Tangram has
+                neither: every card is a card, so the word was true of everything
+                you can open, and the tick in the tile actively lied about a card
+                sitting in Backlog.
+
+                The slot stays empty on purpose. A card key (`TAN-14`) is what
+                would earn it, and that is a per-board counter with the same
+                atomic-increment care as `seq` — schema, not decoration. Until
+                then the summary names the card, which is enough. */}
+            <div className="flex items-center gap-2 px-5 pt-3 min-h-[28px]">
+              {readOnly && (
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-surface-2 border border-border text-text-muted">
+                  View only
+                </span>
+              )}
+              <div className="flex-1" />
+              <CardActionsMenu
+                onDelete={handleDelete}
+                deleting={deleting}
+                readOnly={readOnly}
+              />
               <button
                 type="button"
-                onClick={handleDelete}
-                disabled={deleting}
-                className="text-[11px] font-medium px-2 py-1 rounded-md text-text-muted hover:text-danger hover:bg-surface-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={onClose}
+                aria-label="Close"
+                className="w-7 h-7 flex items-center justify-center rounded-md text-text-muted hover:text-text hover:bg-surface-2 transition-colors cursor-pointer"
               >
-                {deleting ? "Deleting…" : "Delete"}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close"
-              className="w-7 h-7 flex items-center justify-center rounded-md text-text-muted hover:text-text hover:bg-surface-2 transition-colors cursor-pointer"
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-                <path
-                  d="M1 1L11 11M11 1L1 11"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </button>
-          </div>
-
-          {/* Summary — the one field that spans both columns, because it names
-              the whole thing rather than describing or classifying it. */}
-          <div className="px-5 pt-4 pb-3 shrink-0">
-            <h2 id={headingId} className="sr-only">
-              {card.title}
-            </h2>
-            <InlineEdit
-              label="Summary"
-              value={card.title}
-              readOnly={readOnly}
-              placeholder="Untitled card"
-              onCommit={(next) => onCommit({ title: next })}
-              className="[&_button]:text-base [&_button]:font-semibold [&_input]:text-base [&_input]:font-semibold"
-            />
-          </div>
-
-          {/* S7.4: the body scrolls inside itself, never the page. */}
-          <div className="flex-1 overflow-y-auto px-5 pb-5">
-            <div className="flex flex-col lg:flex-row gap-6">
-              <div className="flex-1 min-w-0 lg:basis-[62%]">
-                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-text-dim mb-1.5">
-                  Description
-                </h3>
-                <InlineEdit
-                  label="Description"
-                  value={card.description ?? ""}
-                  readOnly={readOnly}
-                  multiline
-                  placeholder="Add a description…"
-                  onCommit={(next) => onCommit({ description: next || null })}
-                />
-
-                {/* Under the description, in the left column: both are what the
-                    work *is*, as opposed to how it is tracked. Jira puts
-                    activity here for the same reason. */}
-                <div className="mt-6">
-                  <CommentThread
-                    comments={comments.items}
-                    currentUserId={comments.currentUserId}
-                    loading={comments.loading}
-                    error={comments.error}
-                    readOnly={readOnly}
-                    onAdd={comments.onAdd}
-                    onEdit={comments.onEdit}
-                    onDelete={comments.onDelete}
-                    onRetry={comments.onRetry}
+                <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+                  <path
+                    d="M1 1L11 11M11 1L1 11"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
                   />
-                </div>
-              </div>
+                </svg>
+              </button>
+            </div>
 
-              <div className="lg:basis-[38%] shrink-0">
-                <ContextPanel
-                  card={card}
+            {/* Summary — the one field that spans both columns, because it names
+                the whole thing rather than describing or classifying it. Pinned
+                above the scroll area rather than scrolling with the description,
+                so you can still see which card you are commenting on from the
+                bottom of a long thread. */}
+            <div className="px-5 pt-1 pb-3">
+              <h2 id={headingId} className="sr-only">
+                {card.title}
+              </h2>
+              <InlineEdit
+                label="Summary"
+                value={card.title}
+                readOnly={readOnly}
+                placeholder="Untitled card"
+                onCommit={(next) => onCommit({ title: next })}
+                className="[&_button]:text-[17px] [&_button]:font-semibold [&_button]:leading-snug [&_input]:text-[17px] [&_input]:font-semibold"
+              />
+            </div>
+          </div>
+
+          {/* S7.4: each column scrolls inside itself, never the page.
+
+              Two scroll areas rather than one, which only becomes possible now
+              that the panel has a fixed height. Scrolling to the end of a long
+              thread used to take Status and Assignee off the screen with it —
+              the fields you most often open a card to change. Below `lg` the
+              columns stack and share one scroll, because two scrollbars in a
+              phone-width sheet is worse than either problem. */}
+          <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
+            <div className="flex-1 min-w-0 lg:basis-[62%] px-5 py-4 lg:overflow-y-auto lg:min-h-0">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-text-dim mb-1.5">
+                Description
+              </h3>
+              <InlineEdit
+                label="Description"
+                value={card.description ?? ""}
+                readOnly={readOnly}
+                multiline
+                placeholder="Add a description…"
+                onCommit={(next) => onCommit({ description: next || null })}
+                // Given a field's worth of height even when empty. A one-line
+                // placeholder floating in a tall panel reads as a caption
+                // rather than somewhere to write.
+                className="[&>button]:min-h-[92px] [&>button]:items-start [&_textarea]:min-h-[140px]"
+              />
+
+              {/* Under the description, in the left column: both are what the
+                  work *is*, as opposed to how it is tracked. Jira puts
+                  activity here for the same reason. */}
+              <div className="mt-7 pt-5 border-t border-border/60">
+                <CommentThread
+                  comments={comments.items}
+                  currentUserId={comments.currentUserId}
+                  loading={comments.loading}
+                  error={comments.error}
                   readOnly={readOnly}
-                  members={members}
-                  statuses={statuses}
-                  labels={labels}
-                  onCommit={onCommit}
-                  onMove={onMove}
-                  onCreateLabel={onCreateLabel}
-                  onDeleteLabel={onDeleteLabel}
+                  onAdd={comments.onAdd}
+                  onEdit={comments.onEdit}
+                  onDelete={comments.onDelete}
+                  onRetry={comments.onRetry}
                 />
               </div>
+            </div>
+
+            {/* Divided by a rule and a tint rather than by whitespace: at 38%
+                of the width these rows are close enough to the description to
+                read as more of it. */}
+            <div className="lg:basis-[38%] lg:shrink-0 px-5 py-4 border-t lg:border-t-0 lg:border-l border-border bg-surface-2/30 lg:overflow-y-auto lg:min-h-0">
+              <ContextPanel
+                card={card}
+                readOnly={readOnly}
+                members={members}
+                statuses={statuses}
+                labels={labels}
+                onCommit={onCommit}
+                onMove={onMove}
+                onCreateLabel={onCreateLabel}
+                onDeleteLabel={onDeleteLabel}
+              />
             </div>
           </div>
         </div>
@@ -240,5 +279,161 @@ export function CardDetailModal({
 
       {dialog}
     </>
+  );
+}
+
+/**
+ * The card's destructive action, behind a `⋯` the way Jira puts it.
+ *
+ * It was a Delete button sitting in the header next to Close, which is both the
+ * loudest thing in a header that should be quiet and one slip away from the
+ * control people reach for most. A menu costs one extra click and buys the
+ * distance.
+ */
+function CardActionsMenu({
+  onDelete,
+  deleting,
+  readOnly,
+}: {
+  onDelete: () => void;
+  deleting: boolean;
+  readOnly: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useOutsideClick(() => setOpen(false), [triggerRef, menuRef], open);
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      setCopyError(null);
+    } catch {
+      // Not silent (S3.6). Clipboard access is refusable, and a menu item that
+      // appears to do nothing is worse than one that says it couldn't.
+      setCopyError("Couldn't copy — copy the address bar instead.");
+    }
+  }
+
+  return (
+    <div className="relative">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => {
+          // Reset on the way in, not on the way out: a stale "Link copied" or a
+          // stale failure would be the first thing you read next time, and both
+          // are claims about something that happened minutes ago.
+          if (!open) {
+            setCopied(false);
+            setCopyError(null);
+          }
+          setOpen((o) => !o);
+        }}
+        disabled={deleting}
+        aria-label="Card actions"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="w-7 h-7 flex items-center justify-center rounded-md text-text-muted hover:text-text hover:bg-surface-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
+          <circle cx="3" cy="7" r="1.3" />
+          <circle cx="7" cy="7" r="1.3" />
+          <circle cx="11" cy="7" r="1.3" />
+        </svg>
+      </button>
+
+      {open && (
+        <ActionsMenu
+          ref={menuRef}
+          readOnly={readOnly}
+          copied={copied}
+          copyError={copyError}
+          onCopyLink={copyLink}
+          onClose={() => setOpen(false)}
+          onDelete={() => {
+            setOpen(false);
+            onDelete();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Split out so it can call `useDialog` — which only registers while it is
+ * mounted, and registration is what decides who owns Escape.
+ *
+ * The first attempt stopped Escape at the element with `stopPropagation`, the
+ * way the inline editors do. It doesn't hold here: React dispatches from its
+ * root container, so by the time a handler runs the native event has already
+ * passed the element, and the modal's own listener on `document` still fired —
+ * one Escape closed the menu and the card. Registering instead means the menu
+ * is simply the innermost thing open, which is the same answer for every
+ * overlay rather than a trick that works for some of them.
+ */
+function ActionsMenu({
+  ref,
+  readOnly,
+  copied,
+  copyError,
+  onCopyLink,
+  onClose,
+  onDelete,
+}: {
+  ref: RefObject<HTMLDivElement | null>;
+  readOnly: boolean;
+  copied: boolean;
+  copyError: string | null;
+  onCopyLink: () => void;
+  onClose: () => void;
+  onDelete: () => void;
+}) {
+  useDialog({ containerRef: ref, onClose });
+
+  return (
+    <div
+      ref={ref}
+      role="menu"
+      className="absolute right-0 top-full mt-1 z-10 min-w-[180px] rounded-lg border border-border bg-surface shadow-lg py-1 animate-[fade-up_0.12s_ease-out]"
+    >
+      {/* Here because the card has been addressable since `?card=` landed, and
+          nothing in the UI said so. "See my comment on this" needs a link. */}
+      <button
+        type="button"
+        role="menuitem"
+        onClick={onCopyLink}
+        className="w-full text-left text-[13px] px-3 py-1.5 hover:bg-surface-2 transition-colors cursor-pointer"
+      >
+        {copied ? "Link copied" : "Copy link"}
+      </button>
+
+      {copyError && (
+        <p role="alert" className="text-[11px] text-danger px-3 py-1 leading-snug">
+          {copyError}
+        </p>
+      )}
+
+      {/* A viewer gets the menu for the link and nothing that changes the card
+          (S8.1) — removed, not disabled. */}
+      {!readOnly && (
+        <>
+          <div className="my-1 border-t border-border" />
+          <button
+            type="button"
+            role="menuitem"
+            onClick={onDelete}
+            className="w-full text-left text-[13px] px-3 py-1.5 text-danger hover:bg-surface-2 transition-colors cursor-pointer"
+          >
+            Delete card
+          </button>
+        </>
+      )}
+    </div>
   );
 }

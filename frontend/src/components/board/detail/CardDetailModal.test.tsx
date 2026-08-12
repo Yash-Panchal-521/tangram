@@ -7,6 +7,7 @@ import { formatDueDate } from "@/lib/dueDate";
 import type { CardResponse, MemberResponse } from "@/lib/api";
 
 afterEach(cleanup);
+afterEach(() => vi.unstubAllGlobals());
 
 const CARD: CardResponse = {
   id: "card-1",
@@ -234,10 +235,21 @@ describe("CardDetailModal — priority", () => {
     );
   });
 
-  it("shows the icon beside the control once a level is set", () => {
+  it("shows the icon inside the control once a level is set", () => {
+    // Inside, so this row keeps the same left edge as Status and Assignee —
+    // beside the control it pushed the select right and broke the column.
     mount({ card: { ...CARD, priority: "Highest" } });
 
-    expect(screen.getByRole("img", { name: "Highest priority" })).toBeTruthy();
+    const select = screen.getByLabelText("Priority") as HTMLSelectElement;
+    expect(select.value).toBe("Highest");
+
+    // The leading slot, inside the field's own box.
+    const leading = select.parentElement?.querySelector('span[aria-hidden="true"]');
+    expect(leading?.querySelector("svg")).toBeTruthy();
+
+    // Decoration here, unlike the read-only view: the select already says
+    // "Highest", and announcing it twice is worse than not at all.
+    expect(screen.queryByRole("img", { name: "Highest priority" })).toBeNull();
   });
 
   it("is text with no control for a viewer (S8.1)", () => {
@@ -612,12 +624,87 @@ describe("CardDetailModal — closing", () => {
   });
 });
 
+/** Delete lives behind the header's overflow menu, as it does in Jira. */
+async function openDelete(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "Card actions" }));
+  await user.click(screen.getByRole("menuitem", { name: "Delete card" }));
+}
+
 describe("CardDetailModal — deleting", () => {
+  it("offers a viewer the link but nothing that changes the card (S8.1)", async () => {
+    const user = userEvent.setup();
+    mount({ readOnly: true });
+
+    await user.click(screen.getByRole("button", { name: "Card actions" }));
+
+    expect(screen.getByRole("menuitem", { name: "Copy link" })).toBeTruthy();
+    expect(screen.queryByRole("menuitem", { name: "Delete card" })).toBeNull();
+  });
+
+  it("copies the card's own address, and says so", async () => {
+    // The card has been addressable since `?card=` landed; nothing said so.
+    const user = userEvent.setup();
+    const writeText = vi.fn(async () => {});
+    // `navigator.clipboard` is getter-only in jsdom, so it is defined rather
+    // than assigned.
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+    mount();
+
+    await user.click(screen.getByRole("button", { name: "Card actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "Copy link" }));
+
+    expect(writeText).toHaveBeenCalledWith(window.location.href);
+    expect(await screen.findByRole("menuitem", { name: "Link copied" })).toBeTruthy();
+  });
+
+  it("says so when the clipboard refuses, rather than looking like it worked (S3.6)", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("navigator", {
+      ...navigator,
+      clipboard: {
+        writeText: vi.fn(async () => {
+          throw new Error("denied");
+        }),
+      },
+    });
+    mount();
+
+    await user.click(screen.getByRole("button", { name: "Card actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "Copy link" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("copy the address bar");
+  });
+
+  it("keeps the destructive action out of the header (S4.3)", async () => {
+    // It used to sit next to Close, which is the control people reach for
+    // most. A menu costs one click and buys the distance.
+    const user = userEvent.setup();
+    mount();
+
+    expect(screen.queryByRole("menuitem", { name: "Delete card" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Card actions" }));
+    expect(screen.getByRole("menuitem", { name: "Delete card" })).toBeTruthy();
+  });
+
+  it("closes the menu on Escape without closing the card", async () => {
+    const user = userEvent.setup();
+    const { onClose } = mount();
+
+    await user.click(screen.getByRole("button", { name: "Card actions" }));
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("menuitem", { name: "Delete card" })).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(summary()).toBeTruthy();
+  });
+
   it("confirms first, naming the card (S4.2, S4.3)", async () => {
     const user = userEvent.setup();
     const { onDelete } = mount();
 
-    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await openDelete(user);
 
     expect(screen.getByText('Delete "Ship the thing"?')).toBeTruthy();
     expect(screen.getByText(/can't be undone/)).toBeTruthy();
@@ -628,11 +715,11 @@ describe("CardDetailModal — deleting", () => {
   });
 
   it("does not let one Escape dismiss both the confirmation and the modal", async () => {
-    // The regression the `paused` flag exists for: both listen on document.
+    // Both listen on document; only the innermost dialog may answer.
     const user = userEvent.setup();
     const { onClose, onDelete } = mount();
 
-    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await openDelete(user);
     await user.keyboard("{Escape}");
 
     expect(onDelete).not.toHaveBeenCalled();
@@ -650,7 +737,9 @@ describe("CardDetailModal — read-only", () => {
     // For a viewer the truth is "not you", not "not right now".
     expect(screen.queryByRole("button", { name: /Summary/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Description/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+    // The menu stays — a viewer can still link to what they're looking at —
+    // but everything in it that changes the card is gone.
+    expect(screen.getByRole("button", { name: "Card actions" })).toBeTruthy();
     expect(screen.queryByLabelText("Status")).toBeNull();
     expect(screen.queryByLabelText("Assignee")).toBeNull();
 

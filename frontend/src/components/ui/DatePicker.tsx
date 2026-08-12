@@ -49,6 +49,7 @@ export function DatePicker({
   onOpenChange,
   now,
   locale,
+  variant = "default",
 }: {
   id?: string;
   /** `YYYY-MM-DD`, or "" for no date. */
@@ -67,6 +68,8 @@ export function DatePicker({
   /** Injectable so "Today" is testable without owning the clock. */
   now?: number;
   locale?: string;
+  /** `quiet` is the card detail's context column — no chrome until hover. */
+  variant?: "default" | "quiet";
 }) {
   const [open, setOpen] = useState(false);
   const [above, setAbove] = useState(false);
@@ -132,9 +135,14 @@ export function DatePicker({
           setAbove(!!box && window.innerHeight - box.bottom < POPOVER_HEIGHT);
           setOpenAnd(!open);
         }}
-        className={`w-full flex items-center gap-2 text-[13px] bg-surface-2 border border-border rounded-lg px-2.5 py-1.5 text-left transition-colors hover:border-border-2 focus-visible:border-accent cursor-pointer ${
-          value ? "text-text" : "text-text-dim"
-        }`}
+        // Chosen per branch rather than appended, because `cn()` resolves no
+        // Tailwind conflicts (S1.3) and a second `bg-*`/`border-*` would leave
+        // the winner to stylesheet order.
+        className={`w-full flex items-center gap-2 text-[13px] border rounded-md text-left transition-colors cursor-pointer ${
+          variant === "quiet"
+            ? "bg-transparent border-transparent px-2 py-1 hover:bg-surface hover:border-border focus-visible:bg-surface focus-visible:border-accent"
+            : "bg-surface-2 border-border px-2.5 py-1.5 hover:border-border-2 focus-visible:border-accent"
+        } ${value ? "text-text" : "text-text-dim"}`}
       >
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true" className="shrink-0">
           <rect x="1.5" y="2.5" width="11" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2" />

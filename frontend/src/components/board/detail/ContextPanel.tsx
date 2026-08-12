@@ -9,7 +9,13 @@ import { ContextRow } from "@/components/board/detail/ContextRow";
 import { LabelPicker } from "@/components/board/detail/LabelPicker";
 import { dueLabel, formatDueDate, toDateInputValue } from "@/lib/dueDate";
 import { PRIORITIES } from "@/lib/priority";
-import type { CardPriority, CardResponse, LabelColor, LabelResponse, MemberResponse } from "@/lib/api";
+import type {
+  CardPriority,
+  CardResponse,
+  LabelColor,
+  LabelResponse,
+  MemberResponse,
+} from "@/lib/api";
 
 /** A column, reduced to what the status control needs. */
 export interface StatusOption {
@@ -68,7 +74,8 @@ export function ContextPanel({
 
   // Someone who has left the workspace no longer resolves. Showing the raw id
   // would be noise; "Unassigned" would be a lie that the next save makes true.
-  const assigneeName = members.find((m) => m.userId === card.assigneeId)?.displayName ?? null;
+  const assigneeName =
+    members.find((m) => m.userId === card.assigneeId)?.displayName ?? null;
   const assigneeMissing = card.assigneeId !== null && assigneeName === null;
 
   async function run(field: string, work: () => Promise<void>) {
@@ -77,7 +84,9 @@ export function ContextPanel({
     try {
       await work();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "That didn't save. Try again.");
+      setError(
+        err instanceof Error ? err.message : "That didn't save. Try again.",
+      );
     } finally {
       setPending(null);
     }
@@ -89,10 +98,13 @@ export function ContextPanel({
         Details
       </h3>
 
-      <div className="flex flex-col gap-2.5 rounded-lg border border-border bg-surface-2/40 p-3">
+      {/* No box. The column it sits in has its own border and tint now, and a
+          bordered card inside a bordered column is two frames around one set of
+          rows. */}
+      <div className="flex flex-col gap-1.5">
         <ContextRow label="Status" htmlFor={readOnly ? undefined : statusId}>
           {readOnly ? (
-            <p className="text-[13px] pt-1.5">
+            <p className="text-[13px] leading-[26px] px-2">
               {statuses.find((s) => s.id === card.columnId)?.name ?? "—"}
             </p>
           ) : (
@@ -101,7 +113,7 @@ export function ContextPanel({
               value={card.columnId}
               disabled={pending === "status"}
               onChange={(e) => void run("status", () => onMove(e.target.value))}
-              className="bg-surface"
+              variant="quiet"
             >
               {statuses.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -112,16 +124,21 @@ export function ContextPanel({
           )}
         </ContextRow>
 
-        <ContextRow label="Assignee" htmlFor={readOnly ? undefined : assigneeId}>
+        <ContextRow
+          label="Assignee"
+          htmlFor={readOnly ? undefined : assigneeId}
+        >
           {readOnly ? (
-            <div className="flex items-center gap-2 pt-1">
+            <div className="flex items-center gap-2 min-h-[26px] px-2">
               {assigneeName ? (
                 <>
                   <Avatar name={assigneeName} size="sm" />
                   <span className="text-[13px] truncate">{assigneeName}</span>
                 </>
               ) : (
-                <span className="text-[13px] text-text-dim italic">Unassigned</span>
+                <span className="text-[13px] text-text-dim italic">
+                  Unassigned
+                </span>
               )}
             </div>
           ) : (
@@ -134,17 +151,19 @@ export function ContextPanel({
                   onCommit({
                     assigneeId: e.target.value || null,
                     clearAssignee: e.target.value === "",
-                  })
+                  }),
                 )
               }
-              className="bg-surface"
+              variant="quiet"
             >
               <option value="">Unassigned</option>
               {/* Kept visible rather than silently collapsing to "Unassigned",
                   which would make the next save clear an assignment nobody
                   chose to clear. */}
               {assigneeMissing && (
-                <option value={card.assigneeId!}>Someone who has left the workspace</option>
+                <option value={card.assigneeId!}>
+                  Someone who has left the workspace
+                </option>
               )}
               {members.map((m) => (
                 <option key={m.userId} value={m.userId}>
@@ -155,9 +174,12 @@ export function ContextPanel({
           )}
         </ContextRow>
 
-        <ContextRow label="Priority" htmlFor={readOnly ? undefined : priorityId}>
+        <ContextRow
+          label="Priority"
+          htmlFor={readOnly ? undefined : priorityId}
+        >
           {readOnly ? (
-            <div className="flex items-center gap-1.5 pt-1.5">
+            <div className="flex items-center gap-1.5 min-h-[26px] px-2">
               {card.priority ? (
                 <>
                   <PriorityIcon priority={card.priority} />
@@ -168,51 +190,57 @@ export function ContextPanel({
               )}
             </div>
           ) : (
-            <div className="flex items-center gap-1.5">
-              {/* Beside the control rather than inside it: a native select
-                  cannot render an icon in its options, and the value is what
-                  people scan for. */}
-              {card.priority && <PriorityIcon priority={card.priority} />}
-              <Select
-                id={priorityId}
-                value={card.priority ?? ""}
-                disabled={pending === "priority"}
-                onChange={(e) =>
-                  void run("priority", () =>
-                    onCommit({
-                      priority: (e.target.value || null) as CardPriority | null,
-                      clearPriority: e.target.value === "",
-                    })
-                  )
-                }
-                className="bg-surface"
-              >
-                <option value="">None</option>
-                {PRIORITIES.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </Select>
-            </div>
+            <Select
+              id={priorityId}
+              // Inside the field, not beside it — beside it pushed this one
+              // control right and broke the column's left edge.
+              leading={
+                card.priority ? (
+                  <PriorityIcon priority={card.priority} />
+                ) : undefined
+              }
+              value={card.priority ?? ""}
+              disabled={pending === "priority"}
+              onChange={(e) =>
+                void run("priority", () =>
+                  onCommit({
+                    priority: (e.target.value || null) as CardPriority | null,
+                    clearPriority: e.target.value === "",
+                  }),
+                )
+              }
+              variant="quiet"
+            >
+              <option value="">None</option>
+              {PRIORITIES.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </Select>
           )}
         </ContextRow>
 
         <ContextRow label="Due" htmlFor={readOnly ? undefined : dueId}>
           {readOnly ? (
-            <p className={`text-[13px] pt-1.5 ${card.dueAt ? "text-text" : "text-text-dim italic"}`}>
-              {card.dueAt ? `${formatDueDate(card.dueAt)} · ${dueLabel(card.dueAt)}` : "No due date"}
+            <p
+              className={`text-[13px] leading-[26px] px-2 ${card.dueAt ? "text-text" : "text-text-dim italic"}`}
+            >
+              {card.dueAt
+                ? `${formatDueDate(card.dueAt)} · ${dueLabel(card.dueAt)}`
+                : "No due date"}
             </p>
           ) : (
             <DatePicker
               id={dueId}
+              variant="quiet"
               value={toDateInputValue(card.dueAt)}
               onChange={(next) =>
                 void run("due", () =>
                   onCommit({
                     dueAt: next ? `${next}T00:00:00.000Z` : null,
                     clearDueAt: next === "",
-                  })
+                  }),
                 )
               }
             />
@@ -220,14 +248,19 @@ export function ContextPanel({
         </ContextRow>
 
         <ContextRow label="Labels">
-          <LabelPicker
-            available={labels}
-            selected={card.labels}
-            readOnly={readOnly}
-            onApply={(labelIds) => onCommit({ labelIds })}
-            onCreate={onCreateLabel}
-            onDelete={onDeleteLabel}
-          />
+          {/* px-2 to match the padding the quiet fields carry, so chips begin on
+              the same vertical line as "Backlog" and "Unassigned" rather than
+              eight pixels left of it. */}
+          <div className="px-2">
+            <LabelPicker
+              available={labels}
+              selected={card.labels}
+              readOnly={readOnly}
+              onApply={(labelIds) => onCommit({ labelIds })}
+              onCreate={onCreateLabel}
+              onDelete={onDeleteLabel}
+            />
+          </div>
         </ContextRow>
 
         {error && (
@@ -266,12 +299,16 @@ export function ContextPanel({
       </button>
 
       {moreOpen && (
-        <div className="flex flex-col gap-2.5 rounded-lg border border-border bg-surface-2/40 p-3 animate-[fade-up_0.15s_ease-out]">
+        <div className="flex flex-col gap-1.5 animate-[fade-up_0.15s_ease-out]">
           <ContextRow label="Created">
-            <p className="text-[13px] pt-1.5">{formatDueDate(card.createdAt)}</p>
+            <p className="text-[13px] leading-[26px] text-text-muted">
+              {formatDueDate(card.createdAt)}
+            </p>
           </ContextRow>
           <ContextRow label="Updated">
-            <p className="text-[13px] pt-1.5">{formatDueDate(card.updatedAt)}</p>
+            <p className="text-[13px] leading-[26px] text-text-muted">
+              {formatDueDate(card.updatedAt)}
+            </p>
           </ContextRow>
         </div>
       )}

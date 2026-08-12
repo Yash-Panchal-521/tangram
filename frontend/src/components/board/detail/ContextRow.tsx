@@ -20,15 +20,21 @@ export function ContextRow({
   children: React.ReactNode;
 }) {
   const text = (
-    <span className="text-[11px] font-medium text-text-muted pt-1.5 shrink-0 w-[76px]">
-      {label}
-    </span>
+    <span className="text-[11px] font-medium text-text-muted leading-[26px]">{label}</span>
   );
 
+  // A grid, not a flex row with a width on the label.
+  //
+  // The width used to sit on this span, which is inline — and width does not
+  // apply to inline boxes, so it was silently ignored and every label sized to
+  // its own text. Status, Assignee and Due each started their control at a
+  // different x, which is exactly the ragged edge the column is supposed to
+  // avoid. A grid track cannot be ignored the same way, and it holds whether the
+  // label is wrapped in a <label> or not.
   return (
-    <div className="flex items-start gap-2">
+    <div className="grid grid-cols-[72px_1fr] items-start gap-x-2.5">
       {htmlFor ? <label htmlFor={htmlFor}>{text}</label> : text}
-      <div className="flex-1 min-w-0">{children}</div>
+      <div className="min-w-0">{children}</div>
     </div>
   );
 }
