@@ -1,12 +1,12 @@
 "use client";
 
-import { useId, useRef, useState, type RefObject } from "react";
+import { useId, useRef, useState } from "react";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { InlineEdit } from "@/components/ui/InlineEdit";
 import { ContextPanel, type StatusOption } from "@/components/board/detail/ContextPanel";
 import { CommentThread } from "@/components/board/detail/CommentThread";
+import { Menu, MenuItem, MenuSeparator } from "@/components/ui/Menu";
 import { useDialog } from "@/lib/useDialog";
-import { useOutsideClick } from "@/lib/useOutsideClick";
 import type {
   CardResponse,
   CommentResponse,
@@ -289,6 +289,10 @@ export function CardDetailModal({
  * loudest thing in a header that should be quiet and one slip away from the
  * control people reach for most. A menu costs one extra click and buys the
  * distance.
+ *
+ * The menu mechanics — fixed positioning past the shell's `overflow-hidden`,
+ * outside-click, and Escape belonging to the innermost layer — now live in
+ * `Menu`, which the column headers share.
  */
 function CardActionsMenu({
   onDelete,
@@ -299,13 +303,8 @@ function CardActionsMenu({
   deleting: boolean;
   readOnly: boolean;
 }) {
-  const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-
-  useOutsideClick(() => setOpen(false), [triggerRef, menuRef], open);
 
   async function copyLink() {
     try {
@@ -320,120 +319,41 @@ function CardActionsMenu({
   }
 
   return (
-    <div className="relative">
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => {
-          // Reset on the way in, not on the way out: a stale "Link copied" or a
-          // stale failure would be the first thing you read next time, and both
-          // are claims about something that happened minutes ago.
-          if (!open) {
-            setCopied(false);
-            setCopyError(null);
-          }
-          setOpen((o) => !o);
-        }}
-        disabled={deleting}
-        aria-label="Card actions"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className="w-7 h-7 flex items-center justify-center rounded-md text-text-muted hover:text-text hover:bg-surface-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
-          <circle cx="3" cy="7" r="1.3" />
-          <circle cx="7" cy="7" r="1.3" />
-          <circle cx="11" cy="7" r="1.3" />
-        </svg>
-      </button>
-
-      {open && (
-        <ActionsMenu
-          ref={menuRef}
-          readOnly={readOnly}
-          copied={copied}
-          copyError={copyError}
-          onCopyLink={copyLink}
-          onClose={() => setOpen(false)}
-          onDelete={() => {
-            setOpen(false);
-            onDelete();
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-/**
- * Split out so it can call `useDialog` — which only registers while it is
- * mounted, and registration is what decides who owns Escape.
- *
- * The first attempt stopped Escape at the element with `stopPropagation`, the
- * way the inline editors do. It doesn't hold here: React dispatches from its
- * root container, so by the time a handler runs the native event has already
- * passed the element, and the modal's own listener on `document` still fired —
- * one Escape closed the menu and the card. Registering instead means the menu
- * is simply the innermost thing open, which is the same answer for every
- * overlay rather than a trick that works for some of them.
- */
-function ActionsMenu({
-  ref,
-  readOnly,
-  copied,
-  copyError,
-  onCopyLink,
-  onClose,
-  onDelete,
-}: {
-  ref: RefObject<HTMLDivElement | null>;
-  readOnly: boolean;
-  copied: boolean;
-  copyError: string | null;
-  onCopyLink: () => void;
-  onClose: () => void;
-  onDelete: () => void;
-}) {
-  useDialog({ containerRef: ref, onClose });
-
-  return (
-    <div
-      ref={ref}
-      role="menu"
-      className="absolute right-0 top-full mt-1 z-10 min-w-[180px] rounded-lg border border-border bg-surface shadow-lg py-1 animate-[fade-up_0.12s_ease-out]"
-    >
-      {/* Here because the card has been addressable since `?card=` landed, and
-          nothing in the UI said so. "See my comment on this" needs a link. */}
-      <button
-        type="button"
-        role="menuitem"
-        onClick={onCopyLink}
-        className="w-full text-left text-[13px] px-3 py-1.5 hover:bg-surface-2 transition-colors cursor-pointer"
-      >
-        {copied ? "Link copied" : "Copy link"}
-      </button>
-
-      {copyError && (
-        <p role="alert" className="text-[11px] text-danger px-3 py-1 leading-snug">
-          {copyError}
-        </p>
-      )}
-
-      {/* A viewer gets the menu for the link and nothing that changes the card
-          (S8.1) — removed, not disabled. */}
-      {!readOnly && (
+    <Menu label="Card actions" disabled={deleting}>
+      {(close) => (
         <>
-          <div className="my-1 border-t border-border" />
-          <button
-            type="button"
-            role="menuitem"
-            onClick={onDelete}
-            className="w-full text-left text-[13px] px-3 py-1.5 text-danger hover:bg-surface-2 transition-colors cursor-pointer"
-          >
-            Delete card
-          </button>
+          {/* Here because the card has been addressable since `?card=` landed,
+              and nothing in the UI said so. "See my comment on this" needs a
+              link. It does not close the menu: the item's own label changing is
+              the only confirmation that it worked. */}
+          <MenuItem onSelect={() => void copyLink()}>
+            {copied ? "Link copied" : "Copy link"}
+          </MenuItem>
+
+          {copyError && (
+            <p role="alert" className="text-[11px] text-danger px-3 py-1 leading-snug">
+              {copyError}
+            </p>
+          )}
+
+          {/* A viewer gets the menu for the link and nothing that changes the
+              card (S8.1) — removed, not disabled. */}
+          {!readOnly && (
+            <>
+              <MenuSeparator />
+              <MenuItem
+                tone="danger"
+                onSelect={() => {
+                  close();
+                  onDelete();
+                }}
+              >
+                Delete card
+              </MenuItem>
+            </>
+          )}
         </>
       )}
-    </div>
+    </Menu>
   );
 }

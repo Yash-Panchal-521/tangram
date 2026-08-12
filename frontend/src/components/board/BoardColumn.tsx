@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { KanbanCard } from "@/components/board/KanbanCard";
+import { Menu, MenuItem, MenuSeparator } from "@/components/ui/Menu";
 import { SortableKanbanCard } from "@/components/board/SortableKanbanCard";
 import type { CardResponse, ColumnWithCardsResponse } from "@/lib/api";
 
@@ -110,8 +111,14 @@ export function BoardColumn({
   }
 
   return (
-    <div className="flex-none w-[262px] h-full flex flex-col">
-      <div className="flex items-center gap-2 px-0.5 pb-3 shrink-0 group">
+    // A lane, not a list that happens to be in a column.
+    //
+    // The cards used to float on the board's own background with nothing
+    // holding them, so four columns read as four unrelated stacks and an empty
+    // one read as nothing at all. A tinted surface gives each column an edge to
+    // drop against, which is most of what makes a kanban board legible.
+    <div className="flex-none w-[272px] h-full flex flex-col rounded-xl bg-surface-2/50 border border-border/70 p-2">
+      <div className="flex items-center gap-2 px-1 pb-2 shrink-0">
         <div
           className="w-2 h-2 rounded-full shrink-0"
           style={{ background: DOT_COLORS[colorIndex % DOT_COLORS.length] }}
@@ -148,31 +155,45 @@ export function BoardColumn({
             {column.name}
           </span>
         )}
-        <span className="text-[11px] font-medium text-text-dim bg-surface-2 border border-border rounded px-1.5 leading-[1.9] shrink-0">
+        {/* Plain. A bordered pill gave the count the same weight as the name
+            it is qualifying, on every column, forever. */}
+        <span className="text-[11px] font-medium text-text-dim shrink-0 tabular-nums">
           {column.cards.length}
         </span>
         <div className="flex-1" />
-        {/* The reveal lives on the wrapper below, not on the button. `hidden`
-            can't take focus, so delete was keyboard-unreachable (S5.1) -- but
-            putting `opacity-0` on the button itself would collide with its own
-            `disabled:opacity-50`, and the variant would win and show it on
-            every column while offline. Two elements, two independent
-            opacities. focus-within re-reveals it when it is tabbed to. */}
+        {/* A menu, not a delete button revealed on hover.
+            
+            The old control was invisible until the pointer was already over the
+            column, which meant rename (a click on the name) and delete were
+            both discoverable only by accident. It also needed two nested
+            elements to keep `opacity-0` from colliding with the button's own
+            `disabled:opacity-50` — a fight that disappears once the control is
+            simply always there. */}
         {canEdit && (
-        <span className="shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-        <button
-          onClick={() => onDeleteColumn(column.id)}
-          disabled={disabled}
-          title="Delete column"
-          aria-label={`Delete column ${column.name}`}
-          className="w-5 h-5 flex items-center justify-center rounded text-text-dim hover:text-danger hover:bg-surface-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-            <path d="M2 3h8M4.5 3V2a1 1 0 011-1h1a1 1 0 011 1v1M3 3l.5 7a1 1 0 001 1h3a1 1 0 001-1L9 3"
-              stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-        </span>
+          <Menu label={`Column actions for ${column.name}`} disabled={disabled}>
+            {(close) => (
+              <>
+                <MenuItem
+                  onSelect={() => {
+                    close();
+                    startRenaming();
+                  }}
+                >
+                  Rename column
+                </MenuItem>
+                <MenuSeparator />
+                <MenuItem
+                  tone="danger"
+                  onSelect={() => {
+                    close();
+                    onDeleteColumn(column.id);
+                  }}
+                >
+                  Delete column
+                </MenuItem>
+              </>
+            )}
+          </Menu>
         )}
       </div>
 
@@ -182,7 +203,7 @@ export function BoardColumn({
       <div
         ref={setNodeRef}
         data-intro-dropzone
-        className="flex-1 overflow-y-auto flex flex-col gap-2 min-h-0 pb-3"
+        className="flex-1 overflow-y-auto flex flex-col gap-2 min-h-0 px-1 pb-2"
       >
         <SortableContext items={column.cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
           {column.cards.map((card, i) => (
@@ -200,7 +221,7 @@ export function BoardColumn({
         {/* Doubles as a drop target hint: an empty column used to be blank
             space, so there was nothing to aim a dragged card at (S2.3). */}
         {column.cards.length === 0 && !submitting && (
-          <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-text-dim">
+          <p className="rounded-lg border border-dashed border-border/80 px-3 py-5 text-center text-xs text-text-dim">
             {canEdit ? "Empty — add a card, or drag one here." : "No cards in this column."}
           </p>
         )}
@@ -215,7 +236,7 @@ export function BoardColumn({
       </div>
 
       {!canEdit ? null : adding ? (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-2 shrink-0">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-2 shrink-0 px-1 pb-0.5">
           <input
             autoFocus
             placeholder="Card title"
@@ -247,7 +268,9 @@ export function BoardColumn({
           onClick={() => setAdding(true)}
           disabled={disabled}
           data-tour={tourAnchors ? "add-card" : undefined}
-          className="flex items-center gap-1.5 w-full py-2 px-2.5 rounded-lg border-[1.5px] border-dashed border-border text-text-dim text-xs font-medium transition-colors shrink-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:border-accent hover:text-accent"
+          // No dashed outline. Inside a lane that already has an edge it was a
+          // box drawn inside a box; the control reads as an action now.
+          className="flex items-center gap-1.5 w-full py-1.5 px-2 mx-1 rounded-md text-text-muted text-xs font-medium transition-colors shrink-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface hover:text-text"
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <line x1="6" y1="2" x2="6" y2="10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />

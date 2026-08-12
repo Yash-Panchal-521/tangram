@@ -1,5 +1,6 @@
 import { ConfirmDialogDemo } from "@/app/kitchen-sink/ConfirmDialogDemo";
 import { CardDetailDemo } from "@/app/kitchen-sink/CardDetailDemo";
+import { MenuDemo } from "@/app/kitchen-sink/MenuDemo";
 import { DatePickerDemo } from "@/app/kitchen-sink/DatePickerDemo";
 import { InlineEditDemo } from "@/app/kitchen-sink/InlineEditDemo";
 import { InviteChipsDemo } from "@/app/kitchen-sink/InviteChipsDemo";
@@ -121,6 +122,22 @@ export default function KitchenSinkPage() {
           comments only, and a failed send keeps the draft.
         </p>
         <CardDetailDemo />
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold text-text-muted">Overflow menu</h2>
+        <p className="text-xs text-text-dim">
+          The <code>⋯</code> behind the card&apos;s and each column&apos;s actions. Two things it
+          gets right that are easy to miss: it positions itself <em>fixed</em>, measured from the
+          trigger, because the board area is <code>overflow-y-hidden</code> and an absolutely
+          positioned dropdown is clipped by an ancestor several levels up; and it registers with{" "}
+          <code>useDialog</code> so Escape closes it rather than the modal behind it. Selecting an
+          item does not close it automatically — &ldquo;Copy link&rdquo; needs to stay open, because
+          the label changing is the only confirmation it worked.
+        </p>
+        <div className="flex items-center gap-3">
+          <MenuDemo />
+        </div>
       </section>
 
       <section className="flex flex-col gap-3">

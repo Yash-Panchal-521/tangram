@@ -79,6 +79,56 @@ describe("BoardColumn — empty state", () => {
   });
 });
 
+describe("BoardColumn — actions menu", () => {
+  it("keeps rename and delete visible instead of revealing them on hover", async () => {
+    // Delete used to appear only once the pointer was over the column, so it
+    // was discoverable by accident and unreachable without a mouse.
+    const user = userEvent.setup();
+    renderColumn();
+
+    const trigger = screen.getByRole("button", { name: "Column actions for To Do" });
+    expect(trigger).toBeTruthy();
+
+    await user.click(trigger);
+    expect(screen.getByRole("menuitem", { name: "Rename column" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Delete column" })).toBeTruthy();
+  });
+
+  it("deletes through the menu", async () => {
+    // Never covered before the control moved, which is how it stayed untested.
+    const user = userEvent.setup();
+    const { onDeleteColumn } = renderColumn();
+
+    await user.click(screen.getByRole("button", { name: "Column actions for To Do" }));
+    await user.click(screen.getByRole("menuitem", { name: "Delete column" }));
+
+    expect(onDeleteColumn).toHaveBeenCalledWith("col-1");
+  });
+
+  it("opens the rename field from the menu", async () => {
+    const user = userEvent.setup();
+    renderColumn();
+
+    await user.click(screen.getByRole("button", { name: "Column actions for To Do" }));
+    await user.click(screen.getByRole("menuitem", { name: "Rename column" }));
+
+    expect(screen.getByLabelText("Rename column To Do")).toBeTruthy();
+  });
+
+  it("gives a viewer no menu at all, rather than a disabled one (S8.1)", () => {
+    renderColumn({ canEdit: false });
+
+    expect(screen.queryByRole("button", { name: "Column actions for To Do" })).toBeNull();
+  });
+
+  it("keeps the menu inert while the connection is down, because it is coming back", () => {
+    renderColumn({ disabled: true });
+
+    const trigger = screen.getByRole("button", { name: "Column actions for To Do" });
+    expect((trigger as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
 describe("BoardColumn — rename", () => {
   it("is a real button, so it is tabbable and keyboard-activatable (S5.1)", async () => {
     const user = userEvent.setup();
@@ -134,23 +184,6 @@ describe("BoardColumn — rename", () => {
   });
 });
 
-describe("BoardColumn — delete", () => {
-  it("stays focusable while visually hidden (S5.1)", () => {
-    renderColumn();
-
-    // `hidden` can't take focus, which made delete mouse-only; the reveal lives
-    // on a wrapper so the button itself is always in the tab order.
-    const button = screen.getByRole("button", { name: "Delete column To Do" });
-    button.focus();
-    expect(document.activeElement).toBe(button);
-    expect((button.parentElement as HTMLElement).className).toContain("focus-within:opacity-100");
-  });
-
-  it("is absent for a viewer", () => {
-    renderColumn({ canEdit: false });
-    expect(screen.queryByRole("button", { name: /Delete column/ })).toBeNull();
-  });
-});
 
 describe("BoardColumn — adding a card", () => {
   it("shows a placeholder while the create is in flight, then clears it", async () => {
