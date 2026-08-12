@@ -3,7 +3,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BoardFilterBar } from "@/components/board/BoardFilterBar";
-import { EMPTY_FILTER } from "@/lib/boardFilter";
+import { EMPTY_FILTER, UNASSIGNED } from "@/lib/boardFilter";
 import type { LabelResponse, MemberResponse } from "@/lib/api";
 
 afterEach(cleanup);
@@ -37,8 +37,43 @@ function mount(overrides: Partial<Parameters<typeof BoardFilterBar>[0]> = {}) {
   return { onChange, onClear };
 }
 
-describe("BoardFilterBar", () => {
-  it("searches on typing, without a submit", async () => {
+const open = async (user: ReturnType<typeof userEvent.setup>, name: string) =>
+  user.click(screen.getByRole("button", { name }));
+
+describe("BoardFilterBar — controls are named", () => {
+  it("labels every dropdown, rather than leaving a bare ⋯", () => {
+    // The first version reused the actions menu, whose trigger is three dots.
+    // A ⋯ beside a search box says nothing at all about labels.
+    mount();
+
+    expect(screen.getByRole("button", { name: "Filter by assignee" }).textContent).toContain(
+      "People"
+    );
+    expect(screen.getByRole("button", { name: "Filter by label" }).textContent).toContain("Labels");
+    expect(screen.getByRole("button", { name: "Filter by priority" }).textContent).toContain(
+      "Priority"
+    );
+  });
+
+  it("counts the choices behind each dropdown, so the state is on the surface", () => {
+    mount({ filter: { ...EMPTY_FILTER, assignees: ["u-1"], priorities: ["High", "Highest"] } });
+
+    expect(screen.getByRole("button", { name: "Filter by assignee" }).textContent).toContain("1");
+    expect(screen.getByRole("button", { name: "Filter by priority" }).textContent).toContain("2");
+  });
+
+  it("shows the chosen window on the due trigger instead of a count", () => {
+    // One window at a time, so a count would only ever say "1".
+    mount({ filter: { ...EMPTY_FILTER, due: "overdue" } });
+
+    expect(screen.getByRole("button", { name: "Filter by due date" }).textContent).toContain(
+      "Overdue"
+    );
+  });
+});
+
+describe("BoardFilterBar — search", () => {
+  it("filters as you type, with no submit", async () => {
     const user = userEvent.setup();
     const { onChange } = mount();
 
@@ -47,73 +82,167 @@ describe("BoardFilterBar", () => {
     expect(onChange).toHaveBeenCalledWith({ ...EMPTY_FILTER, text: "a" });
   });
 
-  it("puts you first in the avatar row", () => {
-    // Filtering to yourself is the common case — Jira ships it as a named quick
-    // filter. It is one click on your own face here instead, so there is only
-    // ever one control holding that state.
+  it("offers a clear button only once there is something to clear", async () => {
+    const user = userEvent.setup();
+    cleanup();
     mount();
+    expect(screen.queryByRole("button", { name: "Clear search" })).toBeNull();
 
-    const avatars = screen.getAllByRole("button", { name: /Only cards assigned to/ });
-    expect(avatars[0].getAttribute("aria-label")).toBe("Only cards assigned to You");
+    cleanup();
+    const { onChange } = mount({ filter: { ...EMPTY_FILTER, text: "auth" } });
+    await user.click(screen.getByRole("button", { name: "Clear search" }));
+
+    expect(onChange).toHaveBeenCalledWith({ ...EMPTY_FILTER, text: "" });
   });
 
-  it("toggles a person on and back off", async () => {
+  it("focuses on / from anywhere on the board", async () => {
+    const user = userEvent.setup();
+    mount();
+
+    await user.keyboard("/");
+
+    expect(document.activeElement).toBe(screen.getByLabelText("Search cards"));
+  });
+
+  it("leaves / alone while someone is typing", async () => {
+    // Otherwise it swallows the character mid-sentence in a card title, which
+    // is exactly how this shortcut usually goes wrong.
+    const user = userEvent.setup();
+    mount({ filter: { ...EMPTY_FILTER, text: "x" } });
+
+    const field = screen.getByLabelText("Search cards") as HTMLInputElement;
+    field.blur();
+    const outside = document.createElement("input");
+    document.body.appendChild(outside);
+    outside.focus();
+
+    await user.keyboard("/");
+    expect(document.activeElement).toBe(outside);
+
+    outside.remove();
+  });
+});
+
+describe("BoardFilterBar — people", () => {
+  it("puts you first", async () => {
+    // Filtering to yourself is the common case — Jira ships it as a named quick
+    // filter. It is the first row here instead, so only one control holds it.
+    const user = userEvent.setup();
+    mount();
+
+    await open(user, "Filter by assignee");
+    const rows = screen.getAllByRole("menuitemcheckbox");
+    expect(rows[0].textContent).toContain("You");
+  });
+
+  it("offers Unassigned, which nothing could express before", async () => {
+    // An empty selection means "everyone", so unassigned work — the work most
+    // likely to need picking up — was unfindable.
+    const user = userEvent.setup();
+    const { onChange } = mount();
+
+    await open(user, "Filter by assignee");
+    await user.click(screen.getByRole("menuitemcheckbox", { name: "Unassigned" }));
+
+    expect(onChange).toHaveBeenCalledWith({ ...EMPTY_FILTER, assignees: [UNASSIGNED] });
+  });
+
+  it("toggles a person off again", async () => {
     const user = userEvent.setup();
     const { onChange } = mount({ filter: { ...EMPTY_FILTER, assignees: ["u-1"] } });
 
-    await user.click(screen.getByRole("button", { name: "Only cards assigned to Sara R." }));
-    expect(onChange).toHaveBeenLastCalledWith({ ...EMPTY_FILTER, assignees: [] });
+    await open(user, "Filter by assignee");
+    await user.click(screen.getByRole("menuitemcheckbox", { name: /Sara R./ }));
 
-    await user.click(screen.getByRole("button", { name: "Only cards assigned to You" }));
-    expect(onChange).toHaveBeenLastCalledWith({ ...EMPTY_FILTER, assignees: ["u-1", "u-me"] });
+    expect(onChange).toHaveBeenLastCalledWith({ ...EMPTY_FILTER, assignees: [] });
   });
 
-  it("says which people are selected without dimming the others", () => {
-    // Dimming the unselected ones makes the row look disabled, and there is no
-    // state here where these stop working.
+  it("stays open across several picks, each row saying its own state", async () => {
+    const user = userEvent.setup();
     mount({ filter: { ...EMPTY_FILTER, assignees: ["u-1"] } });
 
-    const sara = screen.getByRole("button", { name: "Only cards assigned to Sara R." });
-    const you = screen.getByRole("button", { name: "Only cards assigned to You" });
+    await open(user, "Filter by assignee");
 
-    expect(sara.getAttribute("aria-pressed")).toBe("true");
-    expect(you.getAttribute("aria-pressed")).toBe("false");
-    expect(you.className).not.toContain("opacity");
+    expect(
+      screen.getByRole("menuitemcheckbox", { name: /Sara R./ }).getAttribute("aria-checked")
+    ).toBe("true");
+    expect(screen.getByRole("menuitemcheckbox", { name: /You/ }).getAttribute("aria-checked")).toBe(
+      "false"
+    );
   });
+});
 
-  it("keeps the label menu open across several picks", async () => {
+describe("BoardFilterBar — priority and due", () => {
+  it("selects a level", async () => {
     const user = userEvent.setup();
     const { onChange } = mount();
 
-    await user.click(screen.getByRole("button", { name: "Filter by label" }));
-    await user.click(screen.getByRole("menuitem", { name: /Bug/ }));
+    await open(user, "Filter by priority");
+    await user.click(screen.getByRole("menuitemcheckbox", { name: /Highest/ }));
 
-    expect(onChange).toHaveBeenCalledWith({ ...EMPTY_FILTER, labels: ["l-1"] });
-    // Still open: picking two labels should not cost two trips to the menu.
-    expect(screen.getByRole("menuitem", { name: /Chore/ })).toBeTruthy();
+    expect(onChange).toHaveBeenCalledWith({ ...EMPTY_FILTER, priorities: ["Highest"] });
   });
 
-  it("toggles recency", async () => {
+  it("makes due windows radios, because they nest rather than stack", async () => {
+    // "Overdue" and "this week" as checkboxes would let somebody pick both and
+    // get exactly "this week", which reads as a control that ignored them.
     const user = userEvent.setup();
     const { onChange } = mount();
 
-    await user.click(screen.getByRole("button", { name: "Recently updated" }));
+    await open(user, "Filter by due date");
+    const rows = screen.getAllByRole("menuitemradio");
+    expect(rows).toHaveLength(5);
 
-    expect(onChange).toHaveBeenCalledWith({ ...EMPTY_FILTER, recent: true });
+    await user.click(screen.getByRole("menuitemradio", { name: "Due this week" }));
+    expect(onChange).toHaveBeenCalledWith({ ...EMPTY_FILTER, due: "week" });
   });
 
-  it("stays quiet until something is filtering", () => {
+  it("closes after a due window, since there is nothing more to pick", async () => {
+    const user = userEvent.setup();
     mount();
 
-    // No count and no Clear on an unfiltered board — both would be noise
-    // describing a filter nobody applied.
+    await open(user, "Filter by due date");
+    await user.click(screen.getByRole("menuitemradio", { name: "Overdue" }));
+
+    expect(screen.queryByRole("menuitemradio")).toBeNull();
+  });
+});
+
+describe("BoardFilterBar — what is on", () => {
+  it("says nothing until something is filtering", () => {
+    mount();
+
     expect(screen.queryByText("5 of 12")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Clear all" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Remove filter/ })).toBeNull();
   });
 
-  it("says how much is hidden once it is", () => {
-    // A filtered board and a nearly empty one look identical, and the second is
-    // the more alarming reading.
+  it("names every active criterion as a removable chip", async () => {
+    // A filter you cannot see is a filter you forget you applied, and then the
+    // board looks like it has lost half its cards.
+    const user = userEvent.setup();
+    const { onChange } = mount({
+      filter: {
+        text: "auth",
+        assignees: ["u-1"],
+        labels: ["l-1"],
+        priorities: ["High"],
+        due: "overdue",
+        recent: true,
+      },
+    });
+
+    expect(screen.getByRole("button", { name: "Remove filter Sara R." })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Remove filter Bug" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Remove filter High" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Remove filter Overdue" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Remove filter Recently updated" })).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Remove filter High" }));
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ priorities: [] }));
+  });
+
+  it("counts what survived, because a filtered board and an empty one look alike", () => {
     mount({ filter: { ...EMPTY_FILTER, recent: true } });
 
     expect(screen.getByRole("status").textContent).toBe("5 of 12");
@@ -121,15 +250,15 @@ describe("BoardFilterBar", () => {
 
   it("clears everything at once", async () => {
     const user = userEvent.setup();
-    const { onClear } = mount({ filter: { ...EMPTY_FILTER, text: "auth", labels: ["l-1"] } });
+    const { onClear } = mount({ filter: { ...EMPTY_FILTER, text: "auth" } });
 
-    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    await user.click(screen.getByRole("button", { name: "Clear all" }));
 
     expect(onClear).toHaveBeenCalled();
   });
 
-  it("drops the label control on a board with no labels", () => {
-    // Rather than offering an empty menu, which is a control that does nothing.
+  it("drops a control the board cannot use", () => {
+    // An empty label menu is a control that does nothing.
     mount({ labels: [] });
 
     expect(screen.queryByRole("button", { name: "Filter by label" })).toBeNull();

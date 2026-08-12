@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyFilterToUrl,
   EMPTY_FILTER,
+  UNASSIGNED,
   filterBoard,
   isFilterActive,
   matchesFilter,
@@ -94,6 +95,69 @@ describe("matchesFilter — recency", () => {
   });
 });
 
+describe("matchesFilter — unassigned", () => {
+  it("finds cards with nobody on them", () => {
+    const f = { ...EMPTY_FILTER, assignees: [UNASSIGNED] };
+    expect(matchesFilter(card({ assigneeId: null }), f, NOW)).toBe(true);
+    expect(matchesFilter(card({ assigneeId: "u-1" }), f, NOW)).toBe(false);
+  });
+
+  it("composes with a person, because it is the same question", () => {
+    // "Sara's or nobody's" is how you find work that is either hers or yours
+    // to pick up.
+    const f = { ...EMPTY_FILTER, assignees: ["u-1", UNASSIGNED] };
+    expect(matchesFilter(card({ assigneeId: "u-1" }), f, NOW)).toBe(true);
+    expect(matchesFilter(card({ assigneeId: null }), f, NOW)).toBe(true);
+    expect(matchesFilter(card({ assigneeId: "u-2" }), f, NOW)).toBe(false);
+  });
+});
+
+describe("matchesFilter — priority", () => {
+  it("keeps the selected levels", () => {
+    const f = { ...EMPTY_FILTER, priorities: ["High" as const] };
+    expect(matchesFilter(card({ priority: "High" }), f, NOW)).toBe(true);
+    expect(matchesFilter(card({ priority: "Low" }), f, NOW)).toBe(false);
+  });
+
+  it("hides cards with no priority once a level is chosen", () => {
+    const f = { ...EMPTY_FILTER, priorities: ["High" as const] };
+    expect(matchesFilter(card({ priority: null }), f, NOW)).toBe(false);
+  });
+});
+
+describe("matchesFilter — due", () => {
+  const overdue = card({ dueAt: "2026-08-10T00:00:00.000Z" });
+  const today = card({ dueAt: "2026-08-12T00:00:00.000Z" });
+  const soon = card({ dueAt: "2026-08-15T00:00:00.000Z" });
+  const later = card({ dueAt: "2026-09-30T00:00:00.000Z" });
+  const undated = card({ dueAt: null });
+
+  it("nests rather than stacks", () => {
+    // Somebody asking what is due this week is not asking to be shown only the
+    // days after tomorrow, so the wider window contains the narrower ones.
+    expect(matchesFilter(overdue, { ...EMPTY_FILTER, due: "overdue" }, NOW)).toBe(true);
+    expect(matchesFilter(today, { ...EMPTY_FILTER, due: "overdue" }, NOW)).toBe(false);
+
+    expect(matchesFilter(overdue, { ...EMPTY_FILTER, due: "today" }, NOW)).toBe(true);
+    expect(matchesFilter(today, { ...EMPTY_FILTER, due: "today" }, NOW)).toBe(true);
+
+    expect(matchesFilter(overdue, { ...EMPTY_FILTER, due: "week" }, NOW)).toBe(true);
+    expect(matchesFilter(soon, { ...EMPTY_FILTER, due: "week" }, NOW)).toBe(true);
+    expect(matchesFilter(later, { ...EMPTY_FILTER, due: "week" }, NOW)).toBe(false);
+  });
+
+  it("treats undated cards as their own window, never as a match for a date", () => {
+    expect(matchesFilter(undated, { ...EMPTY_FILTER, due: "none" }, NOW)).toBe(true);
+    expect(matchesFilter(undated, { ...EMPTY_FILTER, due: "overdue" }, NOW)).toBe(false);
+    expect(matchesFilter(today, { ...EMPTY_FILTER, due: "none" }, NOW)).toBe(false);
+  });
+
+  it("lets everything through on any", () => {
+    expect(matchesFilter(undated, { ...EMPTY_FILTER, due: "any" }, NOW)).toBe(true);
+    expect(matchesFilter(later, { ...EMPTY_FILTER, due: "any" }, NOW)).toBe(true);
+  });
+});
+
 describe("matchesFilter — combining", () => {
   it("requires every active criterion, not any of them", () => {
     const c = card({ assigneeId: "u-1" });
@@ -152,7 +216,15 @@ describe("isFilterActive", () => {
 
 describe("URL round-trip", () => {
   it("survives a trip through the query string", () => {
-    const filter = { text: "auth bug", assignees: ["u-1", "u-2"], labels: ["l-9"], recent: true };
+    const filter = {
+      ...EMPTY_FILTER,
+      text: "auth bug",
+      assignees: ["u-1", "u-2"],
+      labels: ["l-9"],
+      priorities: ["High" as const],
+      due: "overdue" as const,
+      recent: true,
+    };
     const url = applyFilterToUrl(new URL("https://x.test/board/b-1"), filter);
 
     expect(parseFilter(url.search)).toEqual(filter);
@@ -172,6 +244,16 @@ describe("URL round-trip", () => {
 
     expect(url.searchParams.get("card")).toBe("c-1");
     expect(url.searchParams.get("recent")).toBe("1");
+  });
+
+  it("ignores a priority that is not a level", () => {
+    // Hand-edited URLs happen. An unknown level would silently match nothing
+    // while the bar showed a filter nobody could remove.
+    expect(parseFilter("?priority=High,Sideways").priorities).toEqual(["High"]);
+  });
+
+  it("falls back to any for an unknown due window", () => {
+    expect(parseFilter("?due=eventually").due).toBe("any");
   });
 
   it("drops empty entries from a malformed list", () => {

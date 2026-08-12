@@ -60,12 +60,23 @@ export function placeMenu(
 
 export function Menu({
   label,
+  trigger,
   disabled = false,
   align = "right",
   children,
 }: {
   /** The trigger's accessible name — "Card actions", "Column actions". */
   label: string;
+  /**
+   * Visible trigger content. Omitted, it is a `⋯`.
+   *
+   * The dots are right for *actions on this thing* — the card's, the column's —
+   * where the menu is an overflow and the surrounding UI says what it belongs
+   * to. They are wrong for a control that selects something, which is how the
+   * label filter shipped as an unlabelled `⋯` sitting beside a search box, with
+   * nothing anywhere saying it meant labels.
+   */
+  trigger?: ReactNode;
   disabled?: boolean;
   align?: "left" | "right";
   children: (close: () => void) => ReactNode;
@@ -113,13 +124,37 @@ export function Menu({
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:text-text hover:bg-surface-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        // Two shapes, chosen per branch rather than appended — `cn()` resolves
+        // no Tailwind conflicts (S1.3).
+        className={
+          trigger
+            ? `flex items-center gap-1.5 h-7 px-2.5 rounded-md border text-[12px] font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                open
+                  ? "bg-surface-2 border-border-2 text-text"
+                  : "bg-surface-2 border-border text-text-muted hover:text-text hover:border-border-2"
+              }`
+            : "w-6 h-6 flex items-center justify-center rounded-md text-text-muted hover:text-text hover:bg-surface-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        }
       >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
-          <circle cx="3" cy="7" r="1.3" />
-          <circle cx="7" cy="7" r="1.3" />
-          <circle cx="11" cy="7" r="1.3" />
-        </svg>
+        {trigger ?? (
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
+            <circle cx="3" cy="7" r="1.3" />
+            <circle cx="7" cy="7" r="1.3" />
+            <circle cx="11" cy="7" r="1.3" />
+          </svg>
+        )}
+        {trigger && (
+          <svg
+            width="9"
+            height="9"
+            viewBox="0 0 10 10"
+            fill="none"
+            aria-hidden="true"
+            className={`shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+          >
+            <path d="M2 4L5 7L8 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
       </button>
 
       {open && anchor && (
