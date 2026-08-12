@@ -24,9 +24,12 @@ export const BOARD_TOUR: TourStep[] = [
     body: "Click a card to open it. Drag it to another column — or focus it and press the space bar, then use the arrow keys.",
   },
   {
-    target: "[data-tour='add-card']",
+    // Repointed when the per-column button went. Steps whose target is missing
+    // are filtered out silently, so this one had been quietly dropping itself
+    // — the tour lost a step and said nothing.
+    target: "[data-tour='create']",
     title: "Add as you go",
-    body: "New cards land at the bottom of the column. Everyone watching sees them appear immediately.",
+    body: "One place to make a card, or press C. It lands at the bottom of the column you pick, and everyone watching sees it appear immediately.",
   },
   {
     target: "[data-tour='sync']",

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { HubConnection, HubConnectionState } from "@microsoft/signalr";
 import {
@@ -60,7 +59,6 @@ import { RemoteCursors } from "@/components/board/RemoteCursors";
 import { ReconnectingBanner } from "@/components/board/ReconnectingBanner";
 import { Button } from "@/components/ui/Button";
 import { UserMenu } from "@/components/ui/UserMenu";
-import { TangramMark } from "@/components/ui/TangramMark";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 const CURSOR_SEND_INTERVAL_MS = 50;
@@ -831,21 +829,6 @@ export function BoardView({ boardId }: { boardId: string }) {
         <div className="flex items-center gap-2 flex-1 min-w-0">
           {/* The way back out. Before the home screen existed a board was a
               dead end -- you could reach one board and never a second. */}
-          <Link
-            href="/boards"
-            aria-label="All boards"
-            title="All boards"
-            className="w-6.5 h-6.5 rounded-md bg-accent flex items-center justify-center shrink-0 hover:opacity-85 transition-opacity"
-          >
-            <TangramMark size={14} color="var(--accent-fg)" />
-          </Link>
-          <Link
-            href="/boards"
-            className="text-xs text-text-dim hover:text-text-muted shrink-0"
-          >
-            Boards
-          </Link>
-          <span className="text-sm text-text-dim shrink-0">/</span>
           <span className="text-sm font-semibold truncate">{board.name}</span>
           {canEdit && (
             <button
@@ -908,34 +891,13 @@ export function BoardView({ boardId }: { boardId: string }) {
 
           <PresenceAvatars users={presentUsers} />
 
-          <Link
-            data-tour="members"
-            href={`/workspace/${board.workspaceId}/members`}
-            className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium text-text-muted hover:text-text hover:bg-surface-2 transition-colors whitespace-nowrap"
-          >
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-              <circle cx="5.25" cy="4.5" r="2.25" stroke="currentColor" strokeWidth="1.2" />
-              <path
-                d="M1.25 11.5c0-1.8 1.79-3.25 4-3.25s4 1.45 4 3.25"
-                stroke="currentColor"
-                strokeWidth="1.2"
-                strokeLinecap="round"
-              />
-              <path
-                d="M10 2.6a2.25 2.25 0 010 3.8M11.4 8.5c1.35.42 2.35 1.6 2.35 3"
-                stroke="currentColor"
-                strokeWidth="1.2"
-                strokeLinecap="round"
-              />
-            </svg>
-            Members
-          </Link>
 
           {canEdit && (
             <button
               type="button"
               onClick={() => setCreating(true)}
               disabled={!connected || board.columns.length === 0}
+              data-tour="create"
               title="Create a card (c)"
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-accent text-accent-fg text-xs font-medium hover:bg-accent-h transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >

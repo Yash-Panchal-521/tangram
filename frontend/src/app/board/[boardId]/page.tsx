@@ -1,3 +1,4 @@
+import { AppShell } from "@/components/nav/AppShell";
 import { BoardView } from "@/components/board/BoardView";
 
 export default async function BoardPage({
@@ -6,5 +7,9 @@ export default async function BoardPage({
   params: Promise<{ boardId: string }>;
 }) {
   const { boardId } = await params;
-  return <BoardView boardId={boardId} />;
+  return (
+    <AppShell boardId={boardId}>
+      <BoardView boardId={boardId} />
+    </AppShell>
+  );
 }
