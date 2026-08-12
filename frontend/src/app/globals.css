@@ -7,7 +7,7 @@
  * component code, since every primitive is built on these token names.
  */
 [data-theme="terracotta"][data-mode="light"] {
-  --bg: #eee0d5;
+  --bg: #e2d4c9;
   --surface: #faf3ec;
   --surface-2: #f0e4d8;
   --border: #d4bfb0;
@@ -26,10 +26,10 @@
 
 [data-theme="terracotta"][data-mode="dark"] {
   --bg: #1a0e0a;
-  --surface: #241510;
-  --surface-2: #2e1c17;
-  --border: #3e2820;
-  --border-2: #4e3428;
+  --surface: #281914;
+  --surface-2: #34221d;
+  --border: #4c362e;
+  --border-2: #5a4034;
   --text: #f0e0d6;
   --text-muted: #9a7868;
   --text-dim: #685050;
@@ -57,11 +57,11 @@
  */
 
 [data-theme="slate"][data-mode="light"] {
-  --bg: #eef1f5;
+  --bg: #e4e7eb;
   --surface: #ffffff;
   --surface-2: #f4f6f9;
-  --border: #d8dee7;
-  --border-2: #c2cad6;
+  --border: #ccd2db;
+  --border-2: #bcc4d0;
   --text: #101828;
   --text-muted: #5a6478;
   --text-dim: #8a94a6;
@@ -76,9 +76,9 @@
 
 [data-theme="slate"][data-mode="dark"] {
   --bg: #0c1018;
-  --surface: #141b26;
-  --surface-2: #1c2532;
-  --border: #2a3543;
+  --surface: #161d28;
+  --surface-2: #1e2734;
+  --border: #303b49;
   --border-2: #3a4757;
   --text: #e6ecf5;
   --text-muted: #94a1b5;
@@ -93,11 +93,11 @@
 }
 
 [data-theme="indigo"][data-mode="light"] {
-  --bg: #eff2f7;
+  --bg: #e1e4e9;
   --surface: #ffffff;
   --surface-2: #f1f4f9;
-  --border: #d3dae5;
-  --border-2: #bcc6d6;
+  --border: #c9d0db;
+  --border-2: #b8c2d2;
   --text: #172b4d;
   --text-muted: #5e6c84;
   --text-dim: #8993a4;
@@ -112,10 +112,10 @@
 
 [data-theme="indigo"][data-mode="dark"] {
   --bg: #0d1424;
-  --surface: #161d2e;
-  --surface-2: #1e2739;
-  --border: #2c3648;
-  --border-2: #3d4859;
+  --surface: #181f30;
+  --surface-2: #20293b;
+  --border: #343e50;
+  --border-2: #3f4a5b;
   --text: #e3e9f5;
   --text-muted: #9aa6bd;
   --text-dim: #6b7690;
@@ -129,11 +129,11 @@
 }
 
 [data-theme="forest"][data-mode="light"] {
-  --bg: #eef1ec;
+  --bg: #e2e5e0;
   --surface: #fbfcfa;
   --surface-2: #f2f5ef;
-  --border: #d3dbcd;
-  --border-2: #bcc7b5;
+  --border: #c9d1c3;
+  --border-2: #bac5b3;
   --text: #182016;
   --text-muted: #556052;
   --text-dim: #869082;
@@ -148,10 +148,10 @@
 
 [data-theme="forest"][data-mode="dark"] {
   --bg: #0c110d;
-  --surface: #141a15;
-  --surface-2: #1c241d;
-  --border: #2a332a;
-  --border-2: #3a453a;
+  --surface: #181e19;
+  --surface-2: #202821;
+  --border: #343d34;
+  --border-2: #3e493e;
   --text: #e4ece2;
   --text-muted: #93a08f;
   --text-dim: #667063;
@@ -165,11 +165,11 @@
 }
 
 [data-theme="graphite"][data-mode="light"] {
-  --bg: #f0f0f0;
+  --bg: #e6e6e6;
   --surface: #ffffff;
   --surface-2: #f6f6f6;
-  --border: #dcdcdc;
-  --border-2: #c6c6c6;
+  --border: #d2d2d2;
+  --border-2: #c4c4c4;
   --text: #141414;
   --text-muted: #5c5c5c;
   --text-dim: #8c8c8c;
@@ -184,10 +184,10 @@
 
 [data-theme="graphite"][data-mode="dark"] {
   --bg: #0d0d0d;
-  --surface: #171717;
-  --surface-2: #202020;
-  --border: #2e2e2e;
-  --border-2: #404040;
+  --surface: #191919;
+  --surface-2: #222222;
+  --border: #363636;
+  --border-2: #424242;
   --text: #ededed;
   --text-muted: #a0a0a0;
   --text-dim: #6e6e6e;
@@ -201,10 +201,10 @@
 }
 
 [data-theme="midnight"][data-mode="light"] {
-  --bg: #edeef2;
+  --bg: #e5e6ea;
   --surface: #ffffff;
   --surface-2: #f4f5f8;
-  --border: #d7d9e2;
+  --border: #cfd1da;
   --border-2: #c0c3d0;
   --text: #14162b;
   --text-muted: #565a76;
@@ -220,10 +220,10 @@
 
 [data-theme="midnight"][data-mode="dark"] {
   --bg: #08080f;
-  --surface: #12121f;
-  --surface-2: #1a1a2b;
-  --border: #26263c;
-  --border-2: #363652;
+  --surface: #161623;
+  --surface-2: #1e1e2f;
+  --border: #323248;
+  --border-2: #3c3c58;
   --text: #e8e8f4;
   --text-muted: #9a9ab8;
   --text-dim: #6a6a88;

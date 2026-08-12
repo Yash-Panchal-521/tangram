@@ -242,7 +242,7 @@ export function CardDetailModal({
               {/* Under the description, in the left column: both are what the
                   work *is*, as opposed to how it is tracked. Jira puts
                   activity here for the same reason. */}
-              <div className="mt-7 pt-5 border-t border-border/60">
+              <div className="mt-7 pt-5 border-t border-border">
                 <CommentThread
                   comments={comments.items}
                   currentUserId={comments.currentUserId}
@@ -260,7 +260,7 @@ export function CardDetailModal({
             {/* Divided by a rule and a tint rather than by whitespace: at 38%
                 of the width these rows are close enough to the description to
                 read as more of it. */}
-            <div className="lg:basis-[38%] lg:shrink-0 px-5 py-4 border-t lg:border-t-0 lg:border-l border-border bg-surface-2/30 lg:overflow-y-auto lg:min-h-0">
+            <div className="lg:basis-[38%] lg:shrink-0 px-5 py-4 border-t lg:border-t-0 lg:border-l border-border bg-surface-2 lg:overflow-y-auto lg:min-h-0">
               <ContextPanel
                 card={card}
                 readOnly={readOnly}

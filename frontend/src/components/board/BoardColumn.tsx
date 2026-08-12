@@ -22,9 +22,13 @@ const DOT_COLORS = ["#909090", "#4A9EFF", "#F5A623", "#4A9E62", "#8058A8"];
 // Atlassian: red when the maximum is exceeded, yellow when the minimum is not
 // met. Tinted rather than filled — a whole lane in danger red reads as an
 // error the board is in, when it is a signal about the work inside it.
+// Full-strength tokens, not `/50` and `/70`. Painting a surface at half
+// opacity halves the separation the palette was chosen to provide — on the
+// board that made the lanes read as a single flat field in every theme, which
+// is the exact problem the lanes were introduced to solve.
 const LANE: Record<string, string> = {
-  none: "bg-surface-2/50 border border-border/70",
-  ok: "bg-surface-2/50 border border-border/70",
+  none: "bg-surface-2 border border-border",
+  ok: "bg-surface-2 border border-border",
   under: "bg-warn/5 border border-warn/40",
   over: "bg-danger/5 border border-danger/40",
 };

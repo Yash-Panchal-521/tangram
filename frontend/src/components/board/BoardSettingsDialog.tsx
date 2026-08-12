@@ -141,7 +141,7 @@ export function BoardSettingsDialog({
             {columns.map((column, i) => (
               <li
                 key={column.id}
-                className="flex items-center gap-2 rounded-lg border border-border bg-surface-2/40 px-2 py-1.5"
+                className="flex items-center gap-2 rounded-lg border border-border bg-surface-2 px-2 py-1.5"
               >
                 <div className="flex flex-col shrink-0">
                   <Nudge

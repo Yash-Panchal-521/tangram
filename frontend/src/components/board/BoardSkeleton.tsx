@@ -107,7 +107,7 @@ export function BoardSkeleton({ slow = false }: { slow?: boolean }) {
           {COLUMNS.map((cards, i) => (
             <div
               key={i}
-              className="flex-1 basis-0 min-w-[240px] h-full flex flex-col rounded-xl bg-surface-2/50 border border-border/70 p-2"
+              className="flex-1 basis-0 min-w-[240px] h-full flex flex-col rounded-xl bg-surface-2 border border-border p-2"
             >
               <div className="flex items-center gap-2 px-1 pb-2 shrink-0">
                 {/* A bar, as the loaded column head has — the dot became one
