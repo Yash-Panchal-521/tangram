@@ -957,3 +957,31 @@ Two more were replaced outright: `Undoing_an_edit_restores_the_whole_card` becam
 `One_edit_applies_every_field_it_names`, and both restore tests became
 `Deleting_a_card_is_final` and `Deleting_a_column_takes_its_cards_and_is_final` —
 pinning the new behaviour rather than the old one.
+
+## Themes live in the browser, not the account
+
+Six palettes, each with a full light and dark token set, chosen from the account
+menu and stored in `localStorage` under `tangram-theme`. No column, no endpoint,
+no sync.
+
+**A database preference could not replace this, only sit on top of it.** The
+theme has to be on `<html>` before anything renders, which is why a blocking
+script runs in `<head>` — a stored preference read after authentication and a
+round trip would paint the default first and flash to the person's actual theme
+on every load. Avoiding that means caching it in `localStorage` regardless, so
+the column would be a sync layer over the same mechanism rather than an
+alternative to it. Cross-device theme sync is a lot of moving parts to
+demonstrate something the local version already demonstrates.
+
+What it costs: the choice is per-device, and it does not survive clearing site
+data. Both were accepted.
+
+**Every stored value is validated against the palettes that exist**, in the
+blocking script and again in the provider. This is not defensive habit — the
+tokens are defined only inside `[data-theme="…"][data-mode="…"]` blocks, so a
+name matching no block leaves `--bg`, `--text` and `--accent` all undefined and
+the app renders unpainted until site data is cleared. It is unreachable while the
+palette list is stable and reachable the moment one is renamed or removed, which
+is the likely outcome of using these to choose a final palette. The same fallback
+runs from the script's `catch`, because private browsing throws on read and
+leaving the attributes unset reaches the identical failure.
