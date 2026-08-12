@@ -156,7 +156,11 @@ export function BoardColumn({
     // one read as nothing at all. A tinted surface gives each column an edge to
     // drop against, which is most of what makes a kanban board legible.
     <div
-      className={`flex-none w-[272px] h-full flex flex-col rounded-xl p-2 transition-colors ${LANE[state]}`}
+      // Equal shares of the board rather than a fixed width: `flex-1` is
+      // `flex: 1 1 0%`, so every column resolves to the same width whatever
+      // it contains. The minimum keeps them usable once there are enough
+      // columns to overflow, at which point the board scrolls as before.
+      className={`flex-1 basis-0 min-w-[240px] h-full flex flex-col rounded-xl p-2 transition-colors ${LANE[state]}`}
     >
       {/* Sticky, so the column you are scrolling stays named. Without it a
           long column loses its own header and, with several columns in
@@ -291,21 +295,6 @@ export function BoardColumn({
           ))}
         </SortableContext>
 
-        {/* Doubles as a drop target hint: an empty column used to be blank
-            space, so there was nothing to aim a dragged card at (S2.3). */}
-        {column.cards.length === 0 && !submitting && (
-          <p className="rounded-lg border border-dashed border-border/80 px-3 py-5 text-center text-xs text-text-dim">
-            {/* A filter hiding everything is not an empty column, and saying
-                "add a card" to someone who has just searched is answering a
-                question they did not ask (S2.3). */}
-            {filtering && totalCards
-              ? `No matches — ${totalCards} hidden by the filter.`
-              : canEdit
-                ? "Empty — add a card, or drag one here."
-                : "No cards in this column."}
-          </p>
-        )}
-
         {/* Creates are not optimistic: the server assigns the rank and the id,
             and inventing a temporary one would leave a duplicate on screen
             until the broadcast arrived. A placeholder is the honest version --
@@ -315,7 +304,10 @@ export function BoardColumn({
         )}
       </div>
 
-      {!canEdit ? null : adding ? (
+      {/* The bottom "Add card" trigger is removed for now, on request. The
+          form below is still here because the first-run walkthrough opens it
+          through `startAdding`, so restoring the button is one element. */}
+      {canEdit && adding && (
         <form onSubmit={handleSubmit} className="flex flex-col gap-2 shrink-0 px-1 pb-0.5">
           <input
             autoFocus
@@ -343,21 +335,6 @@ export function BoardColumn({
             </button>
           </div>
         </form>
-      ) : (
-        <button
-          onClick={() => setAdding(true)}
-          disabled={disabled}
-          data-tour={tourAnchors ? "add-card" : undefined}
-          // No dashed outline. Inside a lane that already has an edge it was a
-          // box drawn inside a box; the control reads as an action now.
-          className="flex items-center gap-1.5 w-full py-1.5 px-2 mx-1 rounded-md text-text-muted text-xs font-medium transition-colors shrink-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface hover:text-text"
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <line x1="6" y1="2" x2="6" y2="10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            <line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-          Add card
-        </button>
       )}
 
       {settingLimits && (

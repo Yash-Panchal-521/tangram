@@ -939,7 +939,7 @@ export function BoardView({ boardId }: { boardId: string }) {
               )}
             </div>
           ) : (
-          <div className="flex items-start gap-3.5 h-full" data-tour="columns">
+          <div className="flex items-stretch gap-3 h-full" data-tour="columns">
             {(visibleBoard ?? board).columns.map((column, i) => (
               <BoardColumn
                 key={column.id}
@@ -963,7 +963,7 @@ export function BoardView({ boardId }: { boardId: string }) {
             {/* Same reasoning as the pending card: the server assigns the rank,
                 so this says "on its way" rather than faking the row. */}
             {pendingColumn && (
-              <div className="flex-none w-[262px] flex items-center gap-2 px-0.5 opacity-60">
+              <div className="flex-1 basis-0 min-w-[240px] flex items-center gap-2 px-0.5 opacity-60">
                 <span className="w-2 h-2 rounded-full bg-border-2 shrink-0" />
                 <span className="text-[11px] font-semibold tracking-wider uppercase text-text-dim truncate">
                   {pendingColumn}
@@ -972,64 +972,54 @@ export function BoardView({ boardId }: { boardId: string }) {
               </div>
             )}
 
-            {canEdit &&
-              (addingColumn ? (
-                // S4.1: replaces window.prompt, the last native dialog in the app.
-                // Escape cancels and blur commits, matching the add-card form.
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const name = newColumnName.trim();
-                    setNewColumnName("");
-                    setAddingColumn(false);
-                    if (name) handleAddColumn(name);
+            {/* The "+ Add column" trigger is removed for now, on request. The
+                form stays: the empty-board state still opens it, and without it
+                "Add the first column" would set a flag that renders nothing and
+                leave you looking at a blank board. */}
+            {canEdit && addingColumn && (
+              // S4.1: replaces window.prompt, the last native dialog in the app.
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const name = newColumnName.trim();
+                  setNewColumnName("");
+                  setAddingColumn(false);
+                  if (name) handleAddColumn(name);
+                }}
+                className="flex-1 basis-0 min-w-[240px] flex flex-col gap-2"
+              >
+                <input
+                  autoFocus
+                  value={newColumnName}
+                  onChange={(e) => setNewColumnName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      setNewColumnName("");
+                      setAddingColumn(false);
+                    }
                   }}
-                  className="flex-none w-[180px] flex flex-col gap-2"
-                >
-                  <input
-                    autoFocus
-                    value={newColumnName}
-                    onChange={(e) => setNewColumnName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Escape") {
-                        setNewColumnName("");
-                        setAddingColumn(false);
-                      }
+                  placeholder="Column name"
+                  aria-label="New column name"
+                  className="w-full py-2 px-3 bg-surface border border-border rounded-lg text-[13px] text-text placeholder:text-text-dim transition-colors focus-visible:border-accent"
+                />
+                <div className="flex gap-2">
+                  <Button type="submit" size="sm" disabled={!newColumnName.trim()}>
+                    Add
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setNewColumnName("");
+                      setAddingColumn(false);
                     }}
-                    placeholder="Column name"
-                    aria-label="New column name"
-                    className="w-full py-2 px-3 bg-surface border border-border rounded-lg text-[13px] text-text placeholder:text-text-dim transition-colors focus-visible:border-accent"
-                  />
-                  <div className="flex gap-2">
-                    <Button type="submit" size="sm" disabled={!newColumnName.trim()}>
-                      Add
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setNewColumnName("");
-                        setAddingColumn(false);
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </form>
-              ) : (
-                <button
-                  onClick={() => setAddingColumn(true)}
-                  disabled={!connected}
-                  className="flex-none w-[180px] flex items-center gap-1.5 px-3 py-2 rounded-lg border-[1.5px] border-dashed border-border text-text-dim text-xs font-medium hover:border-accent hover:text-accent cursor-pointer disabled:opacity-50"
-                >
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                    <line x1="6" y1="2" x2="6" y2="10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    <line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  </svg>
-                  Add column
-                </button>
-              ))}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            )}
           </div>
           )}
         </div>

@@ -59,18 +59,13 @@ function renderColumn(overrides: Partial<Parameters<typeof BoardColumn>[0]> = {}
 }
 
 describe("BoardColumn — empty state", () => {
-  it("names the column as a drop target for someone who can edit (S2.3)", () => {
+  it("renders nothing in place of cards when it is empty", () => {
+    // The placeholder was removed on request. Kept as a test so the removal is
+    // deliberate rather than something that quietly comes back.
     renderColumn();
-    // An empty column used to be blank space, so a dragged card had nothing to
-    // aim at.
-    expect(screen.getByText("Empty — add a card, or drag one here.")).toBeTruthy();
-  });
 
-  it("tells a viewer it is empty without suggesting an action they can't take", () => {
-    renderColumn({ canEdit: false });
-
-    expect(screen.getByText("No cards in this column.")).toBeTruthy();
-    expect(screen.queryByText(/add a card/i)).toBeNull();
+    expect(screen.queryByText(/Empty —/)).toBeNull();
+    expect(screen.queryByText(/No cards in this column/)).toBeNull();
   });
 
   it("disappears once the column has cards", () => {
@@ -258,9 +253,10 @@ describe("BoardColumn — adding a card", () => {
     const onAddCard = vi.fn(
       () => new Promise<void>((resolve) => (release = resolve))
     );
-    renderColumn({ onAddCard });
+    // Opened the way the walkthrough opens it: the bottom "Add card" trigger
+    // was removed on request, but the form behind it is still live.
+    renderColumn({ onAddCard, startAdding: true });
 
-    await user.click(screen.getByRole("button", { name: /Add card/ }));
     await user.type(screen.getByPlaceholderText("Card title"), "Pending one{Enter}");
 
     // Creates aren't optimistic -- the server assigns the id and rank -- so a
@@ -274,9 +270,8 @@ describe("BoardColumn — adding a card", () => {
 
   it("refuses to submit an empty title", async () => {
     const user = userEvent.setup();
-    const { onAddCard } = renderColumn();
+    const { onAddCard } = renderColumn({ startAdding: true });
 
-    await user.click(screen.getByRole("button", { name: /Add card/ }));
     await user.type(screen.getByPlaceholderText("Card title"), "   {Enter}");
 
     expect(onAddCard).not.toHaveBeenCalled();
@@ -289,8 +284,8 @@ describe("BoardColumn — adding a card", () => {
   });
 
   it("gives a viewer no way to add at all", () => {
-    renderColumn({ canEdit: false });
-    expect(screen.queryByRole("button", { name: /Add card/ })).toBeNull();
+    renderColumn({ canEdit: false, startAdding: true });
+    expect(screen.queryByPlaceholderText("Card title")).toBeNull();
   });
 });
 

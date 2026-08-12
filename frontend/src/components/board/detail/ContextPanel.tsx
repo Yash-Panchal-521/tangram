@@ -4,7 +4,7 @@ import { useId, useState } from "react";
 import { Avatar } from "@/components/ui/Avatar";
 import { PriorityIcon } from "@/components/ui/PriorityIcon";
 import { DatePicker } from "@/components/ui/DatePicker";
-import { Select } from "@/components/ui/Select";
+import { SelectMenu } from "@/components/ui/SelectMenu";
 import { ContextRow } from "@/components/board/detail/ContextRow";
 import { LabelPicker } from "@/components/board/detail/LabelPicker";
 import { dueLabel, formatDueDate, toDateInputValue } from "@/lib/dueDate";
@@ -108,19 +108,14 @@ export function ContextPanel({
               {statuses.find((s) => s.id === card.columnId)?.name ?? "—"}
             </p>
           ) : (
-            <Select
+            <SelectMenu
               id={statusId}
+              label="Status"
               value={card.columnId}
               disabled={pending === "status"}
-              onChange={(e) => void run("status", () => onMove(e.target.value))}
-              variant="quiet"
-            >
-              {statuses.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </Select>
+              options={statuses.map((s) => ({ value: s.id, label: s.name }))}
+              onChange={(next) => void run("status", () => onMove(next))}
+            />
           )}
         </ContextRow>
 
@@ -142,35 +137,39 @@ export function ContextPanel({
               )}
             </div>
           ) : (
-            <Select
+            <SelectMenu
               id={assigneeId}
+              label="Assignee"
               value={card.assigneeId ?? ""}
               disabled={pending === "assignee"}
-              onChange={(e) =>
+              options={[
+                { value: "", label: "Unassigned", muted: true },
+                // Kept visible rather than silently collapsing to "Unassigned",
+                // which would make the next save clear an assignment nobody
+                // chose to clear.
+                ...(assigneeMissing
+                  ? [
+                      {
+                        value: card.assigneeId!,
+                        label: "Someone who has left the workspace",
+                        muted: true,
+                      },
+                    ]
+                  : []),
+                ...members.map((m) => ({
+                  value: m.userId,
+                  label: m.displayName,
+                  // Half the reason this stopped being a native select: an
+                  // <option> can hold text and nothing else.
+                  icon: <Avatar name={m.displayName} size="sm" />,
+                })),
+              ]}
+              onChange={(next) =>
                 void run("assignee", () =>
-                  onCommit({
-                    assigneeId: e.target.value || null,
-                    clearAssignee: e.target.value === "",
-                  }),
+                  onCommit({ assigneeId: next || null, clearAssignee: next === "" })
                 )
               }
-              variant="quiet"
-            >
-              <option value="">Unassigned</option>
-              {/* Kept visible rather than silently collapsing to "Unassigned",
-                  which would make the next save clear an assignment nobody
-                  chose to clear. */}
-              {assigneeMissing && (
-                <option value={card.assigneeId!}>
-                  Someone who has left the workspace
-                </option>
-              )}
-              {members.map((m) => (
-                <option key={m.userId} value={m.userId}>
-                  {m.displayName}
-                </option>
-              ))}
-            </Select>
+            />
           )}
         </ContextRow>
 
@@ -190,34 +189,30 @@ export function ContextPanel({
               )}
             </div>
           ) : (
-            <Select
-              id={priorityId}
-              // Inside the field, not beside it — beside it pushed this one
-              // control right and broke the column's left edge.
-              leading={
-                card.priority ? (
-                  <PriorityIcon priority={card.priority} />
-                ) : undefined
-              }
-              value={card.priority ?? ""}
-              disabled={pending === "priority"}
-              onChange={(e) =>
-                void run("priority", () =>
-                  onCommit({
-                    priority: (e.target.value || null) as CardPriority | null,
-                    clearPriority: e.target.value === "",
-                  }),
-                )
-              }
-              variant="quiet"
-            >
-              <option value="">None</option>
-              {PRIORITIES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </Select>
+            <SelectMenu
+                id={priorityId}
+                label="Priority"
+                value={card.priority ?? ""}
+                disabled={pending === "priority"}
+                options={[
+                  { value: "", label: "None", muted: true },
+                  ...PRIORITIES.map((level) => ({
+                    value: level,
+                    label: level,
+                    // In the rows as well as the trigger now. A native option
+                    // list could show neither, which is the other half.
+                    icon: <PriorityIcon priority={level} />,
+                  })),
+                ]}
+                onChange={(next) =>
+                  void run("priority", () =>
+                    onCommit({
+                      priority: (next || null) as CardPriority | null,
+                      clearPriority: next === "",
+                    })
+                  )
+                }
+              />
           )}
         </ContextRow>
 

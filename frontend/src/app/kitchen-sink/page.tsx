@@ -1,6 +1,7 @@
 import { ConfirmDialogDemo } from "@/app/kitchen-sink/ConfirmDialogDemo";
 import { CardDetailDemo } from "@/app/kitchen-sink/CardDetailDemo";
 import { MenuDemo } from "@/app/kitchen-sink/MenuDemo";
+import { SelectMenuDemo } from "@/app/kitchen-sink/SelectMenuDemo";
 import { DatePickerDemo } from "@/app/kitchen-sink/DatePickerDemo";
 import { InlineEditDemo } from "@/app/kitchen-sink/InlineEditDemo";
 import { InviteChipsDemo } from "@/app/kitchen-sink/InviteChipsDemo";
@@ -122,6 +123,21 @@ export default function KitchenSinkPage() {
           comments only, and a failed send keeps the draft.
         </p>
         <CardDetailDemo />
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold text-text-muted">Select field</h2>
+        <p className="text-xs text-text-dim">
+          Draws its own list instead of using <code>&lt;select&gt;</code>. The native control was
+          chosen for one reason — keyboard and mobile behaviour for free — and the cost turned out
+          to be worse: the option list is painted by the operating system, so it arrives as a white
+          box with a system-blue highlight in a warm-toned app, and an <code>&lt;option&gt;</code>
+          can hold text and nothing else, so neither the priority icon nor an assignee&apos;s
+          avatar could appear in it. The keyboard contract is implemented here instead — arrows
+          move, Home and End reach the ends, Enter chooses, Escape closes without choosing and
+          hands focus back. Picking the value that is already set sends nothing.
+        </p>
+        <SelectMenuDemo />
       </section>
 
       <section className="flex flex-col gap-3">

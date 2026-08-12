@@ -86,6 +86,23 @@ function mount(overrides: Partial<Parameters<typeof CardDetailModal>[0]> = {}) {
 
 const summary = () => screen.getByRole("button", { name: /Summary/ });
 
+/**
+ * Status, Assignee and Priority draw their own list rather than using a
+ * native `<select>`, so choosing is open-then-pick.
+ */
+async function choose(
+  user: ReturnType<typeof userEvent.setup>,
+  field: string,
+  option: string | RegExp
+) {
+  await user.click(screen.getByRole("button", { name: field }));
+  await user.click(screen.getByRole("option", { name: option }));
+}
+
+/** What the field currently reads, which is what its trigger says. */
+const fieldValue = (field: string) =>
+  screen.getByRole("button", { name: field }).textContent;
+
 describe("CardDetailModal — layout", () => {
   it("is a labelled modal dialog", () => {
     mount();
@@ -163,16 +180,26 @@ describe("CardDetailModal — editing", () => {
     await waitFor(() => expect(onCommit).toHaveBeenCalledWith({ description: null }));
   });
 
-  it("assigns, and distinguishes clearing from leaving alone", async () => {
+  it("assigns someone", async () => {
     const user = userEvent.setup();
     const { onCommit } = mount();
 
-    await user.selectOptions(screen.getByLabelText("Assignee"), "u-2");
+    await choose(user, "Assignee", /Sara R./);
+
     await waitFor(() =>
       expect(onCommit).toHaveBeenCalledWith({ assigneeId: "u-2", clearAssignee: false })
     );
+  });
 
-    await user.selectOptions(screen.getByLabelText("Assignee"), "");
+  it("distinguishes clearing an assignee from leaving them alone", async () => {
+    // Started from a card that actually has one: picking "Unassigned" on a card
+    // that is already unassigned is a no-op the field declines to send, which
+    // is why this cannot be the second half of the test above.
+    const user = userEvent.setup();
+    const { onCommit } = mount({ card: { ...CARD, assigneeId: "u-2" } });
+
+    await choose(user, "Assignee", "Unassigned");
+
     await waitFor(() =>
       expect(onCommit).toHaveBeenCalledWith({ assigneeId: null, clearAssignee: true })
     );
@@ -183,18 +210,18 @@ describe("CardDetailModal — editing", () => {
     // "Unassigned" and the next save would quietly drop the assignment.
     mount({ card: { ...CARD, assigneeId: "gone" }, members: [] });
 
-    const select = screen.getByLabelText("Assignee") as HTMLSelectElement;
-    expect(select.value).toBe("gone");
-    expect(screen.getByText("Someone who has left the workspace")).toBeTruthy();
+    expect(fieldValue("Assignee")).toContain("Someone who has left the workspace");
   });
 });
 
 describe("CardDetailModal — priority", () => {
-  it("offers the five levels plus None, most urgent first", () => {
+  it("offers the five levels plus None, most urgent first", async () => {
+
+    const user = userEvent.setup();
     mount();
 
-    const select = screen.getByLabelText("Priority") as HTMLSelectElement;
-    expect([...select.options].map((o) => o.textContent)).toEqual([
+    await user.click(screen.getByRole("button", { name: "Priority" }));
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([
       "None",
       "Highest",
       "High",
@@ -208,14 +235,14 @@ describe("CardDetailModal — priority", () => {
     // Jira defaults to Medium. A priority on every card is a priority on
     // nothing — the field only informs when some cards go without.
     mount();
-    expect((screen.getByLabelText("Priority") as HTMLSelectElement).value).toBe("");
+    expect(fieldValue("Priority")).toContain("None");
   });
 
   it("sets a level", async () => {
     const user = userEvent.setup();
     const { onCommit } = mount();
 
-    await user.selectOptions(screen.getByLabelText("Priority"), "High");
+    await choose(user, "Priority", "High");
 
     await waitFor(() =>
       expect(onCommit).toHaveBeenCalledWith({ priority: "High", clearPriority: false })
@@ -228,7 +255,7 @@ describe("CardDetailModal — priority", () => {
     const user = userEvent.setup();
     const { onCommit } = mount({ card: { ...CARD, priority: "High" } });
 
-    await user.selectOptions(screen.getByLabelText("Priority"), "");
+    await choose(user, "Priority", "None");
 
     await waitFor(() =>
       expect(onCommit).toHaveBeenCalledWith({ priority: null, clearPriority: true })
@@ -240,12 +267,12 @@ describe("CardDetailModal — priority", () => {
     // beside the control it pushed the select right and broke the column.
     mount({ card: { ...CARD, priority: "Highest" } });
 
-    const select = screen.getByLabelText("Priority") as HTMLSelectElement;
-    expect(select.value).toBe("Highest");
-
-    // The leading slot, inside the field's own box.
-    const leading = select.parentElement?.querySelector('span[aria-hidden="true"]');
-    expect(leading?.querySelector("svg")).toBeTruthy();
+    // The trigger carries the level and its icon — the whole reason this
+    // stopped being a native select, whose options can hold text and nothing
+    // else.
+    const trigger = screen.getByRole("button", { name: "Priority" });
+    expect(trigger.textContent).toContain("Highest");
+    expect(trigger.querySelector("svg")).toBeTruthy();
 
     // Decoration here, unlike the read-only view: the select already says
     // "Highest", and announcing it twice is worse than not at all.
@@ -531,15 +558,16 @@ describe("CardDetailModal — status", () => {
     const user = userEvent.setup();
     const { onMove } = mount();
 
-    const status = screen.getByLabelText("Status") as HTMLSelectElement;
-    expect(status.value).toBe("col-todo");
-    expect([...status.options].map((o) => o.textContent)).toEqual([
+    expect(fieldValue("Status")).toContain("To Do");
+
+    await user.click(screen.getByRole("button", { name: "Status" }));
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([
       "To Do",
       "In Progress",
       "Done",
     ]);
 
-    await user.selectOptions(status, "col-done");
+    await user.click(screen.getByRole("option", { name: "Done" }));
     await waitFor(() => expect(onMove).toHaveBeenCalledWith("col-done"));
   });
 
@@ -551,7 +579,7 @@ describe("CardDetailModal — status", () => {
       }),
     });
 
-    await user.selectOptions(screen.getByLabelText("Status"), "col-done");
+    await choose(user, "Status", "Done");
 
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain("check your connection");
@@ -820,6 +848,6 @@ describe("CardDetailModal — live updates", () => {
     );
 
     expect(summary().textContent).toBe("Renamed by Sara");
-    expect((screen.getByLabelText("Status") as HTMLSelectElement).value).toBe("col-done");
+    expect(fieldValue("Status")).toContain("Done");
   });
 });
