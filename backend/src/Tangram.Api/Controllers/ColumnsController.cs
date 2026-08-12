@@ -10,6 +10,8 @@ namespace Tangram.Api.Controllers;
 [Route("boards/{boardId:guid}/columns")]
 public class ColumnsController(IBoardOperationService boardOperations) : ControllerBase
 {
+    private const int MaxColumnsPerRequest = 8;
+
     [HttpPost]
     public async Task<ActionResult<ColumnResponse>> CreateColumn(Guid boardId, CreateColumnRequest request, CancellationToken ct)
     {
@@ -19,6 +21,42 @@ public class ColumnsController(IBoardOperationService boardOperations) : Control
         }
 
         return await Run(() => boardOperations.CreateColumnAsync(boardId, request.Name.Trim(), ct));
+    }
+
+    [HttpPost("bulk")]
+    public async Task<ActionResult<List<ColumnResponse>>> CreateColumns(
+        Guid boardId, CreateColumnsRequest request, CancellationToken ct)
+    {
+        var names = (request.Names ?? [])
+            .Select(n => n?.Trim() ?? string.Empty)
+            .Where(n => n.Length > 0)
+            .ToList();
+
+        if (names.Count == 0)
+        {
+            return ValidationProblem("Name at least one column.");
+        }
+
+        // The same ceiling board creation uses. Not a product rule so much as a
+        // guard: a pasted paragraph would otherwise become forty columns and a
+        // board nobody can read.
+        if (names.Count > MaxColumnsPerRequest)
+        {
+            return ValidationProblem($"You can add at most {MaxColumnsPerRequest} columns at once.");
+        }
+
+        try
+        {
+            return await boardOperations.CreateColumnsAsync(boardId, names, ct);
+        }
+        catch (BoardOperationNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (BoardOperationForbiddenException)
+        {
+            return Forbid();
+        }
     }
 
     [HttpPatch("{columnId:guid}")]

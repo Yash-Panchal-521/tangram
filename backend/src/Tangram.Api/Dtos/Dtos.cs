@@ -63,6 +63,19 @@ public record CreateColumnRequest(string Name);
 public record RenameColumnRequest(string Name);
 
 /// <summary>
+/// Several columns at once, in the order given.
+/// </summary>
+/// <remarks>
+/// One call rather than one per column because seeding a board is a single
+/// intent: four separate requests can fail on the third, and the board is then
+/// half a workflow with nothing to say about it. This lands in one transaction
+/// — all the columns or none — while still emitting an ordinary
+/// <c>column.create</c> per column, so no client needs teaching a new
+/// operation type to see them arrive.
+/// </remarks>
+public record CreateColumnsRequest(List<string> Names);
+
+/// <summary>
 /// A column's card limits. Absent means leave alone; explicit null clears.
 /// </summary>
 /// <remarks>

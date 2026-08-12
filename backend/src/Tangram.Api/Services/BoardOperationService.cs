@@ -19,6 +19,7 @@ public class BoardOperationForbiddenException(string message) : Exception(messag
 public interface IBoardOperationService
 {
     Task<ColumnResponse> CreateColumnAsync(Guid boardId, string name, CancellationToken ct);
+    Task<List<ColumnResponse>> CreateColumnsAsync(Guid boardId, IReadOnlyList<string> names, CancellationToken ct);
     Task<ColumnResponse> RenameColumnAsync(Guid boardId, Guid columnId, string name, CancellationToken ct);
     Task<ColumnResponse> SetColumnLimitsAsync(Guid boardId, Guid columnId, SetColumnLimitsRequest request, CancellationToken ct);
     Task DeleteColumnAsync(Guid boardId, Guid columnId, CancellationToken ct);
@@ -86,6 +87,49 @@ public class BoardOperationService(
         var response = ToResponse(column);
         await SaveAsync(boardId, new Pending("column.create", response), ct);
         return response;
+    }
+
+    public async Task<List<ColumnResponse>> CreateColumnsAsync(
+        Guid boardId, IReadOnlyList<string> names, CancellationToken ct)
+    {
+        await EnsureCanMutateAsync(boardId, ct);
+
+        // Ranked after whatever is already there, so this appends rather than
+        // rebuilding an order somebody chose.
+        var lastRank = await db.Columns
+            .Where(c => c.BoardId == boardId)
+            .OrderByDescending(c => c.Rank)
+            .Select(c => c.Rank)
+            .FirstOrDefaultAsync(ct);
+
+        var now = DateTimeOffset.UtcNow;
+        var created = new List<ColumnResponse>(names.Count);
+        var pending = new List<Pending>(names.Count);
+
+        foreach (var name in names)
+        {
+            lastRank = RankService.GenerateBetween(lastRank, null);
+            var column = new Column
+            {
+                Id = Guid.NewGuid(),
+                BoardId = boardId,
+                Name = name,
+                Rank = lastRank,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            db.Columns.Add(column);
+
+            var response = ToResponse(column);
+            created.Add(response);
+            pending.Add(new Pending("column.create", response));
+        }
+
+        // One SaveAsync, so the whole set shares a transaction: a caller with
+        // several changes needs all or none, and the seq a client reconciles
+        // against must not advance for work that then rolls back.
+        await SaveAsync(boardId, pending, ct);
+        return created;
     }
 
     public async Task<ColumnResponse> RenameColumnAsync(Guid boardId, Guid columnId, string name, CancellationToken ct)

@@ -45,6 +45,7 @@ import { useCardParam } from "@/lib/useCardParam";
 import { useBoardFilter } from "@/lib/useBoardFilter";
 import { BoardFilterBar } from "@/components/board/BoardFilterBar";
 import { CreateCardDialog } from "@/components/board/CreateCardDialog";
+import { SeedColumnsDialog } from "@/components/board/SeedColumnsDialog";
 import { countMatches, filterBoard, isFilterActive } from "@/lib/boardFilter";
 import { BOARD_TOUR } from "@/lib/boardTour";
 import { Walkthrough } from "@/components/onboarding/Walkthrough";
@@ -128,6 +129,7 @@ export function BoardView({ boardId }: { boardId: string }) {
   const { openCardId, openCard: openCardById, closeCard } = useCardParam();
   const { filter, setFilter, clear: clearFilter } = useBoardFilter();
   const [creating, setCreating] = useState(false);
+  const [seedingColumns, setSeedingColumns] = useState(false);
   // The open card's thread. Held here rather than in the modal because every
   // other piece of sync lives here, and a comment arriving from someone else is
   // a broadcast like any other -- the modal would otherwise need its own
@@ -495,6 +497,17 @@ export function BoardView({ boardId }: { boardId: string }) {
       // Rethrown so the dialog stays open and says why (S3.2). A toast
       // behind a dialog that closed anyway is how a rejected card looks
       // created — and the text someone just typed would be gone.
+      "rethrow"
+    );
+  }
+
+  async function handleSeedColumns(names: string[]) {
+    await runMutation(
+      "add those columns",
+      async () => api.post(`/boards/${boardId}/columns/bulk`, await getToken(), { names }),
+      undefined,
+      // Rethrown so the dialog stays open and says why (S3.2), and so a half
+      // answer never looks accepted — the call is all-or-nothing on the server.
       "rethrow"
     );
   }
@@ -989,12 +1002,12 @@ export function BoardView({ boardId }: { boardId: string }) {
               <p className="text-sm font-medium">This board is empty.</p>
               <p className="text-[13px] text-text-muted max-w-xs">
                 {canEdit
-                  ? "Columns are the stages work moves through — To Do, In Progress, Done. Add the first one to get started."
+                  ? "Columns are the stages work moves through. Start from a shape, or name your own."
                   : "Nobody has added any columns yet. You'll see them here as soon as someone does."}
               </p>
               {canEdit && (
-                <Button size="sm" onClick={() => setAddingColumn(true)} disabled={!connected}>
-                  Add the first column
+                <Button size="sm" onClick={() => setSeedingColumns(true)} disabled={!connected}>
+                  Add columns
                 </Button>
               )}
             </div>
@@ -1094,6 +1107,13 @@ export function BoardView({ boardId }: { boardId: string }) {
           )}
         </DragOverlay>
       </DndContext>
+
+      {seedingColumns && (
+        <SeedColumnsDialog
+          onCreate={handleSeedColumns}
+          onClose={() => setSeedingColumns(false)}
+        />
+      )}
 
       {creating && board.columns.length > 0 && (
         <CreateCardDialog
