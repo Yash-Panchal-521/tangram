@@ -46,6 +46,7 @@ import { useBoardFilter } from "@/lib/useBoardFilter";
 import { BoardFilterBar } from "@/components/board/BoardFilterBar";
 import { CreateCardDialog } from "@/components/board/CreateCardDialog";
 import { SeedColumnsDialog } from "@/components/board/SeedColumnsDialog";
+import { BoardSettingsDialog } from "@/components/board/BoardSettingsDialog";
 import { countMatches, filterBoard, isFilterActive } from "@/lib/boardFilter";
 import { BOARD_TOUR } from "@/lib/boardTour";
 import { Walkthrough } from "@/components/onboarding/Walkthrough";
@@ -114,8 +115,6 @@ export function BoardView({ boardId }: { boardId: string }) {
   // Drives the "still waking" copy below (S2.4).
   const [slowLoad, setSlowLoad] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
-  const [addingColumn, setAddingColumn] = useState(false);
-  const [newColumnName, setNewColumnName] = useState("");
   // The name of a column whose create is still in flight, or null.
   const [pendingColumn, setPendingColumn] = useState<string | null>(null);
   // Set once, by the introduction's call to action. Latching rather than
@@ -130,6 +129,7 @@ export function BoardView({ boardId }: { boardId: string }) {
   const { filter, setFilter, clear: clearFilter } = useBoardFilter();
   const [creating, setCreating] = useState(false);
   const [seedingColumns, setSeedingColumns] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   // The open card's thread. Held here rather than in the modal because every
   // other piece of sync lives here, and a comment arriving from someone else is
   // a broadcast like any other -- the modal would otherwise need its own
@@ -501,6 +501,18 @@ export function BoardView({ boardId }: { boardId: string }) {
     );
   }
 
+  async function handleMoveColumn(columnId: string, beforeColumnId: string | null) {
+    await runMutation(
+      "reorder those columns",
+      async () =>
+        api.post(`/boards/${boardId}/columns/${columnId}/move`, await getToken(), {
+          beforeColumnId,
+        }),
+      undefined,
+      "rethrow"
+    );
+  }
+
   async function handleSeedColumns(names: string[]) {
     await runMutation(
       "add those columns",
@@ -515,8 +527,14 @@ export function BoardView({ boardId }: { boardId: string }) {
   async function handleAddColumn(name: string) {
     setPendingColumn(name);
     try {
-      await runMutation("add that column", async () =>
-        api.post(`/boards/${boardId}/columns`, await getToken(), { name })
+      await runMutation(
+        "add that column",
+        async () => api.post(`/boards/${boardId}/columns`, await getToken(), { name }),
+        undefined,
+        // Rethrown: this is only reached from the settings panel now, and a
+        // toast at the foot of the board sits behind that dialog's overlay
+        // where nobody will read it (S3.2).
+        "rethrow"
       );
     } finally {
       setPendingColumn(null);
@@ -829,6 +847,21 @@ export function BoardView({ boardId }: { boardId: string }) {
           </Link>
           <span className="text-sm text-text-dim shrink-0">/</span>
           <span className="text-sm font-semibold truncate">{board.name}</span>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              aria-label="Board settings"
+              title="Board settings"
+              className="w-6 h-6 shrink-0 flex items-center justify-center rounded-md text-text-dim hover:text-text hover:bg-surface-2 transition-colors cursor-pointer"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
+                <circle cx="3" cy="7" r="1.3" />
+                <circle cx="7" cy="7" r="1.3" />
+                <circle cx="11" cy="7" r="1.3" />
+              </svg>
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">
@@ -997,7 +1030,7 @@ export function BoardView({ boardId }: { boardId: string }) {
               the top-left, which reads as a broken layout rather than a
               starting point. Viewers get the same explanation without the
               control they cannot use (S8.1). */}
-          {board.columns.length === 0 && !addingColumn && !pendingColumn ? (
+          {board.columns.length === 0 && !pendingColumn ? (
             <div className="h-full flex flex-col items-center justify-center gap-3 text-center">
               <p className="text-sm font-medium">This board is empty.</p>
               <p className="text-[13px] text-text-muted max-w-xs">
@@ -1045,54 +1078,6 @@ export function BoardView({ boardId }: { boardId: string }) {
               </div>
             )}
 
-            {/* The "+ Add column" trigger is removed for now, on request. The
-                form stays: the empty-board state still opens it, and without it
-                "Add the first column" would set a flag that renders nothing and
-                leave you looking at a blank board. */}
-            {canEdit && addingColumn && (
-              // S4.1: replaces window.prompt, the last native dialog in the app.
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const name = newColumnName.trim();
-                  setNewColumnName("");
-                  setAddingColumn(false);
-                  if (name) handleAddColumn(name);
-                }}
-                className="flex-1 basis-0 min-w-[240px] flex flex-col gap-2"
-              >
-                <input
-                  autoFocus
-                  value={newColumnName}
-                  onChange={(e) => setNewColumnName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Escape") {
-                      setNewColumnName("");
-                      setAddingColumn(false);
-                    }
-                  }}
-                  placeholder="Column name"
-                  aria-label="New column name"
-                  className="w-full py-2 px-3 bg-surface border border-border rounded-lg text-[13px] text-text placeholder:text-text-dim transition-colors focus-visible:border-accent"
-                />
-                <div className="flex gap-2">
-                  <Button type="submit" size="sm" disabled={!newColumnName.trim()}>
-                    Add
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setNewColumnName("");
-                      setAddingColumn(false);
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </form>
-            )}
           </div>
           )}
         </div>
@@ -1107,6 +1092,19 @@ export function BoardView({ boardId }: { boardId: string }) {
           )}
         </DragOverlay>
       </DndContext>
+
+      {settingsOpen && (
+        <BoardSettingsDialog
+          columns={board.columns}
+          connected={connected}
+          onRename={handleRenameColumn}
+          onMove={handleMoveColumn}
+          onSetLimits={handleSetColumnLimits}
+          onDelete={handleDeleteColumn}
+          onAdd={handleAddColumn}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
 
       {seedingColumns && (
         <SeedColumnsDialog
