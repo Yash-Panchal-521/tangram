@@ -76,6 +76,24 @@ export interface ColumnResponse {
   maxCards: number | null;
 }
 
+/**
+ * A new card, complete.
+ *
+ * The optional fields ride the create request rather than a follow-up PATCH:
+ * two calls would be two operations and two broadcasts, and everyone else would
+ * watch the card appear bare and then acquire its assignee and labels a moment
+ * later. No clear flags, unlike `UpdateCardRequest` — nothing exists yet to
+ * clear, so absent and null mean the same thing.
+ */
+export interface CreateCardRequest {
+  title: string;
+  description?: string | null;
+  assigneeId?: string | null;
+  priority?: CardPriority | null;
+  dueAt?: string | null;
+  labelIds?: string[];
+}
+
 export interface SetColumnLimitsRequest {
   minCards?: number | null;
   maxCards?: number | null;

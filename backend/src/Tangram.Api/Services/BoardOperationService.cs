@@ -24,7 +24,7 @@ public interface IBoardOperationService
     Task DeleteColumnAsync(Guid boardId, Guid columnId, CancellationToken ct);
     Task<ColumnResponse> MoveColumnAsync(Guid boardId, Guid columnId, Guid? beforeColumnId, CancellationToken ct);
 
-    Task<CardResponse> CreateCardAsync(Guid boardId, Guid columnId, string title, string? description, CancellationToken ct);
+    Task<CardResponse> CreateCardAsync(Guid boardId, Guid columnId, CreateCardRequest request, CancellationToken ct);
     Task<CardResponse> UpdateCardAsync(Guid boardId, Guid cardId, UpdateCardRequest request, CancellationToken ct);
     Task DeleteCardAsync(Guid boardId, Guid cardId, CancellationToken ct);
     Task<CardResponse> MoveCardAsync(Guid boardId, Guid cardId, Guid targetColumnId, Guid? beforeCardId, CancellationToken ct);
@@ -175,7 +175,8 @@ public class BoardOperationService(
         return response;
     }
 
-    public async Task<CardResponse> CreateCardAsync(Guid boardId, Guid columnId, string title, string? description, CancellationToken ct)
+    public async Task<CardResponse> CreateCardAsync(
+        Guid boardId, Guid columnId, CreateCardRequest request, CancellationToken ct)
     {
         await EnsureCanMutateAsync(boardId, ct);
 
@@ -192,13 +193,31 @@ public class BoardOperationService(
         {
             Id = Guid.NewGuid(),
             ColumnId = column.Id,
-            Title = title,
-            Description = description,
+            Title = request.Title,
+            Description = request.Description,
+            AssigneeId = request.AssigneeId,
+            Priority = CardPriorityParser.ParseOrNull(request.Priority),
+            DueAt = request.DueAt,
             Rank = RankService.GenerateBetween(lastRank, null),
             CreatedAt = now,
             UpdatedAt = now
         };
         db.Cards.Add(card);
+
+        // Labels are attached here rather than through the update path, but the
+        // membership check is the same one: an id from another board would
+        // otherwise borrow that board's vocabulary onto this card.
+        if (request.LabelIds is { Count: > 0 })
+        {
+            var labels = await db.Labels
+                .Where(l => l.BoardId == boardId && request.LabelIds.Contains(l.Id))
+                .ToListAsync(ct);
+
+            foreach (var label in labels)
+            {
+                card.CardLabels.Add(new CardLabel { CardId = card.Id, LabelId = label.Id, Label = label });
+            }
+        }
 
         var response = ToResponse(card, commentCount: 0);
         await SaveAsync(boardId, new Pending("card.create", response), ct);

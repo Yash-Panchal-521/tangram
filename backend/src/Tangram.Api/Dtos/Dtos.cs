@@ -86,7 +86,25 @@ public record ColumnResponse(
     int? MaxCards = null);
 public record ColumnDeletedPayload(Guid Id);
 
-public record CreateCardRequest(string Title, string? Description);
+/// <summary>
+/// A new card, complete.
+/// </summary>
+/// <remarks>
+/// The optional fields are here rather than left to a follow-up PATCH so a
+/// card is created once: two calls would mean two operations, two sequence
+/// numbers and two broadcasts, and everyone else would watch the card appear
+/// bare and then visibly acquire its assignee and labels a moment later.
+///
+/// No clear flags, unlike <see cref="UpdateCardRequest"/>. Nothing exists yet
+/// to clear, so absent and null mean the same thing here — "not set".
+/// </remarks>
+public record CreateCardRequest(
+    string Title,
+    string? Description,
+    Guid? AssigneeId = null,
+    string? Priority = null,
+    DateTimeOffset? DueAt = null,
+    List<Guid>? LabelIds = null);
 
 // One request shape for every field-level edit on a card. Splitting due date and
 // assignee into their own endpoints would mean three operations -- and three

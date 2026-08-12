@@ -25,4 +25,12 @@ public static class CardPriorityParser
         TryParse(value, out var priority)
             ? priority
             : throw new BoardOperationConflictException($"Priority must be one of {AllowedValues}.");
+
+    /// <summary>Absent is fine — a card without a priority is the normal case.</summary>
+    public static bool IsValid(string? value) =>
+        string.IsNullOrWhiteSpace(value) || TryParse(value, out _);
+
+    /// <summary>Absent stays absent; anything present must be a real level.</summary>
+    public static CardPriority? ParseOrNull(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : Parse(value);
 }

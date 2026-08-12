@@ -19,7 +19,17 @@ public class CardsController(IBoardOperationService boardOperations) : Controlle
             return ValidationProblem("Card title is required.");
         }
 
-        return await Run(() => boardOperations.CreateCardAsync(boardId, columnId, request.Title.Trim(), request.Description, ct));
+        // Rejected rather than ignored: a level the server does not recognise
+        // means the client and the server disagree about what a priority is,
+        // and silently creating the card without one hides that.
+        if (!CardPriorityParser.IsValid(request.Priority))
+        {
+            return ValidationProblem("That isn't a priority level.");
+        }
+
+        return await Run(() =>
+            boardOperations.CreateCardAsync(
+                boardId, columnId, request with { Title = request.Title.Trim() }, ct));
     }
 
     [HttpPatch("cards/{cardId:guid}")]

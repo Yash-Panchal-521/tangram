@@ -25,6 +25,7 @@ import {
   type LabelColor,
   type MeResponse,
   type LabelResponse,
+  type CreateCardRequest,
   type MemberResponse,
   type SetColumnLimitsRequest,
   type UpdateCardRequest,
@@ -43,6 +44,7 @@ import { useSeenOnce } from "@/lib/useSeenOnce";
 import { useCardParam } from "@/lib/useCardParam";
 import { useBoardFilter } from "@/lib/useBoardFilter";
 import { BoardFilterBar } from "@/components/board/BoardFilterBar";
+import { CreateCardDialog } from "@/components/board/CreateCardDialog";
 import { countMatches, filterBoard, isFilterActive } from "@/lib/boardFilter";
 import { BOARD_TOUR } from "@/lib/boardTour";
 import { Walkthrough } from "@/components/onboarding/Walkthrough";
@@ -125,6 +127,7 @@ export function BoardView({ boardId }: { boardId: string }) {
   // Which card is open lives in the URL — see useCardParam for why.
   const { openCardId, openCard: openCardById, closeCard } = useCardParam();
   const { filter, setFilter, clear: clearFilter } = useBoardFilter();
+  const [creating, setCreating] = useState(false);
   // The open card's thread. Held here rather than in the modal because every
   // other piece of sync lives here, and a comment arriving from someone else is
   // a broadcast like any other -- the modal would otherwise need its own
@@ -206,6 +209,34 @@ export function BoardView({ boardId }: { boardId: string }) {
     const id = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(id);
   }, [filter.recent]);
+
+  // `c` creates, which is Jira's shortcut for it. Ignored while something is
+  // being typed into, or it would swallow the letter mid-word in a card title —
+  // the same guard the filter bar's `/` uses.
+  useEffect(() => {
+    if (!canEdit) return;
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "c" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = document.activeElement;
+      if (
+        el instanceof HTMLInputElement ||
+        el instanceof HTMLTextAreaElement ||
+        (el instanceof HTMLElement && el.isContentEditable)
+      ) {
+        return;
+      }
+      // Not while a card is open: `c` there is a letter someone is about to
+      // type, or at best ambiguous about which board it means.
+      if (openCardId) return;
+
+      e.preventDefault();
+      setCreating(true);
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [canEdit, openCardId]);
 
   // The board as the filter leaves it. Everything that draws the board reads
   // this; everything that resolves a card by id keeps reading `board`, so a
@@ -452,6 +483,19 @@ export function BoardView({ boardId }: { boardId: string }) {
   async function handleAddCard(columnId: string, title: string) {
     await runMutation("add that card", async () =>
       api.post(`/boards/${boardId}/columns/${columnId}/cards`, await getToken(), { title })
+    );
+  }
+
+  async function handleCreateCard(columnId: string, request: CreateCardRequest) {
+    await runMutation(
+      "add that card",
+      async () =>
+        api.post(`/boards/${boardId}/columns/${columnId}/cards`, await getToken(), request),
+      undefined,
+      // Rethrown so the dialog stays open and says why (S3.2). A toast
+      // behind a dialog that closed anyway is how a rejected card looks
+      // created — and the text someone just typed would be gone.
+      "rethrow"
     );
   }
 
@@ -841,6 +885,22 @@ export function BoardView({ boardId }: { boardId: string }) {
             Members
           </Link>
 
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => setCreating(true)}
+              disabled={!connected || board.columns.length === 0}
+              title="Create a card (c)"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-accent text-accent-fg text-xs font-medium hover:bg-accent-h transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <line x1="6" y1="2" x2="6" y2="10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                <line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+              Create
+            </button>
+          )}
+
           <UserMenu onShowMeAround={() => setTourOpen(true)} />
         </div>
       </header>
@@ -1034,6 +1094,23 @@ export function BoardView({ boardId }: { boardId: string }) {
           )}
         </DragOverlay>
       </DndContext>
+
+      {creating && board.columns.length > 0 && (
+        <CreateCardDialog
+          statuses={board.columns.map((c) => ({ id: c.id, name: c.name }))}
+          members={members}
+          labels={board.labels}
+          // The first column, because that is where work starts. Jira's inline
+          // create puts a card in the column you clicked; there is no such
+          // column here, so the board's own order decides.
+          defaultColumnId={board.columns[0].id}
+          filter={filter}
+          filterActive={filtering}
+          onCreate={handleCreateCard}
+          onClearFilter={clearFilter}
+          onClose={() => setCreating(false)}
+        />
+      )}
 
       {openCardValue && (
         <CardDetailModal
