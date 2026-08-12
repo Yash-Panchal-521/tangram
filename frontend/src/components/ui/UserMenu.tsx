@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
+import { ThemePicker } from "@/components/ui/ThemePicker";
 import { Avatar } from "@/components/ui/Avatar";
 
 /**
@@ -100,7 +101,7 @@ export function UserMenu({ onShowMeAround }: { onShowMeAround?: () => void } = {
           ref={menuRef}
           role="menu"
           style={{ top: anchor.top, right: anchor.right }}
-          className="fixed z-50 w-[220px] rounded-lg border border-border bg-surface shadow-lg overflow-hidden animate-[fade-up_0.15s_ease-out]"
+          className="fixed z-50 w-[260px] max-h-[80vh] overflow-y-auto rounded-lg border border-border bg-surface shadow-lg animate-[fade-up_0.15s_ease-out]"
         >
           <div className="px-3.5 py-3 border-b border-border">
             <p className="text-[13px] font-medium truncate">{name}</p>
@@ -158,6 +159,16 @@ export function UserMenu({ onShowMeAround }: { onShowMeAround?: () => void } = {
             )}
             {mode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           </button>
+
+          {/* Under the light/dark switch because they answer the same question
+              in the same place — mode is which half of a palette, this is
+              which palette. */}
+          <div className="px-2 py-2 border-b border-border">
+            <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-text-dim">
+              Theme
+            </p>
+            <ThemePicker compact />
+          </div>
 
           <button
             role="menuitem"

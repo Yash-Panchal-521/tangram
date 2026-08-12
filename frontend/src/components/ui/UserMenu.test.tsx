@@ -6,6 +6,7 @@ import { UserMenu } from "@/components/ui/UserMenu";
 
 const signOut = vi.fn(async () => {});
 const toggleMode = vi.fn();
+const setTheme = vi.fn();
 let mode: "light" | "dark" = "light";
 
 vi.mock("@/lib/auth", () => ({
@@ -15,14 +16,21 @@ vi.mock("@/lib/auth", () => ({
   }),
 }));
 
+// The menu now also carries the palette picker, so the mock has to stand in
+// for the whole module rather than the one hook it used to need.
 vi.mock("@/lib/theme", () => ({
-  useTheme: () => ({ mode, toggleMode }),
+  useTheme: () => ({ theme: "terracotta", mode, toggleMode, setTheme }),
+  THEMES: [
+    { id: "terracotta", name: "Terracotta", hint: "Warm" },
+    { id: "slate", name: "Slate", hint: "Neutral" },
+  ],
 }));
 
 beforeEach(() => {
   mode = "light";
   signOut.mockClear();
   toggleMode.mockClear();
+  setTheme.mockClear();
 });
 afterEach(cleanup);
 

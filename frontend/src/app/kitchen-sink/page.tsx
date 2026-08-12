@@ -16,6 +16,7 @@ import { PriorityIcon } from "@/components/ui/PriorityIcon";
 import { Select } from "@/components/ui/Select";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { ThemePicker } from "@/components/ui/ThemePicker";
 
 export default function KitchenSinkPage() {
   return (
@@ -24,6 +25,18 @@ export default function KitchenSinkPage() {
         <h1 className="text-xl font-semibold">Kitchen sink</h1>
         <ThemeToggle />
       </div>
+
+      <section className="flex flex-col gap-3 max-w-sm">
+        <h2 className="text-sm font-semibold text-text-muted">Theme</h2>
+        <p className="text-xs text-text-dim">
+          Every surface in the app is built on the same token names, so switching palettes
+          changes one attribute on <code>&lt;html&gt;</code> and nothing else — no component
+          knows a colour. This page is the fastest way to judge one: it holds every primitive at
+          once. Each swatch is painted in its <em>own</em> palette rather than the active one,
+          which is the only way a picker can answer &ldquo;which of these do I want&rdquo;.
+        </p>
+        <ThemePicker />
+      </section>
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold text-text-muted">Buttons</h2>
