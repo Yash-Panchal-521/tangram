@@ -26,6 +26,7 @@ import {
   type MeResponse,
   type LabelResponse,
   type MemberResponse,
+  type SetColumnLimitsRequest,
   type UpdateCardRequest,
   type WorkspaceMembersResponse,
 } from "@/lib/api";
@@ -473,6 +474,29 @@ export function BoardView({ boardId }: { boardId: string }) {
         ...current,
         columns: current.columns.map((c) => (c.id === columnId ? { ...c, name } : c)),
       })
+    );
+  }
+
+  async function handleSetColumnLimits(columnId: string, request: SetColumnLimitsRequest) {
+    await runMutation(
+      "set those limits",
+      async () =>
+        api.patch(`/boards/${boardId}/columns/${columnId}/limits`, await getToken(), request),
+      (current) => ({
+        ...current,
+        columns: current.columns.map((c) =>
+          c.id === columnId
+            ? {
+                ...c,
+                minCards: request.clearMinCards ? null : (request.minCards ?? c.minCards),
+                maxCards: request.clearMaxCards ? null : (request.maxCards ?? c.maxCards),
+              }
+            : c
+        ),
+      }),
+      // Rethrown so the dialog can stay open and say why (S3.2). A toast behind
+      // a dialog that closed anyway is how a rejected limit looks accepted.
+      "rethrow"
     );
   }
 
@@ -930,6 +954,7 @@ export function BoardView({ boardId }: { boardId: string }) {
                 memberNames={memberNames}
                 onAddCard={handleAddCard}
                 onRenameColumn={handleRenameColumn}
+                onSetLimits={handleSetColumnLimits}
                 onDeleteColumn={handleDeleteColumn}
                 onCardClick={(card) => openCardById(card.id)}
               />

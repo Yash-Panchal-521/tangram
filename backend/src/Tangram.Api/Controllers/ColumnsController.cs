@@ -32,6 +32,29 @@ public class ColumnsController(IBoardOperationService boardOperations) : Control
         return await Run(() => boardOperations.RenameColumnAsync(boardId, columnId, request.Name.Trim(), ct));
     }
 
+    [HttpPatch("{columnId:guid}/limits")]
+    public async Task<ActionResult<ColumnResponse>> SetColumnLimits(
+        Guid boardId, Guid columnId, SetColumnLimitsRequest request, CancellationToken ct)
+    {
+        // A negative limit is not a smaller limit, it is a typo. Zero is
+        // allowed: "nothing should be in progress here" is a real thing to say.
+        if (request.MinCards < 0 || request.MaxCards < 0)
+        {
+            return ValidationProblem("A card limit can't be negative.");
+        }
+
+        // Whether the minimum ends up above the maximum depends on what is
+        // already stored, so that check lives in the service.
+        try
+        {
+            return await Run(() => boardOperations.SetColumnLimitsAsync(boardId, columnId, request, ct));
+        }
+        catch (BoardOperationInvalidException ex)
+        {
+            return ValidationProblem(ex.Message);
+        }
+    }
+
     [HttpDelete("{columnId:guid}")]
     public async Task<IActionResult> DeleteColumn(Guid boardId, Guid columnId, CancellationToken ct)
     {

@@ -177,8 +177,8 @@ describe("filterBoard", () => {
     seq: 0,
     labels: [],
     columns: [
-      { id: "col-1", name: "To Do", rank: "a0", cards: [card({ id: "c-1", title: "Alpha" })] },
-      { id: "col-2", name: "Done", rank: "a1", cards: [card({ id: "c-2", title: "Beta" })] },
+      { id: "col-1", name: "To Do", rank: "a0", minCards: null, maxCards: null, cards: [card({ id: "c-1", title: "Alpha" })] },
+      { id: "col-2", name: "Done", rank: "a1", minCards: null, maxCards: null, cards: [card({ id: "c-2", title: "Beta" })] },
     ],
   };
 

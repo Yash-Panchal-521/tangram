@@ -32,6 +32,8 @@ function removeCard(board: BoardDetailResponse, cardId: string, columnId: string
 
 function upsertColumn(board: BoardDetailResponse, column: ColumnResponse): BoardDetailResponse {
   const existing = board.columns.find((c) => c.id === column.id);
+  // Cards come from what is already here: a ColumnResponse carries the
+  // column's own fields — name, rank, limits — and never its contents.
   const merged = { ...column, cards: existing?.cards ?? [] };
   const withoutColumn = board.columns.filter((c) => c.id !== column.id);
   return { ...board, columns: byRank([...withoutColumn, merged]) };

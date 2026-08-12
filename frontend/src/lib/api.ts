@@ -71,6 +71,17 @@ export interface ColumnResponse {
   boardId: string;
   name: string;
   rank: string;
+  /** Work-in-progress limits. Null means no limit; 0 is a limit of zero. */
+  minCards: number | null;
+  maxCards: number | null;
+}
+
+export interface SetColumnLimitsRequest {
+  minCards?: number | null;
+  maxCards?: number | null;
+  /** Set semantics: absent leaves a limit alone, these remove it. */
+  clearMinCards?: boolean;
+  clearMaxCards?: boolean;
 }
 
 export interface CardResponse {
@@ -142,6 +153,8 @@ export interface ColumnWithCardsResponse {
   name: string;
   rank: string;
   cards: CardResponse[];
+  minCards: number | null;
+  maxCards: number | null;
 }
 
 export interface BoardDetailResponse {

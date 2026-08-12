@@ -5,6 +5,9 @@ import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { KanbanCard } from "@/components/board/KanbanCard";
 import { Menu, MenuItem, MenuSeparator } from "@/components/ui/Menu";
+import { ColumnLimitDialog } from "@/components/board/ColumnLimitDialog";
+import { limitLabel, limitMessage, limitState } from "@/lib/columnLimit";
+import type { SetColumnLimitsRequest } from "@/lib/api";
 import { SortableKanbanCard } from "@/components/board/SortableKanbanCard";
 import type { CardResponse, ColumnWithCardsResponse } from "@/lib/api";
 
@@ -15,6 +18,23 @@ import type { CardResponse, ColumnWithCardsResponse } from "@/lib/api";
 // expressing the theme, and are deliberately stable across light and dark.
 // eslint-disable-next-line no-restricted-syntax
 const DOT_COLORS = ["#909090", "#4A9EFF", "#F5A623", "#4A9E62", "#8058A8"];
+
+// Atlassian: red when the maximum is exceeded, yellow when the minimum is not
+// met. Tinted rather than filled — a whole lane in danger red reads as an
+// error the board is in, when it is a signal about the work inside it.
+const LANE: Record<string, string> = {
+  none: "bg-surface-2/50 border border-border/70",
+  ok: "bg-surface-2/50 border border-border/70",
+  under: "bg-warn/5 border border-warn/40",
+  over: "bg-danger/5 border border-danger/40",
+};
+
+const COUNT: Record<string, string> = {
+  none: "text-text-dim",
+  ok: "text-text-dim",
+  under: "text-warn",
+  over: "text-danger",
+};
 
 export function BoardColumn({
   column,
@@ -28,6 +48,7 @@ export function BoardColumn({
   memberNames,
   onAddCard,
   onRenameColumn,
+  onSetLimits,
   onDeleteColumn,
   onCardClick,
 }: {
@@ -55,6 +76,7 @@ export function BoardColumn({
   memberNames?: Map<string, string>;
   onAddCard: (columnId: string, title: string) => Promise<void>;
   onRenameColumn: (columnId: string, name: string) => Promise<void>;
+  onSetLimits: (columnId: string, request: SetColumnLimitsRequest) => Promise<void>;
   onDeleteColumn: (columnId: string) => Promise<void>;
   onCardClick: (card: CardResponse) => void;
 }) {
@@ -65,6 +87,7 @@ export function BoardColumn({
   // placeholder needs to keep showing what is in flight.
   const [pendingTitle, setPendingTitle] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
+  const [settingLimits, setSettingLimits] = useState(false);
   const [name, setName] = useState(column.name);
   // Escape leaves the field, which fires onBlur -- and onBlur commits. Without
   // this flag, cancelling would save the very edit it was meant to discard.
@@ -111,6 +134,14 @@ export function BoardColumn({
     setRenaming(true);
   }
 
+  // Counted from what the column actually holds, never from the filtered
+  // view: a limit is about the work in a stage, and a filter is one person
+  // looking at part of it. Reading the filtered count would tell four people
+  // four different things about the same column.
+  const cardCount = totalCards ?? column.cards.length;
+  const state = limitState(cardCount, column);
+  const breach = limitMessage(cardCount, column);
+
   function cancelRenaming() {
     escapedRef.current = true;
     setName(column.name);
@@ -124,10 +155,18 @@ export function BoardColumn({
     // holding them, so four columns read as four unrelated stacks and an empty
     // one read as nothing at all. A tinted surface gives each column an edge to
     // drop against, which is most of what makes a kanban board legible.
-    <div className="flex-none w-[272px] h-full flex flex-col rounded-xl bg-surface-2/50 border border-border/70 p-2">
-      <div className="flex items-center gap-2 px-1 pb-2 shrink-0">
+    <div
+      className={`flex-none w-[272px] h-full flex flex-col rounded-xl p-2 transition-colors ${LANE[state]}`}
+    >
+      {/* Sticky, so the column you are scrolling stays named. Without it a
+          long column loses its own header and, with several columns in
+          view, you cannot tell which list you are reading. */}
+      <div className="sticky top-0 z-10 flex items-center gap-2 px-1 pb-2 shrink-0">
+        {/* A bar rather than a dot: at 8px a circle is a smudge, and this is
+            the only thing distinguishing one column head from another at a
+            glance across a wide board. */}
         <div
-          className="w-2 h-2 rounded-full shrink-0"
+          className="w-1 h-3.5 rounded-full shrink-0"
           style={{ background: DOT_COLORS[colorIndex % DOT_COLORS.length] }}
         />
         {renaming ? (
@@ -139,7 +178,7 @@ export function BoardColumn({
               onBlur={handleRenameSubmit}
               onKeyDown={(e) => e.key === "Escape" && cancelRenaming()}
               aria-label={`Rename column ${column.name}`}
-              className="w-full text-[11px] font-semibold tracking-wider uppercase bg-surface-2 border border-border rounded px-1 py-0.5 outline-none focus-visible:border-accent"
+              className="w-full text-[12.5px] font-semibold bg-surface border border-accent rounded px-1 py-0.5 outline-none"
             />
           </form>
         ) : canEdit ? (
@@ -153,12 +192,12 @@ export function BoardColumn({
             disabled={disabled}
             title="Rename column"
             aria-label={`Rename column ${column.name}`}
-            className="min-w-0 text-left text-[11px] font-semibold tracking-wider uppercase text-text-muted truncate rounded-sm cursor-pointer hover:text-text disabled:cursor-default disabled:hover:text-text-muted"
+            className="min-w-0 text-left text-[12.5px] font-semibold text-text truncate rounded-sm px-1 py-0.5 -mx-1 cursor-pointer transition-colors hover:bg-surface/70 disabled:cursor-default disabled:hover:bg-transparent"
           >
             {column.name}
           </button>
         ) : (
-          <span className="min-w-0 text-[11px] font-semibold tracking-wider uppercase text-text-muted truncate">
+          <span className="min-w-0 text-[12.5px] font-semibold text-text truncate">
             {column.name}
           </span>
         )}
@@ -168,11 +207,22 @@ export function BoardColumn({
             Under a filter it reads "3 of 12", because otherwise a filtered
             column and a nearly empty one are indistinguishable — and the second
             is the more alarming reading. */}
-        <span className="text-[11px] font-medium text-text-dim shrink-0 tabular-nums">
+        <span
+          className={`text-[11px] font-medium shrink-0 tabular-nums ${COUNT[state]}`}
+          title={breach ?? undefined}
+        >
           {filtering && totalCards !== undefined && totalCards !== column.cards.length
             ? `${column.cards.length} of ${totalCards}`
-            : column.cards.length}
+            : (limitLabel(column, cardCount) ?? cardCount)}
         </span>
+        {/* The colour is never the only carrier: it fails for anyone who cannot
+            tell red from amber, and again for anyone never told what these
+            colours mean here (S5.2). */}
+        {breach && (
+          <span role="status" className="sr-only">
+            {column.name}: {breach}
+          </span>
+        )}
         <div className="flex-1" />
         {/* A menu, not a delete button revealed on hover.
             
@@ -193,6 +243,14 @@ export function BoardColumn({
                   }}
                 >
                   Rename column
+                </MenuItem>
+                <MenuItem
+                  onSelect={() => {
+                    close();
+                    setSettingLimits(true);
+                  }}
+                >
+                  Set card limits
                 </MenuItem>
                 <MenuSeparator />
                 <MenuItem
@@ -216,7 +274,9 @@ export function BoardColumn({
       <div
         ref={setNodeRef}
         data-intro-dropzone
-        className="flex-1 overflow-y-auto flex flex-col gap-2 min-h-0 px-1 pb-2"
+        // `scrollbar-gutter` keeps the cards still when a column grows past its
+        // height -- otherwise every card shifts left the moment one is added.
+        className="flex-1 overflow-y-auto [scrollbar-gutter:stable] flex flex-col gap-2 min-h-0 px-1 pb-2"
       >
         <SortableContext items={column.cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
           {column.cards.map((card, i) => (
@@ -298,6 +358,16 @@ export function BoardColumn({
           </svg>
           Add card
         </button>
+      )}
+
+      {settingLimits && (
+        <ColumnLimitDialog
+          columnName={column.name}
+          minCards={column.minCards}
+          maxCards={column.maxCards}
+          onSave={(request) => onSetLimits(column.id, request)}
+          onClose={() => setSettingLimits(false)}
+        />
       )}
     </div>
   );

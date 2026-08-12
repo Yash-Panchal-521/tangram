@@ -224,7 +224,9 @@ public class BoardsController(
                             .OrderBy(l => l.Name, StringComparer.OrdinalIgnoreCase)
                             .ToList(),
                         commentCounts.GetValueOrDefault(card.Id)))
-                    .ToList()))
+                    .ToList(),
+                c.MinCards,
+                c.MaxCards))
             .ToList();
 
         // Reaching here already proves membership -- the workspace query filter

@@ -61,8 +61,29 @@ public record BoardResponse(Guid Id, Guid WorkspaceId, string Name, DateTimeOffs
 
 public record CreateColumnRequest(string Name);
 public record RenameColumnRequest(string Name);
+
+/// <summary>
+/// A column's card limits. Absent means leave alone; explicit null clears.
+/// </summary>
+/// <remarks>
+/// Set semantics need the flags, exactly as <see cref="UpdateCardRequest"/>
+/// does for due date and assignee: JSON cannot distinguish a field that was
+/// omitted from one sent as null, so "leave the maximum alone" and "remove the
+/// maximum" would be the same request.
+/// </remarks>
+public record SetColumnLimitsRequest(
+    int? MinCards,
+    int? MaxCards,
+    bool ClearMinCards = false,
+    bool ClearMaxCards = false);
 public record MoveColumnRequest(Guid? BeforeColumnId);
-public record ColumnResponse(Guid Id, Guid BoardId, string Name, string Rank);
+public record ColumnResponse(
+    Guid Id,
+    Guid BoardId,
+    string Name,
+    string Rank,
+    int? MinCards = null,
+    int? MaxCards = null);
 public record ColumnDeletedPayload(Guid Id);
 
 public record CreateCardRequest(string Title, string? Description);
@@ -138,7 +159,13 @@ public record CardResponse(
     int CommentCount = 0);
 public record CardDeletedPayload(Guid Id, Guid ColumnId);
 
-public record ColumnWithCardsResponse(Guid Id, string Name, string Rank, List<CardResponse> Cards);
+public record ColumnWithCardsResponse(
+    Guid Id,
+    string Name,
+    string Rank,
+    List<CardResponse> Cards,
+    int? MinCards = null,
+    int? MaxCards = null);
 // WorkspaceId is included so the board UI can link to that workspace's member
 // management without a second round trip to resolve which workspace it's in.
 // Role is the caller's own role, so the client can render a read-only board for

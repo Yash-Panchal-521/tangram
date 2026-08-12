@@ -27,12 +27,13 @@ function card(id: string, title: string, extra: Partial<CardResponse> = {}): Car
 }
 
 function column(cards: CardResponse[] = []): ColumnWithCardsResponse {
-  return { id: "col-1", name: "To Do", rank: "a0", cards };
+  return { id: "col-1", name: "To Do", rank: "a0", minCards: null, maxCards: null, cards };
 }
 
 function renderColumn(overrides: Partial<Parameters<typeof BoardColumn>[0]> = {}) {
   const onAddCard = vi.fn(async () => {});
   const onRenameColumn = vi.fn(async () => {});
+  const onSetLimits = vi.fn(async () => {});
   const onDeleteColumn = vi.fn(async () => {});
   const onCardClick = vi.fn();
 
@@ -46,6 +47,7 @@ function renderColumn(overrides: Partial<Parameters<typeof BoardColumn>[0]> = {}
         canEdit
         onAddCard={onAddCard}
         onRenameColumn={onRenameColumn}
+        onSetLimits={onSetLimits}
         onDeleteColumn={onDeleteColumn}
         onCardClick={onCardClick}
         {...overrides}
@@ -53,7 +55,7 @@ function renderColumn(overrides: Partial<Parameters<typeof BoardColumn>[0]> = {}
     </DndContext>
   );
 
-  return { onAddCard, onRenameColumn, onDeleteColumn, onCardClick };
+  return { onAddCard, onRenameColumn, onSetLimits, onDeleteColumn, onCardClick };
 }
 
 describe("BoardColumn — empty state", () => {
@@ -76,6 +78,70 @@ describe("BoardColumn — empty state", () => {
 
     expect(screen.queryByText(/Empty —/)).toBeNull();
     expect(screen.getByText("Something")).toBeTruthy();
+  });
+});
+
+describe("BoardColumn — card limits", () => {
+  it("shows the count as a fraction of the maximum", () => {
+    renderColumn({ column: { ...column([card("c-1", "Card 1"), card("c-2", "Card 2")]), maxCards: 5 } });
+
+    expect(screen.getByText("2/5")).toBeTruthy();
+  });
+
+  it("marks a column over its maximum, in words as well as colour (S5.2)", () => {
+    // Colour alone fails for anyone who cannot tell red from amber, and again
+    // for anyone never told what these colours mean here.
+    renderColumn({
+      column: { ...column([card("c-1", "Card 1"), card("c-2", "Card 2"), card("c-3", "Card 3")]), maxCards: 2 },
+    });
+
+    expect(screen.getByText(/Over the limit/)).toBeTruthy();
+  });
+
+  it("marks a column under its minimum", () => {
+    renderColumn({ column: { ...column([card("c-1", "Card 1")]), minCards: 3 } });
+
+    expect(screen.getByText(/Under the minimum/)).toBeTruthy();
+  });
+
+  it("says nothing at the limit exactly", () => {
+    // Off by one here lights up every full column on the board.
+    renderColumn({ column: { ...column([card("c-1", "Card 1"), card("c-2", "Card 2")]), maxCards: 2 } });
+
+    expect(screen.queryByText(/Over the limit|Under the minimum/)).toBeNull();
+  });
+
+  it("counts what the column holds, not what a filter leaves", () => {
+    // A limit is about the work in a stage; a filter is one person looking at
+    // part of it. Reading the filtered count would tell four people four
+    // different things about the same column.
+    renderColumn({
+      column: { ...column([card("c-1", "Card 1")]), maxCards: 2 },
+      totalCards: 9,
+      filtering: true,
+    });
+
+    expect(screen.getByText(/Over the limit/)).toBeTruthy();
+  });
+
+  it("offers the limits dialog from the menu", async () => {
+    const user = userEvent.setup();
+    renderColumn();
+
+    await user.click(screen.getByRole("button", { name: "Column actions for To Do" }));
+    await user.click(screen.getByRole("menuitem", { name: "Set card limits" }));
+
+    expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+
+  it("gives a viewer the signal but no way to change it (S8.1)", () => {
+    renderColumn({
+      canEdit: false,
+      column: { ...column([card("c-1", "Card 1"), card("c-2", "Card 2"), card("c-3", "Card 3")]), maxCards: 1 },
+    });
+
+    expect(screen.getByText(/Over the limit/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Column actions/ })).toBeNull();
   });
 });
 

@@ -20,6 +20,7 @@ public interface IBoardOperationService
 {
     Task<ColumnResponse> CreateColumnAsync(Guid boardId, string name, CancellationToken ct);
     Task<ColumnResponse> RenameColumnAsync(Guid boardId, Guid columnId, string name, CancellationToken ct);
+    Task<ColumnResponse> SetColumnLimitsAsync(Guid boardId, Guid columnId, SetColumnLimitsRequest request, CancellationToken ct);
     Task DeleteColumnAsync(Guid boardId, Guid columnId, CancellationToken ct);
     Task<ColumnResponse> MoveColumnAsync(Guid boardId, Guid columnId, Guid? beforeColumnId, CancellationToken ct);
 
@@ -42,6 +43,11 @@ public interface IBoardOperationService
 // deleted the card, or removed the column it lived in. Surfaces as 409 rather
 // than 404: the request was well-formed and the board simply moved on.
 public class BoardOperationConflictException(string message) : Exception(message);
+
+// The request is well-formed but asks for something the stored state makes
+// contradictory -- a minimum above a maximum already set. Surfaces as 400,
+// because the caller can fix it by sending different numbers.
+public class BoardOperationInvalidException(string message) : Exception(message);
 
 public class BoardOperationService(
     AppDbContext db,
@@ -77,7 +83,7 @@ public class BoardOperationService(
         };
         db.Columns.Add(column);
 
-        var response = new ColumnResponse(column.Id, column.BoardId, column.Name, column.Rank);
+        var response = ToResponse(column);
         await SaveAsync(boardId, new Pending("column.create", response), ct);
         return response;
     }
@@ -91,7 +97,42 @@ public class BoardOperationService(
         column.Name = name;
         column.UpdatedAt = DateTimeOffset.UtcNow;
 
-        var response = new ColumnResponse(column.Id, column.BoardId, column.Name, column.Rank);
+        var response = ToResponse(column);
+        await SaveAsync(boardId, new Pending("column.rename", response), ct);
+        return response;
+    }
+
+    public async Task<ColumnResponse> SetColumnLimitsAsync(
+        Guid boardId, Guid columnId, SetColumnLimitsRequest request, CancellationToken ct)
+    {
+        await EnsureCanMutateAsync(boardId, ct);
+
+        var column = await LoadColumnOnBoardAsync(boardId, columnId, ct);
+
+        var min = request.ClearMinCards ? null : request.MinCards ?? column.MinCards;
+        var max = request.ClearMaxCards ? null : request.MaxCards ?? column.MaxCards;
+
+        // Checked here rather than in the controller, against what the request
+        // leaves behind rather than what it carries. The controller cannot see
+        // the stored column, so raising only the minimum walked straight past a
+        // maximum already set and left a column both over and under at once.
+        if (min.HasValue && max.HasValue && min > max)
+        {
+            throw new BoardOperationInvalidException(
+                "The minimum can't be more than the maximum.");
+        }
+
+        column.MinCards = min;
+        column.MaxCards = max;
+
+        column.UpdatedAt = DateTimeOffset.UtcNow;
+
+        // Broadcast as column.rename rather than a new operation type. The
+        // payload is a whole ColumnResponse and the reducer replaces the column
+        // by id, so a second type would be the same code under another name --
+        // and every client would need teaching about it before limits could
+        // ship. Same reasoning as priority riding on card.update.
+        var response = ToResponse(column);
         await SaveAsync(boardId, new Pending("column.rename", response), ct);
         return response;
     }
@@ -129,7 +170,7 @@ public class BoardOperationService(
         column.Rank = RankService.GenerateBetween(lower, upper);
         column.UpdatedAt = DateTimeOffset.UtcNow;
 
-        var response = new ColumnResponse(column.Id, column.BoardId, column.Name, column.Rank);
+        var response = ToResponse(column);
         await SaveAsync(boardId, new Pending("column.move", response), ct);
         return response;
     }
@@ -306,6 +347,9 @@ public class BoardOperationService(
         await SaveAsync(boardId, new Pending("card.move", response), ct);
         return response;
     }
+
+    private static ColumnResponse ToResponse(Column column) =>
+        new(column.Id, column.BoardId, column.Name, column.Rank, column.MinCards, column.MaxCards);
 
     private async Task<Card> LoadCardOrConflictAsync(Guid boardId, Guid cardId, CancellationToken ct)
     {

@@ -27,9 +27,11 @@ function board(): BoardDetailResponse {
         id: "todo",
         name: "To Do",
         rank: "a",
+        minCards: null,
+        maxCards: null,
         cards: [card("c1", "todo", "a"), card("c2", "todo", "b")],
       },
-      { id: "doing", name: "Doing", rank: "b", cards: [card("c3", "doing", "a")] },
+      { id: "doing", name: "Doing", rank: "b", minCards: null, maxCards: null, cards: [card("c3", "doing", "a")] },
     ],
   };
 }
