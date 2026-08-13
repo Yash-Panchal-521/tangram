@@ -58,19 +58,24 @@ public class BoardOperationService(
 {
     public async Task<ColumnResponse> CreateColumnAsync(Guid boardId, string name, CancellationToken ct)
     {
-        await EnsureCanMutateAsync(boardId, ct);
+        // The board's existence, its workspace and the rank to append after are
+        // three facts about one row. They were three queries.
+        var board = await db.Boards
+            .Where(b => b.Id == boardId)
+            .Select(b => new
+            {
+                b.WorkspaceId,
+                LastRank = b.Columns.OrderByDescending(c => c.Rank).Select(c => c.Rank).FirstOrDefault()
+            })
+            .FirstOrDefaultAsync(ct);
 
-        var boardExists = await db.Boards.AnyAsync(b => b.Id == boardId, ct);
-        if (!boardExists)
+        if (board is null)
         {
             throw new BoardOperationNotFoundException("Board not found.");
         }
 
-        var lastRank = await db.Columns
-            .Where(c => c.BoardId == boardId)
-            .OrderByDescending(c => c.Rank)
-            .Select(c => c.Rank)
-            .FirstOrDefaultAsync(ct);
+        EnsureCanMutate(board.WorkspaceId);
+        var lastRank = board.LastRank;
 
         var now = DateTimeOffset.UtcNow;
         var column = new Column
@@ -92,15 +97,25 @@ public class BoardOperationService(
     public async Task<List<ColumnResponse>> CreateColumnsAsync(
         Guid boardId, IReadOnlyList<string> names, CancellationToken ct)
     {
-        await EnsureCanMutateAsync(boardId, ct);
-
         // Ranked after whatever is already there, so this appends rather than
-        // rebuilding an order somebody chose.
-        var lastRank = await db.Columns
-            .Where(c => c.BoardId == boardId)
-            .OrderByDescending(c => c.Rank)
-            .Select(c => c.Rank)
+        // rebuilding an order somebody chose. The workspace for the permission
+        // check comes back on the same row.
+        var board = await db.Boards
+            .Where(b => b.Id == boardId)
+            .Select(b => new
+            {
+                b.WorkspaceId,
+                LastRank = b.Columns.OrderByDescending(c => c.Rank).Select(c => c.Rank).FirstOrDefault()
+            })
             .FirstOrDefaultAsync(ct);
+
+        if (board is null)
+        {
+            throw new BoardOperationNotFoundException("Board not found.");
+        }
+
+        EnsureCanMutate(board.WorkspaceId);
+        var lastRank = board.LastRank;
 
         var now = DateTimeOffset.UtcNow;
         var created = new List<ColumnResponse>(names.Count);
@@ -134,9 +149,9 @@ public class BoardOperationService(
 
     public async Task<ColumnResponse> RenameColumnAsync(Guid boardId, Guid columnId, string name, CancellationToken ct)
     {
-        await EnsureCanMutateAsync(boardId, ct);
-
-        var column = await LoadColumnOnBoardAsync(boardId, columnId, ct);
+        var context = await LoadColumnContextAsync(boardId, columnId, ct);
+        EnsureCanMutate(context.WorkspaceId);
+        var column = context.Column;
 
         column.Name = name;
         column.UpdatedAt = DateTimeOffset.UtcNow;
@@ -149,9 +164,9 @@ public class BoardOperationService(
     public async Task<ColumnResponse> SetColumnLimitsAsync(
         Guid boardId, Guid columnId, SetColumnLimitsRequest request, CancellationToken ct)
     {
-        await EnsureCanMutateAsync(boardId, ct);
-
-        var column = await LoadColumnOnBoardAsync(boardId, columnId, ct);
+        var context = await LoadColumnContextAsync(boardId, columnId, ct);
+        EnsureCanMutate(context.WorkspaceId);
+        var column = context.Column;
 
         var min = request.ClearMinCards ? null : request.MinCards ?? column.MinCards;
         var max = request.ClearMaxCards ? null : request.MaxCards ?? column.MaxCards;
@@ -198,15 +213,31 @@ public class BoardOperationService(
 
     public async Task<ColumnResponse> MoveColumnAsync(Guid boardId, Guid columnId, Guid? beforeColumnId, CancellationToken ct)
     {
-        await EnsureCanMutateAsync(boardId, ct);
+        // The column, its workspace, and every sibling to rank between — one row
+        // and one collection hanging off it.
+        var loaded = await db.Columns
+            .Where(c => c.Id == columnId)
+            .Select(c => new
+            {
+                Column = c,
+                c.Board.WorkspaceId,
+                Siblings = c.Board.Columns
+                    .Where(x => x.Id != columnId)
+                    .OrderBy(x => x.Rank)
+                    .Select(x => new { x.Id, x.Rank })
+                    .ToList()
+            })
+            .FirstOrDefaultAsync(ct);
 
-        var column = await LoadColumnOnBoardAsync(boardId, columnId, ct);
+        if (loaded is null || loaded.Column.BoardId != boardId)
+        {
+            throw new BoardOperationNotFoundException("Column not found on this board.");
+        }
 
-        var siblings = await db.Columns
-            .Where(c => c.BoardId == boardId && c.Id != columnId)
-            .OrderBy(c => c.Rank)
-            .Select(c => new { c.Id, c.Rank })
-            .ToListAsync(ct);
+        EnsureCanMutate(loaded.WorkspaceId);
+
+        var column = loaded.Column;
+        var siblings = loaded.Siblings;
 
         var (lower, upper) = ResolveNeighborRanks(
             siblings.Select(s => (s.Id, s.Rank)).ToList(), beforeColumnId);
@@ -222,15 +253,29 @@ public class BoardOperationService(
     public async Task<CardResponse> CreateCardAsync(
         Guid boardId, Guid columnId, CreateCardRequest request, CancellationToken ct)
     {
-        await EnsureCanMutateAsync(boardId, ct);
-
-        var column = await LoadColumnOnBoardAsync(boardId, columnId, ct);
-
-        var lastRank = await db.Cards
-            .Where(c => c.ColumnId == columnId)
-            .OrderByDescending(c => c.Rank)
-            .Select(c => c.Rank)
+        // The column, its workspace and the rank to append after, together. All
+        // three hang off the column row the operation had to read regardless.
+        var loaded = await db.Columns
+            .Where(c => c.Id == columnId)
+            .Select(c => new
+            {
+                Column = c,
+                c.Board.WorkspaceId,
+                // Ordered in SQL under the column's "C" collation, so it agrees
+                // with the ordinal comparison RankService generates against.
+                LastRank = c.Cards.OrderByDescending(x => x.Rank).Select(x => x.Rank).FirstOrDefault()
+            })
             .FirstOrDefaultAsync(ct);
+
+        if (loaded is null || loaded.Column.BoardId != boardId)
+        {
+            throw new BoardOperationNotFoundException("Column not found on this board.");
+        }
+
+        EnsureCanMutate(loaded.WorkspaceId);
+
+        var column = loaded.Column;
+        var lastRank = loaded.LastRank;
 
         var now = DateTimeOffset.UtcNow;
         var card = new Card
@@ -271,9 +316,10 @@ public class BoardOperationService(
     public async Task<CardResponse> UpdateCardAsync(
         Guid boardId, Guid cardId, UpdateCardRequest request, CancellationToken ct)
     {
-        await EnsureCanMutateAsync(boardId, ct);
-
-        var card = await LoadCardOnBoardAsync(boardId, cardId, ct);
+        // One query for the guard, the card, its labels and its comment count.
+        var context = await LoadCardContextAsync(boardId, cardId, ct);
+        EnsureCanMutate(context.WorkspaceId);
+        var card = context.Card;
 
         if (request.Title is not null)
         {
@@ -366,7 +412,7 @@ public class BoardOperationService(
 
         card.UpdatedAt = DateTimeOffset.UtcNow;
 
-        var response = ToResponse(card, await CountCommentsAsync(cardId, ct));
+        var response = ToResponse(card, context.CommentCount);
         // Still emitted as "card.rename" rather than a new op type: the
         // operations log holds historical card.rename rows that resync replays,
         // so introducing card.update would mean every client had to understand
@@ -377,9 +423,14 @@ public class BoardOperationService(
 
     public async Task DeleteCardAsync(Guid boardId, Guid cardId, CancellationToken ct)
     {
-        await EnsureCanMutateAsync(boardId, ct);
+        // Loads the labels and comment count it does not need, in exchange for
+        // not making a second round trip to learn the workspace. Extra columns on
+        // a row the database was already reading are free; a second conversation
+        // with Singapore was not, and a second conversation with Ohio still isn't.
+        var context = await LoadCardContextAsync(boardId, cardId, ct);
+        EnsureCanMutate(context.WorkspaceId);
 
-        var card = await LoadCardOnBoardAsync(boardId, cardId, ct);
+        var card = context.Card;
         var columnId = card.ColumnId;
         db.Cards.Remove(card);
 
@@ -388,25 +439,42 @@ public class BoardOperationService(
 
     public async Task<CardResponse> MoveCardAsync(Guid boardId, Guid cardId, Guid targetColumnId, Guid? beforeCardId, CancellationToken ct)
     {
-        await EnsureCanMutateAsync(boardId, ct);
+        // Two queries, not five. The card carries its own workspace for the
+        // permission check and its own comment count for the response; the target
+        // column carries the siblings the new rank is computed between.
+        var context = await LoadCardContextAsync(boardId, cardId, ct);
+        EnsureCanMutate(context.WorkspaceId);
+        var card = context.Card;
 
-        var card = await LoadCardOnBoardAsync(boardId, cardId, ct);
-        var targetColumn = await LoadColumnOnBoardAsync(boardId, targetColumnId, ct);
+        var target = await db.Columns
+            .Where(c => c.Id == targetColumnId)
+            .Select(c => new
+            {
+                c.Id,
+                c.BoardId,
+                // Ordered in SQL, where the column's "C" collation makes the
+                // comparison ordinal and therefore agrees with RankService.
+                Siblings = c.Cards
+                    .Where(x => x.Id != cardId)
+                    .OrderBy(x => x.Rank)
+                    .Select(x => new { x.Id, x.Rank })
+                    .ToList()
+            })
+            .FirstOrDefaultAsync(ct);
 
-        var siblings = await db.Cards
-            .Where(c => c.ColumnId == targetColumn.Id && c.Id != cardId)
-            .OrderBy(c => c.Rank)
-            .Select(c => new { c.Id, c.Rank })
-            .ToListAsync(ct);
+        if (target is null || target.BoardId != boardId)
+        {
+            throw new BoardOperationNotFoundException("Column not found on this board.");
+        }
 
         var (lower, upper) = ResolveNeighborRanks(
-            siblings.Select(s => (s.Id, s.Rank)).ToList(), beforeCardId);
+            target.Siblings.Select(s => (s.Id, s.Rank)).ToList(), beforeCardId);
 
-        card.ColumnId = targetColumn.Id;
+        card.ColumnId = target.Id;
         card.Rank = RankService.GenerateBetween(lower, upper);
         card.UpdatedAt = DateTimeOffset.UtcNow;
 
-        var response = ToResponse(card, await CountCommentsAsync(cardId, ct));
+        var response = ToResponse(card, context.CommentCount);
         await SaveAsync(boardId, new Pending("card.move", response), ct);
         return response;
     }
@@ -462,6 +530,32 @@ public class BoardOperationService(
         }
         return column;
     }
+
+    /// <summary>
+    /// A column and the workspace it belongs to, in one round trip.
+    /// </summary>
+    /// <remarks>
+    /// The same trade as <see cref="LoadCardContextAsync"/>: a column reaches its
+    /// workspace through <c>Board.WorkspaceId</c>, so the permission check rides
+    /// along with the row the operation was going to load anyway instead of
+    /// costing a query of its own.
+    /// </remarks>
+    private async Task<ColumnContext> LoadColumnContextAsync(Guid boardId, Guid columnId, CancellationToken ct)
+    {
+        var loaded = await db.Columns
+            .Where(c => c.Id == columnId)
+            .Select(c => new { Column = c, c.Board.WorkspaceId })
+            .FirstOrDefaultAsync(ct);
+
+        if (loaded is null || loaded.Column.BoardId != boardId)
+        {
+            throw new BoardOperationNotFoundException("Column not found on this board.");
+        }
+
+        return new ColumnContext(loaded.Column, loaded.WorkspaceId);
+    }
+
+    private sealed record ColumnContext(Column Column, Guid WorkspaceId);
 
     /// <summary>
     /// The wire shape of a card, including its labels.
@@ -529,9 +623,18 @@ public class BoardOperationService(
     public async Task<LabelResponse> UpdateLabelAsync(
         Guid boardId, Guid labelId, UpdateLabelRequest request, CancellationToken ct)
     {
-        await EnsureCanMutateAsync(boardId, ct);
+        var loadedLabel = await db.Labels
+            .Where(l => l.Id == labelId)
+            .Select(l => new { Label = l, l.Board.WorkspaceId })
+            .FirstOrDefaultAsync(ct);
 
-        var label = await LoadLabelOnBoardAsync(boardId, labelId, ct);
+        if (loadedLabel is null || loadedLabel.Label.BoardId != boardId)
+        {
+            throw new BoardOperationNotFoundException("Label not found on this board.");
+        }
+
+        EnsureCanMutate(loadedLabel.WorkspaceId);
+        var label = loadedLabel.Label;
 
         if (request.Name is not null)
         {
@@ -595,8 +698,9 @@ public class BoardOperationService(
     public async Task<CommentResponse> AddCommentAsync(
         Guid boardId, Guid cardId, string body, CancellationToken ct)
     {
-        await EnsureCanMutateAsync(boardId, ct);
-        await LoadCardOnBoardAsync(boardId, cardId, ct);
+        // The card load doubles as the permission check: it carries the
+        // workspace the card belongs to.
+        EnsureCanMutate((await LoadCardContextAsync(boardId, cardId, ct)).WorkspaceId);
 
         var comment = new Comment
         {
@@ -616,9 +720,21 @@ public class BoardOperationService(
     public async Task<CommentResponse> EditCommentAsync(
         Guid boardId, Guid commentId, string body, CancellationToken ct)
     {
-        await EnsureCanMutateAsync(boardId, ct);
+        // A comment reaches its workspace through card -> column -> board, which
+        // is three joins and still one round trip.
+        var loadedComment = await db.Comments
+            .Where(c => c.Id == commentId)
+            .Select(c => new { Comment = c, c.Card.Column.BoardId, c.Card.Column.Board.WorkspaceId })
+            .FirstOrDefaultAsync(ct);
 
-        var comment = await LoadCommentOnBoardAsync(boardId, commentId, ct);
+        if (loadedComment is null || loadedComment.BoardId != boardId)
+        {
+            throw new BoardOperationNotFoundException("Comment not found on this board.");
+        }
+
+        EnsureCanMutate(loadedComment.WorkspaceId);
+
+        var comment = loadedComment.Comment;
         EnsureAuthor(comment);
 
         comment.Body = body;
@@ -795,6 +911,70 @@ public class BoardOperationService(
     // Only an owner/editor membership in the board's workspace may mutate it.
     // Role resolution is delegated to IMembershipService so this and the
     // workspace member endpoints share one RBAC definition.
+    /// <summary>
+    /// The role half of the guard, for callers that already know the workspace.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="EnsureCanMutateAsync"/> spends a round trip turning a board id
+    /// into a workspace id. Any operation that loads a card or a column is one
+    /// join away from that workspace already — <c>Card.Column.Board.WorkspaceId</c>
+    /// — so it can carry the id out of a query it was making regardless and skip
+    /// the lookup entirely.
+    ///
+    /// Note the reordering this implies: the entity is loaded before the role is
+    /// checked, so a viewer naming a card that does not exist now gets 404 rather
+    /// than 403. That is the direction this codebase already leans — the tenant
+    /// filter deliberately conflates "not found" and "not permitted" — and the
+    /// weaker leak is the right one.
+    /// </remarks>
+    private void EnsureCanMutate(Guid workspaceId)
+    {
+        if (currentUser.RoleIn(workspaceId) is null or MembershipRole.Viewer)
+        {
+            throw new BoardOperationForbiddenException("Viewers cannot modify the board.");
+        }
+    }
+
+    /// <summary>
+    /// A card, plus everything an operation on it needs, in one round trip.
+    /// </summary>
+    /// <remarks>
+    /// Replaces four separate queries: the board's workspace for the permission
+    /// check, the card with its labels, and the comment count for the response.
+    /// All of it hangs off the card by a join, and the database was already
+    /// visiting those rows.
+    ///
+    /// The label rows are projected as entities rather than as DTOs so EF's
+    /// relationship fixup wires <c>card.CardLabels</c> and each <c>cl.Label</c>
+    /// on the tracked card — which is what <c>ToResponse</c> reads. Projecting
+    /// only the labels would leave the join collection empty and every response
+    /// would silently lose its labels.
+    /// </remarks>
+    private async Task<CardContext> LoadCardContextAsync(Guid boardId, Guid cardId, CancellationToken ct)
+    {
+        var loaded = await db.Cards
+            .Where(c => c.Id == cardId)
+            .Select(c => new
+            {
+                Card = c,
+                Links = c.CardLabels.ToList(),
+                Labels = c.CardLabels.Select(cl => cl.Label).ToList(),
+                c.Column.BoardId,
+                c.Column.Board.WorkspaceId,
+                CommentCount = c.Comments.Count()
+            })
+            .FirstOrDefaultAsync(ct);
+
+        if (loaded is null || loaded.BoardId != boardId)
+        {
+            throw new BoardOperationNotFoundException("Card not found on this board.");
+        }
+
+        return new CardContext(loaded.Card, loaded.WorkspaceId, loaded.CommentCount);
+    }
+
+    private sealed record CardContext(Card Card, Guid WorkspaceId, int CommentCount);
+
     private async Task EnsureCanMutateAsync(Guid boardId, CancellationToken ct)
     {
         var workspaceId = await db.Boards
