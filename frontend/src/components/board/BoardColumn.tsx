@@ -26,16 +26,39 @@ const DOT_COLORS = ["#909090", "#4A9EFF", "#F5A623", "#4A9E62", "#8058A8"];
 // opacity halves the separation the palette was chosen to provide — on the
 // board that made the lanes read as a single flat field in every theme, which
 // is the exact problem the lanes were introduced to solve.
+// The state lives on the edge, not in the fill (S1.2d).
+//
+// This used to replace `bg-surface-2` with `bg-warn/5` and `bg-danger/5`, and a
+// five-percent tint of anything over `--bg` is `--bg`. Measured after
+// compositing, a healthy lane sits 5.2-10.7 L* from the board behind it and a
+// breached one sits 1.3-3.6 — under S1.2a's 4 L* floor in all twelve
+// combinations. The direction inverted too: a starved column was *flatter* than
+// its calm neighbours, so the eye read the breach as less significant than the
+// columns that were fine.
+//
+// A line at full strength carries the state without costing the lane its edge,
+// which is the whole legibility argument above. The `/40` border alpha went for
+// the same reason the fill did.
+//
+// The extra pixel does shift the lane's contents by 1px when a column crosses
+// its limit. Accepted rather than avoided: the alternatives are giving every
+// resting lane a 2px border, which changes how every board looks to solve a
+// problem two states have, or an outline, which collides with the unlayered
+// focus ring in globals.css. A 1px settle on a transition the user just caused
+// is the cheapest of the three.
 const LANE: Record<string, string> = {
   none: "bg-surface-2 border border-border",
   ok: "bg-surface-2 border border-border",
-  under: "bg-warn/5 border border-warn/40",
-  over: "bg-danger/5 border border-danger/40",
+  under: "bg-surface-2 border-2 border-warn",
+  over: "bg-surface-2 border-2 border-danger",
 };
 
+// `--text-muted`, not `--text-dim`. The count is the only quantitative thing on
+// the board, so it is content rather than decoration — and `--text-dim` is now
+// reserved for marks nobody reads (see globals.css).
 const COUNT: Record<string, string> = {
-  none: "text-text-dim",
-  ok: "text-text-dim",
+  none: "text-text-muted",
+  ok: "text-text-muted",
   under: "text-warn",
   over: "text-danger",
 };

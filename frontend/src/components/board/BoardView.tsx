@@ -853,12 +853,27 @@ export function BoardView({ boardId }: { boardId: string }) {
               className="w-1.5 h-1.5 rounded-full shrink-0"
               style={{
                 background: connected ? "var(--success)" : "var(--warn)",
-                animation: connected ? "sync-pulse 3s ease-in-out infinite" : undefined,
+                // No animation on the connected state. It used to pulse for as
+                // long as the board was open -- the only permanent motion in the
+                // product, in the header, on a surface people leave open all day.
+                // S6.3 wants motion brief and purposeful; an infinite three-second
+                // breath is neither, and it carried nothing the static dot beside
+                // the word "Synced" does not already say. Worse, a moving thing at
+                // the top of the screen competes with a board whose entire point is
+                // that things move on it when someone else edits.
+                //
+                // The @keyframes block stays: BoardSkeleton comments on drawing the
+                // same dot *without* the pulse, and that comment needs a referent.
+                animation: undefined,
               }}
             />
             <span
               className="text-xs whitespace-nowrap"
-              style={{ color: connected ? "var(--text-muted)" : "var(--warn)" }}
+              // The dot is the signal; the word is its caption. `--warn` as text
+              // on `--surface` measured 1.84–3.72:1 across the six light
+              // palettes, and the colour carried nothing the dot beside it was
+              // not already carrying in a shape nobody has to read.
+              style={{ color: "var(--text-muted)" }}
             >
               {connected ? "Synced" : "Connecting…"}
             </span>

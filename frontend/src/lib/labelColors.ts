@@ -45,11 +45,22 @@ const HUE: Record<LabelColor, string> = {
 export function labelChipStyle(color: LabelColor): React.CSSProperties {
   const hue = HUE[color] ?? HUE.grey;
   return {
-    // Low alpha so the chip reads as a tint in light mode and doesn't glare in
-    // dark; the hue itself carries in the text and border.
-    backgroundColor: `${hue}22`,
+    // The hue identifies the label; it does not carry the label's name.
+    //
+    // This used to paint the name in `hue` on a `hue22` fill of itself, which
+    // measured 2.15-4.49:1 against the composited chip across every colour in
+    // every combination — worst yellow at 2.15, purple at 2.23. The chips render
+    // at 10px above the card title, so that was the first and smallest text on
+    // every card face, and LabelChip's own docstring is the argument against it:
+    // "the colour is a second signal on top of the word, not a replacement for
+    // it." The word was the part that failed.
+    //
+    // S1.2's data-colour exception licenses the hue as identity. It does not
+    // license text painted in that hue (S1.2g). Border and fill both still carry
+    // the hue, so nothing is lost from the identity; the name is simply legible.
+    backgroundColor: `${hue}33`,
     borderColor: `${hue}66`,
-    color: hue,
+    color: "var(--text)",
   };
 }
 

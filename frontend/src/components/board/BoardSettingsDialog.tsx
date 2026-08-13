@@ -249,7 +249,7 @@ function Nudge({
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className="w-5 h-4 flex items-center justify-center rounded text-text-dim hover:text-text hover:bg-surface transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+      className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-text hover:bg-surface transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
     >
       <svg
         width="9"
@@ -362,7 +362,7 @@ function LimitInput({
       inputMode="numeric"
       aria-label={label}
       placeholder="–"
-      className="w-9 text-[12px] text-center bg-surface border border-border rounded px-1 py-0.5 outline-none transition-colors focus-visible:border-accent placeholder:text-text-dim disabled:opacity-50"
+      className="w-10 h-6 text-[12px] text-center bg-surface border border-border rounded px-1 outline-none transition-colors focus-visible:border-accent placeholder:text-text-dim disabled:opacity-50"
     />
   );
 }

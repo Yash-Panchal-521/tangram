@@ -13,7 +13,15 @@ const variantClasses: Record<Variant, string> = {
   primary: "bg-accent text-accent-fg hover:bg-accent-h",
   secondary: "bg-surface text-text border border-border hover:bg-surface-2",
   ghost: "bg-transparent text-text-muted hover:bg-surface-2 hover:text-text",
-  danger: "bg-danger text-accent-fg hover:opacity-90",
+  // Each filled role owns its foreground. This borrowed `--accent-fg` — a value
+  // defined against a different background, correct here only by luck, and it
+  // measured 4.28:1 in Terracotta dark. Exactly the mistake the hardcoded white
+  // made before palettes were switchable, one role over.
+  //
+  // The hover darkens the fill rather than fading the whole button: `opacity-90`
+  // faded the label with it, which is S1.2b's instinct — do not dilute a correct
+  // colour to make it subtler — applied to a control.
+  danger: "bg-danger text-danger-fg hover:bg-danger-h",
 };
 
 const sizeClasses: Record<Size, string> = {

@@ -40,6 +40,41 @@ palette with a deep terracotta accent and broke the moment palettes were switcha
 dark accent is `#ededed`, where white measured **1.17:1**. Every dark palette failed. The pair
 `--accent` / `--accent-fg` must clear **4.5:1**, which the same test pins.
 
+**S1.2d — A state fill clears the same floor its surface did.** Measured *after* alpha
+compositing, against what it actually sits on. The board's over-limit and under-limit lanes
+replaced `bg-surface-2` with `bg-warn/5` and `bg-danger/5`, and a five-percent tint of
+anything over `--bg` is `--bg`: the breached lane sat **1.3–3.6 L\*** from the board against
+a healthy lane's 5.2–10.7, failing S1.2a in all twelve combinations. The direction inverted
+too — a column in trouble read as *calmer* than the ones that were fine. Put the state on the
+edge, where a line at full strength can carry it. Nothing caught this because the contrast
+test compares raw tokens and a tint is not a token; it now composites.
+
+**S1.2e — Every text token clears 4.5:1 on every surface it is painted on.** Per palette, per
+mode. `--text-dim` measured **2.05–4.04:1** across all thirty-six combinations — not one
+passed — while carrying every column's card count, five section headings, every comment
+timestamp, Created and Updated, and every placeholder. `--text-muted` failed in three more.
+The ramp has room for about two tokens, not three, so `--text-dim` is now reserved for marks
+nobody reads — a closed select's chevron, the search glyph, an inactive day in the date grid.
+Anything that is content, including a number, is `--text-muted`.
+
+**S1.2f — Every filled role owns its foreground.** `--accent-fg` exists because a value
+defined against one background is correct on another only by luck. The danger button borrowed
+it (4.28:1 in Terracotta dark) and the reconnecting banner put `--bg` on `--warn`, which is
+pale grey on amber — **1.84:1** in Indigo, and the first thing a cold start shows.
+`--danger-fg`, `--warn-fg` and `--success-fg` are pinned the same way `--accent-fg` is.
+
+**S1.2g — A token chosen to match a background names the background it sits on.** The presence
+avatars were ringed in `border-bg` while sitting in a `bg-surface` header — 8.25–10.45 L\*
+apart in light mode, so every avatar wore a visibly darker stroke that read as a rendering
+artefact rather than as separation.
+
+**S1.2h — A data colour may identify a thing; text painted in it still clears 4.5:1.** Label
+chips painted the name in the hue on a tint of the same hue: **2.15–4.49:1** for all seven
+colours in all twelve combinations, at 10px, as the first text on every card face. The
+documented hex exception licenses the hue as identity, not as a text colour. `LabelChip`'s own
+docstring is the argument — "the colour is a second signal on top of the word, not a
+replacement for it" — and the word was the part that failed.
+
 **S1.3 — Never append conflicting Tailwind classes.** `cn()` is a plain join with no
 conflict resolution, so a second `border-*` or `px-*` is decided by stylesheet order, not
 by argument order. Replace the class set outright, or branch:
@@ -140,6 +175,11 @@ it with something at least as clear.
 
 **S5.6 — Labels for everything.** Icon-only controls carry `aria-label`; inputs are
 associated with a `<label>`; toggles expose `aria-expanded` / `aria-pressed`.
+
+**S5.7 — A pointer target is at least 24×24 CSS pixels.** WCAG 2.2 AA's figure, not the 44px
+touch figure — this is a desktop app, and 24 is the number that is checkable in a diff. Column
+reordering, which is the answer to "how do I move a column", shipped as a pair of 20×16px
+half-arrows: the smallest targets in the product, on the control people go looking for.
 
 ---
 
