@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Tangram.Api.Data;
+using Tangram.Api.Diagnostics;
 using Tangram.Api.Hubs;
 using Tangram.Api.Middleware;
 using Tangram.Api.Services;
@@ -53,10 +54,22 @@ builder.Services.AddOpenApi(options =>
     });
 });
 
-builder.Services.AddDbContext<AppDbContext>(options =>
+// Scoped, so one per request: the interceptors below and the Server-Timing
+// header both resolve the same instance.
+builder.Services.AddScoped<RequestMetrics>();
+builder.Services.AddScoped<DbCommandMetricsInterceptor>();
+builder.Services.AddScoped<DbTransactionMetricsInterceptor>();
+
+// The service-provider overload rather than the plain one, because the
+// interceptors need this request's RequestMetrics and the plain overload has no
+// scope to resolve it from.
+builder.Services.AddDbContext<AppDbContext>((serviceProvider, options) =>
     options
         .UseNpgsql(builder.Configuration.GetConnectionString("Postgres"))
-        .UseSnakeCaseNamingConvention());
+        .UseSnakeCaseNamingConvention()
+        .AddInterceptors(
+            serviceProvider.GetRequiredService<DbCommandMetricsInterceptor>(),
+            serviceProvider.GetRequiredService<DbTransactionMetricsInterceptor>()));
 
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<ICurrentUserLoader, CurrentUserLoader>();
@@ -131,6 +144,11 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
     app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", "Tangram API v1"));
 }
+
+// First, so it measures the whole request rather than the handler. "The endpoint
+// is fast but the request is slow" is a real answer, and only a measurement taken
+// outside the handler can give it.
+app.UseMiddleware<ServerTimingMiddleware>();
 
 app.UseCors("Frontend");
 
