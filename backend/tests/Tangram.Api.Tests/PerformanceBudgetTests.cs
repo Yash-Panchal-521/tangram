@@ -112,6 +112,23 @@ public class PerformanceBudgetTests(TangramWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task The_database_probe_costs_exactly_one_round_trip()
+    {
+        // The other half of the control. /health measures a request with no
+        // database at all; this measures one with a single trivial statement, so
+        // subtracting one header from the other prices a single round trip on
+        // whatever deployment you point it at.
+        //
+        // The count has to be exactly one for that subtraction to mean anything.
+        // If something later makes this endpoint touch the database twice, the
+        // arithmetic silently stops working and every conclusion drawn from it
+        // is off by a round trip.
+        var response = await factory.CreateClient().GetAsync("/health/db");
+
+        Assert.Equal(1, RoundTrips(response));
+    }
+
+    [Fact]
     public async Task Moving_a_card_stays_within_budget()
     {
         var (client, board, _, to, card) = await SeedAsync("perf-move");

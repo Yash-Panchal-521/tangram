@@ -157,7 +157,7 @@ dev server holding port 3000, still running the old environment.
 ## Tests
 
 ```bash
-cd backend && dotnet test    # 163 integration tests, needs tangram_test on :5433
+cd backend && dotnet test    # 164 integration tests, needs tangram_test on :5433
 cd frontend && npm test      # 651 Vitest tests, node by default
 ```
 

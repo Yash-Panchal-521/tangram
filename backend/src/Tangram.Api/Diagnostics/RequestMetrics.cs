@@ -30,6 +30,8 @@ public sealed class RequestMetrics
     private int _roundTrips;
     private long _databaseTicks;
     private long _slowestTicks;
+    private int _connectionOpens;
+    private long _connectionTicks;
 
     /// <summary>Every statement, including the ones that threw.</summary>
     /// <remarks>
@@ -53,7 +55,21 @@ public sealed class RequestMetrics
         }
     }
 
+    /// <summary>
+    /// Opening a connection, which is not a statement and is not free: TCP, TLS,
+    /// SASL, and on Neon an SNI proxy hop before any of it reaches a database.
+    /// </summary>
+    public void RecordConnectionOpen(TimeSpan duration)
+    {
+        Interlocked.Increment(ref _connectionOpens);
+        Interlocked.Add(ref _connectionTicks, duration.Ticks);
+    }
+
     public int RoundTrips => Volatile.Read(ref _roundTrips);
+
+    public int ConnectionOpens => Volatile.Read(ref _connectionOpens);
+
+    public TimeSpan ConnectionTime => TimeSpan.FromTicks(Volatile.Read(ref _connectionTicks));
 
     public TimeSpan DatabaseTime => TimeSpan.FromTicks(Volatile.Read(ref _databaseTicks));
 
@@ -69,16 +85,19 @@ public sealed class RequestMetrics
     public string ToServerTiming(TimeSpan total)
     {
         var database = DatabaseTime;
+        var connections = ConnectionTime;
 
-        // Clamp: the two are measured by different clocks — EF reports each
+        // Clamp: these are measured by different clocks — EF reports each
         // command's own duration, the middleware wraps the whole pipeline — and
         // concurrent queries would let the sum exceed the wall time. A negative
         // "app" figure would read as a bug in the app rather than in the metric.
-        var application = total - database;
+        var application = total - database - connections;
         if (application < TimeSpan.Zero) application = TimeSpan.Zero;
 
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"db;dur={database.TotalMilliseconds:F1};desc=\"{RoundTrips} round trips, slowest {SlowestRoundTrip.TotalMilliseconds:F0}ms\", app;dur={application.TotalMilliseconds:F1}, total;dur={total.TotalMilliseconds:F1}");
+            $"db;dur={database.TotalMilliseconds:F1};desc=\"{RoundTrips} round trips, slowest {SlowestRoundTrip.TotalMilliseconds:F0}ms\", "
+                + $"conn;dur={connections.TotalMilliseconds:F1};desc=\"{ConnectionOpens} opened\", "
+                + $"app;dur={application.TotalMilliseconds:F1}, total;dur={total.TotalMilliseconds:F1}");
     }
 }

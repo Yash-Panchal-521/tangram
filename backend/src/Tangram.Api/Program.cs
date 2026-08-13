@@ -59,6 +59,7 @@ builder.Services.AddOpenApi(options =>
 builder.Services.AddScoped<RequestMetrics>();
 builder.Services.AddScoped<DbCommandMetricsInterceptor>();
 builder.Services.AddScoped<DbTransactionMetricsInterceptor>();
+builder.Services.AddScoped<DbConnectionMetricsInterceptor>();
 
 // The service-provider overload rather than the plain one, because the
 // interceptors need this request's RequestMetrics and the plain overload has no
@@ -69,7 +70,8 @@ builder.Services.AddDbContext<AppDbContext>((serviceProvider, options) =>
         .UseSnakeCaseNamingConvention()
         .AddInterceptors(
             serviceProvider.GetRequiredService<DbCommandMetricsInterceptor>(),
-            serviceProvider.GetRequiredService<DbTransactionMetricsInterceptor>()));
+            serviceProvider.GetRequiredService<DbTransactionMetricsInterceptor>(),
+            serviceProvider.GetRequiredService<DbConnectionMetricsInterceptor>()));
 
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<ICurrentUserLoader, CurrentUserLoader>();
@@ -157,6 +159,33 @@ app.UseMiddleware<CurrentUserMiddleware>();
 app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
+
+// The other half of the measurement. /health costs one request and no database;
+// this costs one request and exactly one trivial statement, so the difference
+// between the two Server-Timing headers is the price of a single round trip to
+// the database — on the deployment, where that price is the whole question.
+//
+// It exists because two explanations fit the same evidence. A move reported
+// twelve statements averaging 207ms with the slowest only 11% above the mean,
+// and a flat distribution like that means either a far-away database (every
+// statement pays the same wire cost) or a starved CPU (every statement pays the
+// same scheduling delay). They need opposite fixes — one is a different region,
+// the other is a bigger instance — and nothing already deployed could tell them
+// apart, because every measurement so far mixed twelve statements with the
+// application work between them.
+//
+// SELECT 1 does no work worth scheduling. If this reports ~200ms the link is
+// slow; if it reports ~3ms the link is fine and the move's problem is the
+// twelve, not the distance.
+//
+// Anonymous on purpose: an authenticated probe could only be run by someone
+// holding a token, which excludes every tool that would otherwise watch this.
+// It reads nothing and returns nothing, so there is no data behind the door.
+app.MapGet("/health/db", async (AppDbContext db, CancellationToken ct) =>
+{
+    await db.Database.ExecuteSqlRawAsync("SELECT 1", ct);
+    return Results.Ok(new { status = "ok" });
+}).AllowAnonymous();
 
 app.MapControllers();
 app.MapHub<BoardHub>("/hubs/board");

@@ -136,7 +136,7 @@ The API listens on `http://localhost:5286`. In Development, Swagger UI is at
 
 ### Running backend tests
 
-163 integration tests spin the API up in-memory (`WebApplicationFactory`) against the
+164 integration tests spin the API up in-memory (`WebApplicationFactory`) against the
 `tangram_test` database, with Firebase JWT validation swapped for a header-driven
 test handler.
 
