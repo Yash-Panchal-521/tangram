@@ -34,6 +34,7 @@ public class EndpointCensusTests(TangramWebApplicationFactory factory, ITestOutp
     private static readonly Regex RoundTripPattern = new(@"desc=""(\d+) round trips", RegexOptions.Compiled);
 
     private readonly Dictionary<string, int> _measured = [];
+    private readonly Dictionary<string, long> _bytes = [];
 
     /// <summary>
     /// Ceilings on today's behaviour. Every entry is what the endpoint actually
@@ -84,6 +85,13 @@ public class EndpointCensusTests(TangramWebApplicationFactory factory, ITestOutp
         Assert.True(match.Success, $"{name}: no round-trip count in Server-Timing");
 
         _measured[name] = int.Parse(match.Groups[1].Value);
+
+        // Uncompressed bytes. Render's edge applies Brotli, so what crosses the
+        // wire is smaller — but the edge cannot compress away a response that
+        // carries fields nobody reads, and this is the number that grows when
+        // somebody adds one.
+        _bytes[name] = (await response.Content.ReadAsByteArrayAsync()).LongLength;
+
         return response;
     }
 
@@ -193,13 +201,14 @@ public class EndpointCensusTests(TangramWebApplicationFactory factory, ITestOutp
         var over = new List<string>();
         var table = new StringBuilder();
         table.AppendLine();
-        table.AppendLine($"{"endpoint",-38} {"trips",5}  {"budget",6}");
+        table.AppendLine($"{"endpoint",-38} {"trips",5}  {"budget",6}  {"bytes",7}");
 
         foreach (var (name, trips) in _measured.OrderByDescending(m => m.Value).ThenBy(m => m.Key))
         {
             var budget = Budgets.TryGetValue(name, out var b) ? b : -1;
             var flag = budget < 0 ? "  NO BUDGET" : trips > budget ? "  OVER" : "";
-            table.AppendLine($"{name,-38} {trips,5}  {budget,6}{flag}");
+            var size = _bytes.TryGetValue(name, out var measuredBytes) ? measuredBytes : 0;
+            table.AppendLine($"{name,-38} {trips,5}  {budget,6}  {size,7}{flag}");
             if (budget < 0 || trips > budget) over.Add($"{name}: {trips} trips, budget {budget}");
         }
 

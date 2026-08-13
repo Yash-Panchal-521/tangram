@@ -12,6 +12,8 @@ rationale live elsewhere and should not be duplicated here:
 - [`docs/roadmap-v2.md`](docs/roadmap-v2.md) — what v2 is, in two phases
 - [`docs/roadmap-v3.md`](docs/roadmap-v3.md) — v3: the interface reworked around Jira's
   shape, what it deliberately skipped, and what it found already broken
+- [`docs/roadmap-v4.md`](docs/roadmap-v4.md) — v4: why a card took three seconds to move,
+  what the fix actually was, and the hypotheses that were wrong
 - [`docs/manual-test.md`](docs/manual-test.md) — the by-hand pass for the current app
 - [`docs/performance-standards.md`](docs/performance-standards.md) — how latency is
   measured here and what a new endpoint must cost
@@ -182,7 +184,7 @@ dev server holding port 3000, still running the old environment.
 
 ```bash
 cd backend && dotnet test    # 165 integration tests, needs tangram_test on :5433
-cd frontend && npm test      # 651 Vitest tests, node by default
+cd frontend && npm test      # 658 Vitest tests, node by default
 ```
 
 Backend tests are self-sufficient — a module initializer in `TestEnvironment.cs` seeds

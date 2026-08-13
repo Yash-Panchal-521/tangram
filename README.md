@@ -27,6 +27,14 @@ carries work-in-progress limits and has a settings panel; cards and columns are 
 from dialogs rather than a control per column; navigation moved to a sidebar; and the
 whole app has six switchable colour palettes.
 
+**v4** was performance — see [`docs/roadmap-v4.md`](docs/roadmap-v4.md). A card took 3.1
+seconds to move in production and 4 milliseconds locally. The cause was that the database
+was in Singapore and the API in Ohio, which no amount of reading the code could reveal;
+the fix was an environment variable, and it took a move from 4222ms to 128ms server-side.
+Query folding across the whole backend was worth a further ~60ms. What remains is the
+instrumentation that found it: every response carries `Server-Timing`, and all 31
+endpoints are pinned to a round-trip budget.
+
 | Slice | Scope | State |
 |---|---|---|
 | 1 | Walking skeleton — auth, tenant isolation, card create, seq/op-log/broadcast spine, design tokens | done |
@@ -180,7 +188,7 @@ Open `http://localhost:3000`.
 
 ### Running frontend tests
 
-651 Vitest tests. They default to the **node** environment because most of what they
+658 Vitest tests. They default to the **node** environment because most of what they
 cover is pure logic; files needing a DOM opt in per file with
 `// @vitest-environment jsdom` and use Testing Library. No Firebase config is required.
 
