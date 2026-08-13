@@ -807,7 +807,10 @@ public class BoardOperationService(
             throw new BoardOperationNotFoundException("Board not found.");
         }
 
-        var role = await memberships.GetRoleAsync(workspaceId, currentUser.UserId, ct);
+        // From memory. The loader read this user's memberships to build the tenant
+        // filter at the start of the request; the role was on those same rows.
+        // Asking the database again cost a round trip on every single mutation.
+        var role = currentUser.RoleIn(workspaceId);
 
         if (role is null or MembershipRole.Viewer)
         {

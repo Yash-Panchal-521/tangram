@@ -10,9 +10,10 @@ namespace Tangram.Api.Controllers;
 
 [ApiController]
 [Authorize]
+// No IMembershipService here any more: every role question this controller asks
+// is about the caller, and the caller's roles arrived with the request.
 public class BoardsController(
     AppDbContext db,
-    IMembershipService memberships,
     ICurrentUserService currentUser) : ControllerBase
 {
     // The stages nearly every board starts with. Seeded only for the board the
@@ -41,8 +42,7 @@ public class BoardsController(
         // Previously unchecked: any member could create a board, including a
         // viewer who cannot then put anything on it. Same rule as every other
         // content mutation.
-        if (await memberships.GetRoleAsync(workspaceId, currentUser.UserId, ct)
-            is null or MembershipRole.Viewer)
+        if (currentUser.RoleIn(workspaceId) is null or MembershipRole.Viewer)
         {
             return Forbid();
         }
@@ -121,8 +121,7 @@ public class BoardsController(
 
         // Renaming a board is a board-level edit, so it follows the same rule as
         // renaming a column: editors and owners, not viewers.
-        if (await memberships.GetRoleAsync(board.WorkspaceId, currentUser.UserId, ct)
-            is null or MembershipRole.Viewer)
+        if (currentUser.RoleIn(board.WorkspaceId) is null or MembershipRole.Viewer)
         {
             return Forbid();
         }
@@ -152,7 +151,7 @@ public class BoardsController(
         var board = await db.Boards.FirstOrDefaultAsync(b => b.Id == boardId, ct);
         if (board is null) return NotFound();
 
-        if (await memberships.GetRoleAsync(board.WorkspaceId, currentUser.UserId, ct) != MembershipRole.Owner)
+        if (currentUser.RoleIn(board.WorkspaceId) != MembershipRole.Owner)
         {
             return Forbid();
         }
@@ -232,8 +231,7 @@ public class BoardsController(
         // Reaching here already proves membership -- the workspace query filter
         // would have hidden the board otherwise. Falling back to Viewer rather
         // than throwing keeps the least-privileged reading if that ever changes.
-        var role = await memberships.GetRoleAsync(board.WorkspaceId, currentUser.UserId, ct)
-            ?? MembershipRole.Viewer;
+        var role = currentUser.RoleIn(board.WorkspaceId) ?? MembershipRole.Viewer;
 
         return Ok(new BoardDetailResponse(
             board.Id, board.WorkspaceId, board.Name, role.ToString(), board.Seq, columns,

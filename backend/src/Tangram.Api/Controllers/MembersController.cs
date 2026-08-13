@@ -38,7 +38,7 @@ public class MembersController(
             // Withheld from everyone but owners -- see PendingInvitationResponse.
             // Filtered in the projection rather than after it so the secret is
             // never materialised for a caller who may not have it.
-            var isOwner = await memberships.GetRoleAsync(workspaceId, currentUser.UserId, ct) == MembershipRole.Owner;
+            var isOwner = currentUser.RoleIn(workspaceId) == MembershipRole.Owner;
 
             var pending = await db.Invitations
                 .Where(i => i.WorkspaceId == workspaceId && i.AcceptedAt == null)
@@ -292,7 +292,7 @@ public class MembersController(
     {
         await EnsureWorkspaceVisibleAsync(workspaceId, ct);
 
-        var role = await memberships.GetRoleAsync(workspaceId, currentUser.UserId, ct);
+        var role = currentUser.RoleIn(workspaceId);
         if (role != MembershipRole.Owner)
         {
             throw new BoardOperationForbiddenException("Only workspace owners can manage members.");

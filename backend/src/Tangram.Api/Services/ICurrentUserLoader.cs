@@ -38,7 +38,34 @@ public class CurrentUserLoader(AppDbContext db, ICurrentUserService currentUserS
         var claimedName = Trimmed(principal.FindFirstValue("name"))
             ?? Trimmed(principal.FindFirstValue(ClaimTypes.Name));
 
-        var user = await db.Users.IgnoreQueryFilters().SingleOrDefaultAsync(u => u.FirebaseUid == firebaseUid, ct);
+        // The user row and their memberships in one query rather than two.
+        //
+        // This runs on every authenticated request and every hub invocation, so
+        // the second query was a round trip added to literally everything —
+        // ~12ms each against the deployed database, on endpoints whose entire
+        // budget is a handful of trips. The memberships are a join away from the
+        // user, and joining them costs the database nothing it wasn't already
+        // doing.
+        //
+        // Projected into a tuple rather than Include()d, because Include would
+        // materialise whole Membership entities into the change tracker on every
+        // request to read two columns off each.
+        var loaded = await db.Users
+            .IgnoreQueryFilters()
+            .Where(u => u.FirebaseUid == firebaseUid)
+            .Select(u => new
+            {
+                User = u,
+                Memberships = u.Memberships
+                    .Select(m => new { m.WorkspaceId, m.Role })
+                    .ToList()
+            })
+            .SingleOrDefaultAsync(ct);
+
+        var user = loaded?.User;
+        var memberships = loaded is null
+            ? []
+            : loaded.Memberships.Select(m => (m.WorkspaceId, m.Role)).ToList();
 
         if (user is null)
         {
@@ -102,13 +129,10 @@ public class CurrentUserLoader(AppDbContext db, ICurrentUserService currentUserS
         // member of a workspace without ever being asked. Joining now requires
         // the secret in the invite link and an explicit accept; see
         // InvitationsController.
-        var workspaceIds = await db.Memberships
-            .IgnoreQueryFilters()
-            .Where(m => m.UserId == user.Id)
-            .Select(m => m.WorkspaceId)
-            .ToListAsync(ct);
-
-        currentUserService.Load(user.Id, workspaceIds);
+        //
+        // Roles travel with the workspace ids, so an authorization check later
+        // in the request is a dictionary lookup rather than another query.
+        currentUserService.Load(user.Id, memberships);
 
         return user;
     }
