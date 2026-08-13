@@ -85,18 +85,47 @@ export function BoardSkeleton({ slow = false }: { slow?: boolean }) {
 
       <div className="flex-1 overflow-hidden px-6 py-5 relative">
         {slow && (
-          // S2.4: the free-tier API sleeps after 15 minutes and takes 30-60s to
-          // wake. Predictable, so the wait explains itself rather than sitting
-          // there looking stuck.
+          // S2.4: a cold start runs 30-60 seconds, which is predictable, so the
+          // wait explains itself rather than sitting there looking stuck.
+          //
+          // S3.1: it says what the person is about to experience, not what the
+          // infrastructure is doing. "The server sleeps when it hasn't been used
+          // for a while" named a cause nobody outside this repo can act on, and
+          // read as an apology for the hosting rather than as a status.
+          //
+          // One line in a pill, not a paragraph in a box. Three lines of centred
+          // prose floating over the middle of the board read as a dialog that had
+          // lost its dialog. This is the same kind of thing as ReconnectingBanner
+          // — a board-level status — so it carries the same spinner, and the
+          // motion is what distinguishes "still working" from "stuck". Kept to
+          // one line on purpose: a pill that wraps stops looking like a pill.
           //
           // Floated rather than placed in the flow: it appears several seconds
           // in and disappears again on arrival, so in-flow it would shove the
           // columns down and then yank them back — two shifts, both against
-          // S6.2. Absolute, it costs the layout nothing.
-          <p className="absolute left-1/2 -translate-x-1/2 top-6 z-10 max-w-xs px-3.5 py-2 rounded-lg border border-border bg-surface shadow-sm text-xs text-text-muted text-center">
-            The server sleeps when it hasn&apos;t been used for a while. Waking it takes up to a
-            minute — this will continue on its own.
-          </p>
+          // S6.2. Absolute, it costs the layout nothing, and overlapping the top
+          // of the lanes is what makes it read as sitting above them.
+          <div className="absolute left-1/2 -translate-x-1/2 top-2 z-10 flex items-center gap-2 pl-2.5 pr-3.5 py-1.5 rounded-full border border-border bg-surface shadow-sm text-xs text-text-muted whitespace-nowrap">
+            <svg
+              width="11"
+              height="11"
+              viewBox="0 0 13 13"
+              fill="none"
+              className="animate-spin shrink-0"
+              aria-hidden="true"
+            >
+              <circle
+                cx="6.5"
+                cy="6.5"
+                r="5"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeDasharray="10 8"
+                strokeLinecap="round"
+              />
+            </svg>
+            Still loading — the first open after a quiet spell takes up to a minute.
+          </div>
         )}
 
         {/* Lanes, equal-width, matching the loaded board: `flex-1 basis-0` so

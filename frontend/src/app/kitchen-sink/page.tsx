@@ -180,6 +180,16 @@ export default function KitchenSinkPage() {
         <div className="h-[260px] flex rounded-lg border border-border overflow-hidden">
           <BoardSkeleton />
         </div>
+
+        <p className="text-xs text-text-dim">
+          And its slow state, which only appears after a few seconds and is otherwise
+          impossible to look at — the board is behind sign-in, so the first version of this
+          note reached production having never been seen. It was a paragraph of centred prose
+          floating over the middle of the board, and it explained that the server sleeps.
+        </p>
+        <div className="h-[260px] flex rounded-lg border border-border overflow-hidden">
+          <BoardSkeleton slow />
+        </div>
       </section>
 
       <section className="flex flex-col gap-3">

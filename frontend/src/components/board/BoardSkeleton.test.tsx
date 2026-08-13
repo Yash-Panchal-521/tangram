@@ -85,7 +85,7 @@ describe("BoardSkeleton", () => {
   it("keeps the slow-load note out of the flow", () => {
     const { container } = render(<BoardSkeleton slow />);
 
-    const note = screen.getByText(/server sleeps/);
+    const note = screen.getByText(/Still loading/);
     // In the flow it would push the columns down at ~4s and yank them back on
     // arrival: two layout shifts caused by explaining the wait.
     expect(note.className).toContain("absolute");
@@ -94,7 +94,28 @@ describe("BoardSkeleton", () => {
 
   it("says nothing about the wait until it is actually slow (S2.4)", () => {
     render(<BoardSkeleton />);
-    expect(screen.queryByText(/server sleeps/)).toBeNull();
+    expect(screen.queryByText(/Still loading/)).toBeNull();
+  });
+
+  it("describes the wait without describing infrastructure (S3.1)", () => {
+    // The first version of this note said "The server sleeps when it hasn't been
+    // used for a while" — a cause nobody outside this repo can act on, and one
+    // that reads as an apology for the hosting. What the person needs is how long
+    // and whether to do anything.
+    render(<BoardSkeleton slow />);
+
+    const note = screen.getByText(/Still loading/).textContent ?? "";
+    expect(note).toMatch(/up to a minute/);
+    for (const word of [/server/i, /backend/i, /\bAPI\b/, /host/i, /deploy/i, /instance/i]) {
+      expect(note).not.toMatch(word);
+    }
+  });
+
+  it("keeps the slow-load note to a single line", () => {
+    // A pill that wraps stops reading as a pill and starts reading as a dialog
+    // fragment floating over the board, which is what the paragraph version did.
+    render(<BoardSkeleton slow />);
+    expect(screen.getByText(/Still loading/).className).toContain("whitespace-nowrap");
   });
 
   it("hides its placeholder bars from assistive tech", () => {
