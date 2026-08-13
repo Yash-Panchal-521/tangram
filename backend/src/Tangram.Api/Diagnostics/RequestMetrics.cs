@@ -32,6 +32,7 @@ public sealed class RequestMetrics
     private long _slowestTicks;
     private int _connectionOpens;
     private long _connectionTicks;
+    private long _broadcastTicks;
 
     /// <summary>Every statement, including the ones that threw.</summary>
     /// <remarks>
@@ -65,7 +66,26 @@ public sealed class RequestMetrics
         Interlocked.Add(ref _connectionTicks, duration.Ticks);
     }
 
+    /// <summary>
+    /// Time spent pushing this operation to the board's SignalR group.
+    /// </summary>
+    /// <remarks>
+    /// Measured because the broadcast is awaited on the request path, which means
+    /// a client that is slow to accept the message delays the response to the
+    /// person who caused it. A deployed move showed 7 round trips costing 180ms
+    /// and 1771ms of application time on a warm instance — not JIT, not the
+    /// database, and this is the only thing left in the write path that waits on
+    /// something outside the process.
+    ///
+    /// Its own metric rather than part of "app", because the two lead to
+    /// different places: application time is work, and this is waiting.
+    /// </remarks>
+    public void RecordBroadcast(TimeSpan duration) =>
+        Interlocked.Add(ref _broadcastTicks, duration.Ticks);
+
     public int RoundTrips => Volatile.Read(ref _roundTrips);
+
+    public TimeSpan BroadcastTime => TimeSpan.FromTicks(Volatile.Read(ref _broadcastTicks));
 
     public int ConnectionOpens => Volatile.Read(ref _connectionOpens);
 
@@ -86,18 +106,20 @@ public sealed class RequestMetrics
     {
         var database = DatabaseTime;
         var connections = ConnectionTime;
+        var broadcast = BroadcastTime;
 
         // Clamp: these are measured by different clocks — EF reports each
         // command's own duration, the middleware wraps the whole pipeline — and
         // concurrent queries would let the sum exceed the wall time. A negative
         // "app" figure would read as a bug in the app rather than in the metric.
-        var application = total - database - connections;
+        var application = total - database - connections - broadcast;
         if (application < TimeSpan.Zero) application = TimeSpan.Zero;
 
         return string.Create(
             CultureInfo.InvariantCulture,
             $"db;dur={database.TotalMilliseconds:F1};desc=\"{RoundTrips} round trips, slowest {SlowestRoundTrip.TotalMilliseconds:F0}ms\", "
                 + $"conn;dur={connections.TotalMilliseconds:F1};desc=\"{ConnectionOpens} opened\", "
+                + $"push;dur={broadcast.TotalMilliseconds:F1}, "
                 + $"app;dur={application.TotalMilliseconds:F1}, total;dur={total.TotalMilliseconds:F1}");
     }
 }

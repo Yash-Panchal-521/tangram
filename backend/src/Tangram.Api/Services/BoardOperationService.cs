@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Tangram.Api.Data;
+using Tangram.Api.Diagnostics;
 using Tangram.Api.Dtos;
 using Tangram.Api.Entities;
 using Tangram.Api.Hubs;
@@ -54,7 +56,8 @@ public class BoardOperationService(
     AppDbContext db,
     IHubContext<BoardHub> hubContext,
     ICurrentUserService currentUser,
-    IMembershipService memberships) : IBoardOperationService
+    IMembershipService memberships,
+    RequestMetrics metrics) : IBoardOperationService
 {
     public async Task<ColumnResponse> CreateColumnAsync(Guid boardId, string name, CancellationToken ct)
     {
@@ -900,12 +903,18 @@ public class BoardOperationService(
         // Broadcast only after the commit. Sending inside the transaction would
         // publish a change that a rollback then erases, and clients have no way
         // to learn that it never happened.
+        // Timed separately from the rest of the handler: this is the only step in
+        // a write that waits on something outside the process, and it is awaited
+        // on the request path — so a client slow to accept the message delays the
+        // response to the person who caused it.
+        var pushStarted = Stopwatch.GetTimestamp();
         foreach (var (seq, op) in assigned)
         {
             await hubContext.Clients
                 .Group(BoardHub.GroupName(boardId))
                 .SendAsync("operation", new OperationBroadcast(seq, op.OpType, op.Payload), ct);
         }
+        metrics.RecordBroadcast(Stopwatch.GetElapsedTime(pushStarted));
     }
 
     // Only an owner/editor membership in the board's workspace may mutate it.
