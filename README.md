@@ -188,7 +188,7 @@ Open `http://localhost:3000`.
 
 ### Running frontend tests
 
-658 Vitest tests. They default to the **node** environment because most of what they
+661 Vitest tests. They default to the **node** environment because most of what they
 cover is pure logic; files needing a DOM opt in per file with
 `// @vitest-environment jsdom` and use Testing Library. No Firebase config is required.
 
@@ -295,10 +295,15 @@ ordering rather than trusting anyone to remember it: the `ship` job polls `GET /
 until the `commit` it reports matches the SHA just promoted, then advances `release`, which
 is what Vercel builds.
 
-`/health` reports its commit for exactly this reason — Render injects `RENDER_GIT_COMMIT`,
-so "is the new backend live?" is a question with an answer rather than a timer to guess at.
-If it never matches within ten minutes the job fails and `release` is left where it was,
-which is the safe direction. `git ship` remains as a manual fallback.
+It then waits for Vercel the same way, against `GET /api/health` on the frontend. Advancing
+a branch is not a deploy, only the trigger for one, so checking just the backend would leave
+a failed Vercel build looking exactly like a successful release.
+
+Both ends report their commit for this reason — Render injects `RENDER_GIT_COMMIT`, Vercel
+injects `VERCEL_GIT_COMMIT_SHA` — so "is it live?" is a question with an answer rather than a
+timer to guess at. If the backend never matches, `release` is left where it was, which is the
+safe direction; if the frontend never matches, the backend is already live and the Vercel
+build is what needs looking at. `git ship` remains as a manual fallback.
 
 **Auto-Deploy is safe here only because it watches `deploy`.** The gate is the branch, and
 CI is what moves it. Pointed at `main` the same setting would remove the gate completely.

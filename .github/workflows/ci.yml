@@ -133,16 +133,20 @@ jobs:
         run: git push origin HEAD:deploy --force-with-lease
 
   ship:
-    name: Release the frontend once the backend is live
+    name: Release the frontend, and confirm both are live
     # The step this replaces was `git ship`, typed by hand. It is the right
     # sequence -- backend first, then frontend -- and it is one a human forgets:
     # during v4 the frontend sat three commits behind a green `deploy` for hours
     # because nobody ran it. The failure was safe and it still shipped nothing.
     #
-    # Waiting on Render rather than on a timer, because a timer is a guess that
-    # is wrong in both directions: too short and the frontend goes out first,
-    # too long and every release drags. /health reports the commit it is running,
-    # so "is the backend live" is a question with an answer.
+    # Waiting on the deployments rather than on a timer, because a timer is a
+    # guess that is wrong in both directions: too short and the frontend goes out
+    # first, too long and every release drags. Both hosts report the commit they
+    # are running, so "is it live" is a question with an answer.
+    #
+    # Both halves are checked. Advancing a branch is not a deploy, it is the
+    # trigger for one — so confirming the backend and then trusting Vercel would
+    # leave the same blind spot this job was written to remove, one step later.
     needs: [promote]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -152,6 +156,7 @@ jobs:
 
     env:
       API: https://tangram-hk8a.onrender.com
+      WEB: https://tangram-mu.vercel.app
 
     steps:
       - uses: actions/checkout@v5
@@ -182,3 +187,28 @@ jobs:
       # Only now, and never before: Vercel builds whatever this points at.
       - name: Advance the release branch
         run: git push origin HEAD:release --force-with-lease
+
+      - name: Wait for Vercel to serve this commit
+        run: |
+          # Advancing the branch is not the deploy, it is the trigger for one.
+          # Without this the job could report success for a Vercel build that
+          # failed, leaving a green pipeline, a correct branch pointer and the
+          # previous frontend still serving — which is exactly the failure this
+          # job exists to prevent, one step later.
+          #
+          # The route sends Cache-Control: no-store, so what comes back is the
+          # deployment rather than the CDN's memory of the last one.
+          for attempt in $(seq 1 40); do
+            live=$(curl -fsS --max-time 30 "$WEB/api/health" | jq -r '.commit // empty' || true)
+            if [ "$live" = "$GITHUB_SHA" ]; then
+              echo "Frontend is serving $GITHUB_SHA after ~$((attempt * 15))s."
+              exit 0
+            fi
+            echo "attempt $attempt: serving '${live:-unreachable}', want $GITHUB_SHA"
+            sleep 15
+          done
+
+          echo "::error::Vercel did not serve $GITHUB_SHA within 10 minutes."
+          echo "The backend IS live at this commit and the release branch HAS moved,"
+          echo "so this is a Vercel build to go and look at — not something to re-run."
+          exit 1

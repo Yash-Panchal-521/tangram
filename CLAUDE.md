@@ -184,7 +184,7 @@ dev server holding port 3000, still running the old environment.
 
 ```bash
 cd backend && dotnet test    # 167 integration tests, needs tangram_test on :5433
-cd frontend && npm test      # 658 Vitest tests, node by default
+cd frontend && npm test      # 661 Vitest tests, node by default
 ```
 
 Backend tests are self-sufficient — a module initializer in `TestEnvironment.cs` seeds
@@ -220,14 +220,22 @@ rather than trusting anyone to remember it: after promoting `deploy`, the `ship`
 `GET /health` until the `commit` it reports equals the SHA just promoted, and only then
 advances `release`.
 
-**That poll is why `/health` returns a commit.** Render injects `RENDER_GIT_COMMIT`, so
-"is the backend live?" has an answer instead of needing a timer — and a timer is wrong in
-both directions, shipping the frontend early when it's short and dragging every release
-when it's long. `HealthContractTests` pins the field, because removing it wouldn't fail
-loudly: the poll would simply never match.
+It then does the same for the frontend: `GET /api/health` on the Vercel deployment reports
+`VERCEL_GIT_COMMIT_SHA`, and the job waits for that to match too. **Advancing a branch is
+not a deploy, it is the trigger for one** — confirming only the backend would leave a green
+pipeline, a correct branch pointer and a failed Vercel build with nothing to say so.
 
-If Render doesn't serve the commit within ten minutes the job fails and **`release` is left
-alone**, which is the safe direction. `git ship` still exists as the manual fallback.
+**That is why both `/health` endpoints report a commit**, instead of the job using a timer —
+a timer is wrong in both directions, shipping early when it's short and dragging every
+release when it's long. Both fields are pinned by tests (`HealthContractTests` and
+`route.test.ts`), because removing one wouldn't fail loudly: the poll would simply never
+match. The frontend route also sends `Cache-Control: no-store`, or the CDN could answer the
+poll from the *previous* deployment and report success for a build that never went out.
+
+Failure directions differ, and both are stated in the job's own error output. If Render
+never serves the commit, `release` is left alone — safe. If Vercel never serves it, the
+backend is already live and `release` has moved, so that is a Vercel build to go and look
+at rather than something to re-run. `git ship` still exists as the manual fallback.
 
 **Auto-Deploy on `deploy` is safe; on `main` it would not be.** The gate is the branch —
 CI is what moves `deploy`, so a red build cannot reach production. Pointing Render at
