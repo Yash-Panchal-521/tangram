@@ -183,7 +183,7 @@ dev server holding port 3000, still running the old environment.
 ## Tests
 
 ```bash
-cd backend && dotnet test    # 165 integration tests, needs tangram_test on :5433
+cd backend && dotnet test    # 167 integration tests, needs tangram_test on :5433
 cd frontend && npm test      # 658 Vitest tests, node by default
 ```
 
@@ -206,27 +206,28 @@ Two things bite in the DOM tests:
 
 ## Deploying
 
-`git push origin main` → CI advances `deploy` if green → **Render deploys it
-automatically** (Auto-Deploy is *On Commit*, watching `deploy`). Then, once Render reports
-live:
-
-```bash
-git ship
-```
-
-The repo-local alias; moves `release` to `deploy`, and Vercel follows.
+`git push origin main`. That is the whole procedure.
 
 | Branch | Moved by | Built by |
 |---|---|---|
 | `main` | you | nothing |
 | `deploy` | CI, when green | Render, automatically |
-| `release` | `git ship` | Vercel |
+| `release` | CI, once the backend is confirmed live | Vercel |
 
 **Backend first**, because an API returning extra fields won't break an old frontend but a
-frontend reading a field the deployed API doesn't send yet will. That ordering still holds
-with Render on auto: the backend goes out the moment CI is green, and the frontend cannot
-move until you run `git ship`. Waiting for Render to finish before shipping is the whole
-discipline now.
+frontend reading a field the deployed API doesn't send yet will. CI enforces the ordering
+rather than trusting anyone to remember it: after promoting `deploy`, the `ship` job polls
+`GET /health` until the `commit` it reports equals the SHA just promoted, and only then
+advances `release`.
+
+**That poll is why `/health` returns a commit.** Render injects `RENDER_GIT_COMMIT`, so
+"is the backend live?" has an answer instead of needing a timer — and a timer is wrong in
+both directions, shipping the frontend early when it's short and dragging every release
+when it's long. `HealthContractTests` pins the field, because removing it wouldn't fail
+loudly: the poll would simply never match.
+
+If Render doesn't serve the commit within ten minutes the job fails and **`release` is left
+alone**, which is the safe direction. `git ship` still exists as the manual fallback.
 
 **Auto-Deploy on `deploy` is safe; on `main` it would not be.** The gate is the branch —
 CI is what moves `deploy`, so a red build cannot reach production. Pointing Render at

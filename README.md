@@ -150,7 +150,7 @@ The API listens on `http://localhost:5286`. In Development, Swagger UI is at
 
 ### Running backend tests
 
-165 integration tests spin the API up in-memory (`WebApplicationFactory`) against the
+167 integration tests spin the API up in-memory (`WebApplicationFactory`) against the
 `tangram_test` database, with Firebase JWT validation swapped for a header-driven
 test handler.
 
@@ -285,22 +285,20 @@ Render's own free Postgres is deliberately unused: it is deleted after 90 days.
 git push origin main        # CI runs; if green it advances `deploy`
 ```
 
-CI advancing `deploy` is itself the backend deploy: Render's Auto-Deploy is *On Commit*,
-watching `deploy`. So the backend goes out on its own the moment the build is green. Once
-Render reports live:
-
-```bash
-git ship
-```
-
-`git ship` is a repo-local alias that moves `release` to whatever `deploy` points at;
-Vercel deploys `release` automatically. It promotes the last CI-verified commit, not your
-working tree, so it can only ever release code that passed.
+That push is the whole procedure. CI advancing `deploy` is itself the backend deploy —
+Render's Auto-Deploy is *On Commit*, watching `deploy` — and a second CI job then releases
+the frontend once the backend is confirmed live.
 
 **Backend first.** An API returning extra fields does not break an old frontend, but a
-frontend reading a field the deployed API does not send yet does break. Automation does not
-weaken that: the backend cannot go out before CI, and the frontend cannot go out before you
-run `git ship`. Waiting for Render to finish before shipping is the whole of the discipline.
+frontend reading a field the deployed API does not send yet does break. CI enforces that
+ordering rather than trusting anyone to remember it: the `ship` job polls `GET /health`
+until the `commit` it reports matches the SHA just promoted, then advances `release`, which
+is what Vercel builds.
+
+`/health` reports its commit for exactly this reason — Render injects `RENDER_GIT_COMMIT`,
+so "is the new backend live?" is a question with an answer rather than a timer to guess at.
+If it never matches within ten minutes the job fails and `release` is left where it was,
+which is the safe direction. `git ship` remains as a manual fallback.
 
 **Auto-Deploy is safe here only because it watches `deploy`.** The gate is the branch, and
 CI is what moves it. Pointed at `main` the same setting would remove the gate completely.

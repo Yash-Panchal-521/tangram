@@ -102,10 +102,14 @@ jobs:
 
   promote:
     name: Promote to deploy
-    # `deploy` is the last-known-green pointer, and it is the only thing either
-    # host builds. Render watches it, and Vercel's production branch is set to
-    # it too, so neither can ship a red build -- and neither needs a deploy
-    # credential, because the gate is the branch rather than the trigger.
+    # `deploy` is the last-known-green pointer. Render's Auto-Deploy watches it,
+    # so a green build reaches the backend on its own and no deploy credential
+    # exists anywhere -- the gate is the branch rather than the trigger.
+    #
+    # Vercel watches `release`, which the job below advances only once the
+    # backend is confirmed live. The hosts watch different branches on purpose:
+    # an old frontend against a new API ignores fields it does not know, and a
+    # new frontend against an old API is a broken page.
     #
     # This replaced a CLI-based Vercel deploy that needed three repository
     # secrets and a build step to achieve what pointing Vercel's production
@@ -127,3 +131,54 @@ jobs:
       # by hand, this fails loudly instead of silently discarding it.
       - name: Promote main to the deploy branch
         run: git push origin HEAD:deploy --force-with-lease
+
+  ship:
+    name: Release the frontend once the backend is live
+    # The step this replaces was `git ship`, typed by hand. It is the right
+    # sequence -- backend first, then frontend -- and it is one a human forgets:
+    # during v4 the frontend sat three commits behind a green `deploy` for hours
+    # because nobody ran it. The failure was safe and it still shipped nothing.
+    #
+    # Waiting on Render rather than on a timer, because a timer is a guess that
+    # is wrong in both directions: too short and the frontend goes out first,
+    # too long and every release drags. /health reports the commit it is running,
+    # so "is the backend live" is a question with an answer.
+    needs: [promote]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    env:
+      API: https://tangram-hk8a.onrender.com
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Wait for Render to serve this commit
+        run: |
+          # ~10 minutes. A free instance may be asleep when this starts, and the
+          # first request wakes it -- which is slow but is also exactly the probe
+          # we want. Deploys that take longer than this are a problem to look at
+          # rather than to wait through.
+          for attempt in $(seq 1 40); do
+            live=$(curl -fsS --max-time 30 "$API/health" | jq -r '.commit // empty' || true)
+            if [ "$live" = "$GITHUB_SHA" ]; then
+              echo "Backend is serving $GITHUB_SHA after ~$((attempt * 15))s."
+              exit 0
+            fi
+            echo "attempt $attempt: serving '${live:-unreachable}', want $GITHUB_SHA"
+            sleep 15
+          done
+
+          echo "::error::Render did not serve $GITHUB_SHA within 10 minutes."
+          echo "The frontend was NOT released, which is the safe direction: an old"
+          echo "frontend against a new API ignores fields it does not know."
+          exit 1
+
+      # Only now, and never before: Vercel builds whatever this points at.
+      - name: Advance the release branch
+        run: git push origin HEAD:release --force-with-lease

@@ -158,7 +158,19 @@ app.UseAuthentication();
 app.UseMiddleware<CurrentUserMiddleware>();
 app.UseAuthorization();
 
-app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
+// The commit is here so a deploy can be *observed* rather than waited out.
+// Nothing else in the pipeline can answer "is the code I just promoted actually
+// serving traffic?" — and without that answer the frontend release is gated on a
+// human remembering to run `git ship`, which is a step that gets forgotten. It
+// was forgotten during v4: the frontend sat three commits behind for hours.
+//
+// Render injects RENDER_GIT_COMMIT at runtime, so this needs no build argument
+// and no Dockerfile change. Locally there is no such variable and "local" is the
+// honest answer.
+var deployedCommit = builder.Configuration["RENDER_GIT_COMMIT"] ?? "local";
+
+app.MapGet("/health", () => Results.Ok(new { status = "ok", commit = deployedCommit }))
+    .AllowAnonymous();
 
 // The other half of the measurement. /health costs one request and no database;
 // this costs one request and exactly one trivial statement, so the difference
