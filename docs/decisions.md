@@ -1132,3 +1132,71 @@ palette list is stable and reachable the moment one is renamed or removed, which
 is the likely outcome of using these to choose a final palette. The same fallback
 runs from the script's `catch`, because private browsing throws on read and
 leaving the attributes unset reaches the identical failure.
+
+## v4 — the database was on the wrong continent
+
+A card took 3.1 seconds to move on the deployed app and 4 milliseconds locally.
+Nothing in the codebase, the tests or the logs could say why, and three
+explanations fit the same number while needing opposite fixes: twelve round
+trips over a slow link, one slow query, or a starved CPU.
+
+- **Instrumentation first, and it decided everything after it.** Every response
+  carries `Server-Timing` with the database time, the round-trip count, the
+  slowest single trip, connection-open time, broadcast time and the residual.
+  On in production deliberately: locally the database answers in under a
+  millisecond, so a profiler here shows a request path that looks healthy and is
+  three seconds slower once deployed.
+- **The slowest-trip figure is what discriminates.** Twelve trips totalling 2.1s
+  with a slowest of 175ms is a flat distribution — every statement costs the same
+  regardless of what it asks for, which is a wire rather than a query plan. The
+  same total with a slowest of 2.0s would have been a missing index. Without that
+  one extra number the two are indistinguishable.
+- **`/health/db` prices a single round trip.** `/health` costs a request and no
+  database; the probe costs a request and exactly one `SELECT 1`. Subtracting one
+  header from the other gives the cost of one round trip on the deployment being
+  asked about — 216ms, which no local measurement could have produced. Anonymous,
+  because an authenticated probe can only be run by someone holding a token,
+  which excludes every tool that would otherwise watch it.
+- **Neon was in Singapore and Render in Ohio.** Nothing in the code implied it and
+  nothing could have. Moving the database to `us-east-2` took an environment
+  variable and a 32MB dump/restore, and took one round trip from 216ms to 14.8ms
+  — the move from 4222ms to 128ms is almost entirely this.
+- **The database moved, not the API.** Neither host can change a region in place,
+  so both meant recreate-and-repoint; moving the database keeps the API's URL and
+  therefore leaves CORS, Firebase and the frontend's build-time API URL alone.
+  Moving Render to Singapore would have been faster still for a user in India and
+  slower for everyone else, at several times the work.
+- **The restore needed two things verified that a row count would not catch.**
+  Both `rank` columns had to come back `COLLATE "C"` or every ordering would
+  silently disagree with `RankService` again; and the new database's `search_path`
+  was empty, which breaks EF Core because it emits unqualified table names. The
+  connection string now carries `Search Path=public` so the app does not depend on
+  server-side state that was observably wrong once.
+- **A census of all 31 endpoints, not the one that was noticed.** The costliest
+  problem was in machinery every endpoint shared: two round trips per request in
+  the user loader, and two more per mutation re-establishing an authorization
+  answer the request already held. Optimising the move alone would have missed it.
+- **Roles are answered from per-request memory, which is not a cache.** The loader
+  reads memberships to build the tenant filter; the role is a column on those same
+  rows. `ICurrentUserService` is scoped to the request and dies with it, so scope
+  and role are still re-derived per request and per hub call — the invariant that
+  stops a removed member acting on a long-lived connection.
+- **Budgets count round trips, never time.** A timing assertion measures the
+  machine running it. Round trips are a property of the code and identical
+  everywhere; the price of one is a property of the deployment.
+- **The transaction was left alone.** Four of a mutation's six or seven trips are
+  `SaveAsync` — BEGIN, the seq `UPDATE … RETURNING`, `SaveChanges`, COMMIT.
+  Collapsing them into one hand-written CTE would save ~25ms and trade away the
+  guarantee every operation depends on.
+- **One hypothesis was killed by measuring it.** The broadcast is awaited on the
+  request path, and a client slow to accept it would delay the response to the
+  person who caused the change — a good theory with a plausible mechanism, and
+  `push;dur=4.1` ended it. An hour of making writes fire-and-forget was avoided by
+  adding one metric.
+- **The cold path stays.** Neon suspends compute after 5 minutes idle, so the
+  first request after a pause pays ~1200ms across four fresh connections. A
+  keep-alive would hold compute continuously — ~730 hours a month against a free
+  tier granting ~192. The scale-to-zero is what makes the rest free, so this is
+  accepted rather than fixed.
+
+The rules this produced are [`performance-standards.md`](performance-standards.md).

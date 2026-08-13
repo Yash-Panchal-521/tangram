@@ -13,6 +13,8 @@ rationale live elsewhere and should not be duplicated here:
 - [`docs/roadmap-v3.md`](docs/roadmap-v3.md) — v3: the interface reworked around Jira's
   shape, what it deliberately skipped, and what it found already broken
 - [`docs/manual-test.md`](docs/manual-test.md) — the by-hand pass for the current app
+- [`docs/performance-standards.md`](docs/performance-standards.md) — how latency is
+  measured here and what a new endpoint must cost
 - [`README.md`](README.md) — architecture, setup, deployment, known gaps
 - `git log` — commit messages are written as decision records; search them first
 
@@ -30,6 +32,21 @@ disable for a transient state).
 
 Two rules are lint-enforced — native dialogs and raw hex — so a violation fails CI rather
 than review.
+
+## The performance gate
+
+**Any new endpoint must satisfy [`docs/performance-standards.md`](docs/performance-standards.md),
+and `EndpointCensusTests` enforces the part that can be.** Add the endpoint to the census with
+its measured round-trip count; the budget is the actual number, not a generous ceiling, so any
+later addition fails on the machine that made it.
+
+The rules most often broken by plausible-looking code: **P3.1** (asking the database something
+the request already holds), **P3.3** (a permission check that costs its own query instead of
+riding the entity load), and **P1.1** (concluding from a total with no breakdown).
+
+Every response carries `Server-Timing` — `db` with the round-trip count and the slowest single
+trip, plus `conn`, `push`, `app` and `total`. It is on in production because that is the only
+place the interesting latency exists: locally the database answers in under a millisecond.
 
 ## Invariants — violating these breaks correctness
 
@@ -61,8 +78,15 @@ already have applied, so `applyOperation` replaces state by id rather than appen
 
 **Tenant scope is re-derived per request and per hub call**, never cached on the
 connection. EF global query filters read `ICurrentUserService.WorkspaceIds`, populated by
-`CurrentUserLoader`. A non-member gets 404 from the filter before any role check runs —
-so "not found" and "not permitted" are deliberately conflated.
+`CurrentUserLoader`, which also carries each workspace's **role** so an authorization check
+is a dictionary lookup rather than a query. That is per-request state, not a cache: the
+instance dies with the request, which is what stops a removed member acting on a
+long-lived connection. Caching it across requests would break exactly that.
+
+A non-member gets 404 from the filter before any role check runs — so "not found" and
+"not permitted" are deliberately conflated. Mutations now load their entity before
+checking the role, so a viewer naming something that doesn't exist gets 404 rather than
+403; that leans the same way on purpose.
 
 **An email address is not a credential.** Nothing here verifies one — Firebase treats a
 password sign-up as unverified — so no code path may grant membership because the caller's
@@ -157,7 +181,7 @@ dev server holding port 3000, still running the old environment.
 ## Tests
 
 ```bash
-cd backend && dotnet test    # 164 integration tests, needs tangram_test on :5433
+cd backend && dotnet test    # 165 integration tests, needs tangram_test on :5433
 cd frontend && npm test      # 651 Vitest tests, node by default
 ```
 

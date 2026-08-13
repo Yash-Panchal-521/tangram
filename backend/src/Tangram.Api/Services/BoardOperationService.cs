@@ -485,31 +485,6 @@ public class BoardOperationService(
     private static ColumnResponse ToResponse(Column column) =>
         new(column.Id, column.BoardId, column.Name, column.Rank, column.MinCards, column.MaxCards);
 
-    private async Task<Card> LoadCardOrConflictAsync(Guid boardId, Guid cardId, CancellationToken ct)
-    {
-        var card = await db.Cards
-            .Include(c => c.Column)
-            // Labels come back on every CardResponse, and this is the only
-            // loader the card operations use.
-            .Include(c => c.CardLabels).ThenInclude(cl => cl.Label)
-            .FirstOrDefaultAsync(c => c.Id == cardId, ct);
-        if (card is null || card.Column.BoardId != boardId)
-        {
-            throw Conflict("That card has since been deleted.");
-        }
-        return card;
-    }
-
-    private async Task<Column> LoadColumnOrConflictAsync(Guid boardId, Guid columnId, CancellationToken ct)
-    {
-        var column = await db.Columns.FirstOrDefaultAsync(c => c.Id == columnId, ct);
-        if (column is null || column.BoardId != boardId)
-        {
-            throw Conflict("That column has since been deleted.");
-        }
-        return column;
-    }
-
     private static BoardOperationConflictException Conflict(string message) => new(message);
 
     private static T Deserialize<T>(string json) =>
@@ -582,15 +557,6 @@ public class BoardOperationService(
                 .ToList(),
             commentCount);
 
-    /// <remarks>
-    /// A count rather than <c>Include(c =&gt; c.Comments)</c>. This record is the
-    /// broadcast payload, so a wrong count here overwrites the number on
-    /// everyone else's card — but loading every comment on a card to render a
-    /// badge is the cost this field exists to avoid. One indexed COUNT, on the
-    /// (card_id, created_at) index the thread already needs.
-    /// </remarks>
-    private Task<int> CountCommentsAsync(Guid cardId, CancellationToken ct) =>
-        db.Comments.CountAsync(c => c.CardId == cardId, ct);
 
     public async Task<LabelResponse> CreateLabelAsync(
         Guid boardId, string name, string? color, CancellationToken ct)

@@ -67,6 +67,12 @@ whole app has six switchable colour palettes.
   fresh token so the old link dies. Tokens are returned to owners only.
 - **Ordering:** columns and cards use fractional/lexicographic string ranks, so
   inserting or moving an item only ever writes one row.
+- **Latency is measured, not assumed.** Every response carries a `Server-Timing` header
+  splitting database time, connection time, broadcast time and the rest, with the
+  round-trip count and the slowest single trip. `/health` and `/health/db` differ by
+  exactly one `SELECT 1`, so subtracting their headers prices a single round trip on
+  whatever deployment you point them at. Endpoint budgets are asserted in round trips
+  rather than milliseconds — see [docs/performance-standards.md](docs/performance-standards.md).
 - **Presence & resync:** in-memory presence tracker, connection-counted per user so
   two tabs don't flicker. On reconnect the client replays operations since its last
   seen `seq`; past a 200-operation gap the server tells it to refetch a snapshot.
@@ -136,7 +142,7 @@ The API listens on `http://localhost:5286`. In Development, Swagger UI is at
 
 ### Running backend tests
 
-164 integration tests spin the API up in-memory (`WebApplicationFactory`) against the
+165 integration tests spin the API up in-memory (`WebApplicationFactory`) against the
 `tangram_test` database, with Firebase JWT validation swapped for a header-driven
 test handler.
 
