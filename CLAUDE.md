@@ -232,6 +232,13 @@ release when it's long. Both fields are pinned by tests (`HealthContractTests` a
 match. The frontend route also sends `Cache-Control: no-store`, or the CDN could answer the
 poll from the *previous* deployment and report success for a build that never went out.
 
+**Render only rebuilds when something under `backend/` changes** — its root directory is
+`backend`, which is what makes the Docker build context work. So a frontend-only commit
+produces no backend deploy and the instance keeps reporting the previous SHA, correctly and
+indefinitely. The job checks whether the push touched `backend/` before deciding to wait;
+the first version did not, and blocked a frontend release for ten minutes waiting on a
+deploy that was never coming.
+
 Failure directions differ, and both are stated in the job's own error output. If Render
 never serves the commit, `release` is left alone — safe. If Vercel never serves it, the
 backend is already live and `release` has moved, so that is a Vercel build to go and look
