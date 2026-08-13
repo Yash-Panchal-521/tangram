@@ -157,7 +157,7 @@ dev server holding port 3000, still running the old environment.
 ## Tests
 
 ```bash
-cd backend && dotnet test    # 158 integration tests, needs tangram_test on :5433
+cd backend && dotnet test    # 163 integration tests, needs tangram_test on :5433
 cd frontend && npm test      # 651 Vitest tests, node by default
 ```
 
@@ -180,20 +180,36 @@ Two things bite in the DOM tests:
 
 ## Deploying
 
-`git push origin main` → CI advances `deploy` if green. Then, in this order:
+`git push origin main` → CI advances `deploy` if green → **Render deploys it
+automatically** (Auto-Deploy is *On Commit*, watching `deploy`). Then, once Render reports
+live:
 
-1. Render → **Manual Deploy** (builds `deploy`)
-2. `git ship` — repo-local alias; moves `release` to `deploy`, Vercel follows
+```bash
+git ship
+```
+
+The repo-local alias; moves `release` to `deploy`, and Vercel follows.
 
 | Branch | Moved by | Built by |
 |---|---|---|
 | `main` | you | nothing |
-| `deploy` | CI, when green | Render |
+| `deploy` | CI, when green | Render, automatically |
 | `release` | `git ship` | Vercel |
 
 **Backend first**, because an API returning extra fields won't break an old frontend but a
-frontend reading a field the deployed API doesn't send yet will. Frontend-only changes can
-skip step 1. Wait for CI before clicking Render, or it deploys the previous green commit.
+frontend reading a field the deployed API doesn't send yet will. That ordering still holds
+with Render on auto: the backend goes out the moment CI is green, and the frontend cannot
+move until you run `git ship`. Waiting for Render to finish before shipping is the whole
+discipline now.
+
+**Auto-Deploy on `deploy` is safe; on `main` it would not be.** The gate is the branch —
+CI is what moves `deploy`, so a red build cannot reach production. Pointing Render at
+`main` would delete the gate entirely.
+
+**A migration that rewrites data applies unattended.** That is the one thing the old
+manual click bought. `RankOrdinalCollation` renumbered every rank row in the database;
+that class of change deserves a pause. Turn Auto-Deploy off before pushing one, deploy it
+by hand, then turn it back on.
 
 The hosts watch *different* branches on purpose — that is what makes ordering possible.
 Never point either at `main`; the gate is the branch, so there is no deploy token.

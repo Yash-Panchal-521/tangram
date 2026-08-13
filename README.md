@@ -136,7 +136,7 @@ The API listens on `http://localhost:5286`. In Development, Swagger UI is at
 
 ### Running backend tests
 
-158 integration tests spin the API up in-memory (`WebApplicationFactory`) against the
+163 integration tests spin the API up in-memory (`WebApplicationFactory`) against the
 `tangram_test` database, with Firebase JWT validation swapped for a header-driven
 test handler.
 
@@ -271,20 +271,29 @@ Render's own free Postgres is deliberately unused: it is deleted after 90 days.
 git push origin main        # CI runs; if green it advances `deploy`
 ```
 
-Then, once CI is green:
+CI advancing `deploy` is itself the backend deploy: Render's Auto-Deploy is *On Commit*,
+watching `deploy`. So the backend goes out on its own the moment the build is green. Once
+Render reports live:
 
-1. **Backend** — Render → **Manual Deploy → Deploy latest commit**
-2. **Frontend** — `git ship`
+```bash
+git ship
+```
 
 `git ship` is a repo-local alias that moves `release` to whatever `deploy` points at;
 Vercel deploys `release` automatically. It promotes the last CI-verified commit, not your
 working tree, so it can only ever release code that passed.
 
 **Backend first.** An API returning extra fields does not break an old frontend, but a
-frontend reading a field the deployed API does not send yet does break. Skip step 1
-entirely when the change is frontend-only.
+frontend reading a field the deployed API does not send yet does break. Automation does not
+weaken that: the backend cannot go out before CI, and the frontend cannot go out before you
+run `git ship`. Waiting for Render to finish before shipping is the whole of the discipline.
 
-**Wait for CI before clicking Render**, or you will deploy the previous green commit.
+**Auto-Deploy is safe here only because it watches `deploy`.** The gate is the branch, and
+CI is what moves it. Pointed at `main` the same setting would remove the gate completely.
+
+**A migration that rewrites data now applies unattended** — the one thing the old manual
+click bought. Turn Auto-Deploy off before pushing that class of change, deploy it by hand,
+then turn it back on.
 
 #### How the three branches work
 
