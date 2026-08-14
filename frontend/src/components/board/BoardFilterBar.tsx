@@ -108,7 +108,7 @@ export function BoardFilterBar({
   const labelOf = (id: string) => labels.find((l) => l.id === id);
 
   return (
-    <div className="shrink-0 flex items-center gap-2 flex-wrap px-4.5 py-2 border-b border-border bg-surface">
+    <div className="shrink-0 flex items-center gap-3.5 flex-wrap px-[30px] pt-[18px] pb-3.5">
       <label className="relative">
         <span className="sr-only">Search cards</span>
         <svg
@@ -117,7 +117,7 @@ export function BoardFilterBar({
           viewBox="0 0 14 14"
           fill="none"
           aria-hidden="true"
-          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-dim pointer-events-none"
+          className="absolute right-0 top-1/2 -translate-y-[9px] text-text-dim pointer-events-none"
         >
           <circle cx="6" cy="6" r="4.25" stroke="currentColor" strokeWidth="1.3" />
           <path d="M9.5 9.5L12.5 12.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
@@ -134,14 +134,15 @@ export function BoardFilterBar({
             }
           }}
           placeholder="Search cards"
-          className="w-[200px] h-7 text-[13px] bg-surface-2 border border-border rounded-md pl-7.5 pr-7 outline-none transition-colors focus-visible:border-accent placeholder:text-text-dim"
+          data-focus-ring="none"
+          className="w-[158px] text-[13.5px] bg-transparent border-0 border-b border-text rounded-none pl-0 pr-6 pb-1 outline-none transition-colors focus-visible:border-accent placeholder:text-text-dim"
         />
         {filter.text && (
           <button
             type="button"
             onClick={() => onChange({ ...filter, text: "" })}
             aria-label="Clear search"
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded text-text-dim hover:text-text hover:bg-surface transition-colors cursor-pointer"
+            className="absolute right-0 top-1/2 -translate-y-[9px] w-4 h-4 flex items-center justify-center rounded text-text-dim hover:text-text transition-colors cursor-pointer"
           >
             <svg width="9" height="9" viewBox="0 0 12 12" aria-hidden="true">
               <path d="M1 1L11 11M11 1L1 11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
@@ -294,16 +295,21 @@ export function BoardFilterBar({
         <>
           {/* Said out loud, because a filtered board and a nearly empty one look
               identical — and the second is the more alarming reading (S2.3). */}
-          <span className="text-[11px] text-text-muted tabular-nums" role="status">
+          <span className="text-[12px] text-text-dim tabular-nums" role="status">
             {matches} of {total}
           </span>
+          {/* --danger, not a neutral link. Clearing a filter is the one control
+              here that discards what you set up, and the design gives it the
+              only warm colour in the row so it reads as an undo rather than
+              another way to narrow things. */}
           <button
             type="button"
             onClick={onClear}
-            className="text-[11px] font-medium px-2 py-1 rounded-md text-text-muted hover:text-text hover:bg-surface-2 transition-colors cursor-pointer"
+            className="text-[10.5px] uppercase tracking-[0.09em] text-danger hover:opacity-70 transition-opacity cursor-pointer"
           >
-            Clear all
+            Clear
           </button>
+          <div className="w-px h-[18px] bg-border" aria-hidden="true" />
         </>
       )}
 

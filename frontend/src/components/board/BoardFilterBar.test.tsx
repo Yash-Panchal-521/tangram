@@ -213,7 +213,7 @@ describe("BoardFilterBar — what is on", () => {
     mount();
 
     expect(screen.queryByText("5 of 12")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Clear all" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Clear" })).toBeNull();
     expect(screen.queryByRole("button", { name: /Remove filter/ })).toBeNull();
   });
 
@@ -252,7 +252,7 @@ describe("BoardFilterBar — what is on", () => {
     const user = userEvent.setup();
     const { onClear } = mount({ filter: { ...EMPTY_FILTER, text: "auth" } });
 
-    await user.click(screen.getByRole("button", { name: "Clear all" }));
+    await user.click(screen.getByRole("button", { name: "Clear" }));
 
     expect(onClear).toHaveBeenCalled();
   });
