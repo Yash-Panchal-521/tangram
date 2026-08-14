@@ -1,6 +1,8 @@
 "use client";
 
+import { useDraggable, useDroppable } from "@dnd-kit/core";
 import type { BoardDetailResponse, CardResponse } from "@/lib/api";
+import { cellId } from "@/lib/laneDrop";
 import { KanbanCard } from "@/components/board/KanbanCard";
 import { identityColor } from "@/lib/identityColors";
 import { LANE_VIEWS, lanesFor, visibleLanes, type LaneView } from "@/lib/boardLanes";
@@ -24,11 +26,14 @@ export function BoardLanes({
   view,
   memberNames,
   onCardClick,
+  canEdit,
 }: {
   board: BoardDetailResponse;
   view: LaneView;
   memberNames: Map<string, string>;
   onCardClick: (card: CardResponse) => void;
+  /** Viewers get the matrix without the drag handles (S8.1: removed, not disabled). */
+  canEdit: boolean;
 }) {
   const lanes = visibleLanes(lanesFor(board, view, memberNames), view);
   const laneLabel = LANE_VIEWS.find((v) => v.id === view)?.laneLabel ?? "";
@@ -126,26 +131,22 @@ export function BoardLanes({
               </div>
 
               {lane.cells.map((cards, i) => (
-                <div
+                <LaneCell
                   key={board.columns[i].id}
-                  className="px-3.5 py-3 border-l border-border-2 flex flex-col gap-2"
+                  id={cellId(lane.id, board.columns[i].id)}
+                  droppable={canEdit && lane.droppable}
                 >
                   {cards.map((card) => (
-                    <button
+                    <LaneCard
                       key={card.id}
-                      type="button"
+                      card={card}
+                      laneId={lane.id}
+                      draggable={canEdit && lane.droppable}
+                      assigneeName={card.assigneeId ? memberNames.get(card.assigneeId) : undefined}
                       onClick={() => onCardClick(card)}
-                      className="block w-full text-left cursor-pointer"
-                    >
-                      <KanbanCard
-                        card={card}
-                        assigneeName={
-                          card.assigneeId ? memberNames.get(card.assigneeId) : undefined
-                        }
-                      />
-                    </button>
+                    />
                   ))}
-                </div>
+                </LaneCell>
               ))}
             </div>
           ))
@@ -161,4 +162,78 @@ function initialsFor(name: string): string {
   const first = parts[0]?.[0] ?? "?";
   const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
   return (first + last).toUpperCase();
+}
+
+/**
+ * One crossing of a lane and a column.
+ *
+ * Only a drop target where the lane means something single-valued — the label
+ * view is grouped by a field a card can hold several of, so there is no
+ * unambiguous answer to "what does dropping here do".
+ */
+function LaneCell({
+  id,
+  droppable,
+  children,
+}: {
+  id: string;
+  droppable: boolean;
+  children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id, disabled: !droppable });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`px-3.5 py-3 border-l border-border-2 flex flex-col gap-2 transition-colors ${
+        isOver ? "bg-accent-soft" : ""
+      }`}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
+ * A card in the matrix.
+ *
+ * The whole card is the drag handle *and* the button that opens it, which works
+ * because dnd-kit only starts a drag past an 8px threshold — a click stays a
+ * click. Keyboard users get the same split the column board uses: Enter opens,
+ * Space picks up.
+ */
+function LaneCard({
+  card,
+  laneId,
+  draggable,
+  assigneeName,
+  onClick,
+}: {
+  card: CardResponse;
+  laneId: string;
+  draggable: boolean;
+  assigneeName?: string;
+  onClick: () => void;
+}) {
+  // Keyed by lane as well as card: a multi-label card appears in several rows,
+  // and two draggables sharing an id would make dnd-kit pick up whichever it
+  // saw last regardless of which one was grabbed.
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: card.id,
+    disabled: !draggable,
+    data: { laneId },
+  });
+
+  return (
+    <button
+      ref={setNodeRef}
+      type="button"
+      onClick={onClick}
+      className={`block w-full text-left cursor-pointer ${isDragging ? "opacity-40" : ""}`}
+      {...attributes}
+      {...listeners}
+    >
+      <KanbanCard card={card} assigneeName={assigneeName} />
+    </button>
+  );
 }

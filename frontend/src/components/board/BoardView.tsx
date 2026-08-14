@@ -48,7 +48,8 @@ import { CreateCardDialog } from "@/components/board/CreateCardDialog";
 import { SeedColumnsDialog } from "@/components/board/SeedColumnsDialog";
 import { BoardSettingsDialog } from "@/components/board/BoardSettingsDialog";
 import { countMatches, filterBoard, isFilterActive } from "@/lib/boardFilter";
-import { type LaneView } from "@/lib/boardLanes";
+import { lanesFor, type LaneView } from "@/lib/boardLanes";
+import { parseCellId, resolveLaneDrop } from "@/lib/laneDrop";
 import { BOARD_TOUR } from "@/lib/boardTour";
 import { Walkthrough } from "@/components/onboarding/Walkthrough";
 import { BoardColumn } from "@/components/board/BoardColumn";
@@ -777,6 +778,69 @@ export function BoardView({ boardId }: { boardId: string }) {
     setActiveCard(card ?? null);
   }
 
+  /**
+   * A card dropped into a cell of the lanes matrix.
+   *
+   * Sideways moves say nothing and just go, exactly as they do on the column
+   * board. A move that changes rows asks first: reassigning somebody's work, or
+   * re-prioritising it, by dragging slightly too far is not something to do
+   * silently (S4.2).
+   */
+  async function handleLaneDrop(cardId: string, cell: { laneId: string; columnId: string }) {
+    if (!board || !canEdit) return;
+
+    const source = board.columns.find((col) => col.cards.some((c) => c.id === cardId));
+    const card = source?.cards.find((c) => c.id === cardId);
+    if (!card) return;
+
+    const lanes = lanesFor(visibleBoard ?? board, laneView, memberNames);
+    const from = lanes.find((l) => l.cells.some((cards) => cards.some((c) => c.id === cardId)));
+    const to = lanes.find((l) => l.id === cell.laneId);
+    if (!from || !to || !to.droppable) return;
+
+    const drop = resolveLaneDrop({
+      card,
+      fromLaneId: from.id,
+      toLaneId: to.id,
+      toColumnId: cell.columnId,
+      view: laneView,
+      laneName: to.name,
+    });
+    if (!drop) return;
+
+    if (drop.confirm) {
+      const ok = await confirm({
+        title: drop.confirm.title,
+        body: drop.confirm.body,
+        confirmLabel: drop.confirm.confirmLabel,
+      });
+      if (!ok) return;
+    }
+
+    const snapshot = board;
+    try {
+      const token = await getToken();
+      // Stage first, then the field. If the move fails the card has not been
+      // reassigned yet, which is the better half-done state of the two.
+      if (drop.targetColumnId) {
+        await api.post(`/boards/${boardId}/cards/${cardId}/move`, token, {
+          targetColumnId: drop.targetColumnId,
+          beforeCardId: null,
+        });
+      }
+      if (drop.update) {
+        await api.patch(`/boards/${boardId}/cards/${cardId}`, token, drop.update);
+      }
+    } catch (err) {
+      setBoard(snapshot);
+      const { message, canRetry } = friendlyError(err, "move that card");
+      setActionError({
+        message,
+        retry: canRetry ? () => void handleLaneDrop(cardId, cell) : undefined,
+      });
+    }
+  }
+
   async function handleDragEnd(event: DragEndEvent) {
     setActiveCard(null);
     const { active, over } = event;
@@ -784,6 +848,15 @@ export function BoardView({ boardId }: { boardId: string }) {
     // Backstop: individual cards already refuse to start a drag for viewers,
     // but this keeps the optimistic update from ever running for one.
     if (!canEdit) return;
+
+    // A drop onto a lane cell is a different kind of event from a drop onto a
+    // column: it can change the card's stage *and* who holds it, and the second
+    // half is a mutation rather than a reorder. Handled first, and separately.
+    const cell = parseCellId(String(over.id));
+    if (cell) {
+      await handleLaneDrop(String(active.id), cell);
+      return;
+    }
 
     const move = resolveMove(board, String(active.id), String(over.id));
     if (!move) return;
@@ -1035,6 +1108,7 @@ export function BoardView({ boardId }: { boardId: string }) {
               view={laneView}
               memberNames={memberNames}
               onCardClick={(card) => openCardById(card.id)}
+              canEdit={canEdit}
             />
           ) : (
           <div className="flex items-stretch gap-3 h-full" data-tour="columns">
