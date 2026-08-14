@@ -64,25 +64,19 @@ export default function LoginPage() {
 
   return (
     <AuthShell
-      headline={
-        <>
-          Ship faster,
-          <br />
-          together.
-        </>
-      }
-      subhead="Multi-tenant real-time kanban for engineering teams. Roles, live cursors, and a board that catches itself up after a disconnect."
+      headline="Work laid out in lanes, not stacked in a pile."
+      subhead="Every card sits at the crossing of who holds it and where it stands. Shared live, with an operation log you can read back."
       // Covers both the initial resolve and the moment between a known session
       // and the redirect landing, so the form never appears to someone who is
       // on their way out of this page.
       checking={loading || user !== null}
     >
-      <p className="text-[10px] uppercase tracking-[0.14em] text-text-dim mb-1.5">Sign in</p>
+      <p className="text-[10px] uppercase tracking-[0.14em] text-text-dim mb-1.5">Welcome back</p>
       <h2
         className={`text-[31px] font-normal tracking-[-0.01em] ${offer ? "mb-2" : "mb-[26px]"}`}
         style={{ fontFamily: "var(--font-display)" }}
       >
-        Welcome back.
+        Sign in to Tangram
       </h2>
       {/* The design goes straight from title to fields. The subhead survives
           only where it carries something the title cannot — that you are here to
@@ -98,7 +92,7 @@ export default function LoginPage() {
           <input
             id={emailId}
             type="email"
-            placeholder="you@company.com"
+            placeholder="you@studio.com"
             autoComplete="email"
             autoFocus
             required
@@ -135,12 +129,12 @@ export default function LoginPage() {
         )}
 
         <Button type="submit" disabled={submitting} className="w-full mt-[9px]">
-          {submitting ? "Signing in…" : "Sign in →"}
+          {submitting ? "Signing in…" : "Sign in"}
         </Button>
       </form>
 
       <p className="text-[12.5px] leading-relaxed text-text-dim">
-        New to Tangram?{" "}
+        No account yet?{" "}
         <Link
           href={
             inviteToken
@@ -151,7 +145,7 @@ export default function LoginPage() {
           }
           className="text-accent font-medium hover:underline"
         >
-          Create an account
+          Create one
         </Link>
       </p>
     </AuthShell>

@@ -123,14 +123,8 @@ export default function SignupPage() {
 
   return (
     <AuthShell
-      headline={
-        <>
-          Start building,
-          <br />
-          together.
-        </>
-      }
-      subhead="Create an account to start your own workspace, or to accept an invitation someone sent you."
+      headline="Work laid out in lanes, not stacked in a pile."
+      subhead="Every card sits at the crossing of who holds it and where it stands. Shared live, with an operation log you can read back."
       // `submitting`, not the ref: a ref read during render doesn't re-render
       // when it changes, so the shell would keep whichever value it saw first.
       // The two flip together anyway -- setSubmitting(true) is the line above
@@ -141,12 +135,12 @@ export default function SignupPage() {
       // the error if account creation then failed.
       checking={loading || (user !== null && !submitting)}
     >
-      <p className="text-[10px] uppercase tracking-[0.14em] text-text-dim mb-1.5">Create account</p>
+      <p className="text-[10px] uppercase tracking-[0.14em] text-text-dim mb-1.5">New here</p>
       <h2
         className={`text-[31px] font-normal tracking-[-0.01em] ${offer ? "mb-2" : "mb-[26px]"}`}
         style={{ fontFamily: "var(--font-display)" }}
       >
-        {offer ? "Create your account to join." : "Create your account."}
+        {offer ? "Create your account to join" : "Create your workspace"}
       </h2>
 
       {/* The context the old invitation interstitial carried. Without it this is
@@ -160,7 +154,7 @@ export default function SignupPage() {
           <input
             id={nameId}
             type="text"
-            placeholder="Ada Lovelace"
+            placeholder="Rita Menon"
             autoComplete="name"
             autoFocus
             required
@@ -175,7 +169,7 @@ export default function SignupPage() {
           <input
             id={emailId}
             type="email"
-            placeholder="you@company.com"
+            placeholder="you@studio.com"
             autoComplete="email"
             required
             value={email}
@@ -225,11 +219,11 @@ export default function SignupPage() {
           disabled={submitting || !passwordLongEnough}
           className="w-full mt-1"
         >
-          {submitting ? "Creating account…" : "Create account →"}
+          {submitting ? "Creating account…" : "Create account"}
         </Button>
       </form>
 
-      <p className="text-[13px] text-text-muted">
+      <p className="text-[12.5px] leading-relaxed text-text-dim">
         Already have an account?{" "}
         {/* Carries the destination across, so switching form doesn't strand
             someone who came here from an invite link. */}
