@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
-export type ThemeName = "terracotta" | "slate" | "indigo" | "forest" | "graphite" | "midnight";
+export type ThemeName = "obsidian" | "solar" | "cobalt";
 
 /**
  * The palettes, in the order the picker offers them.
@@ -13,19 +13,25 @@ export type ThemeName = "terracotta" | "slate" | "indigo" | "forest" | "graphite
  * added to one and not the other is either an option that does nothing or a
  * block nobody can reach.
  */
+/**
+ * Three, not six.
+ *
+ * Six palettes each had to be a neutral chassis with one accent slot, because a
+ * design holding in all of them cannot let colour do anything structural. That
+ * constraint is most of why the previous look was competent and unmemorable.
+ * Three palettes with an actual point of view buy back the ability to mean
+ * something with colour, at the cost of choice nobody was exercising.
+ */
 export const THEMES: { id: ThemeName; name: string; hint: string }[] = [
-  { id: "terracotta", name: "Terracotta", hint: "Warm, earthy, light-first" },
-  { id: "slate", name: "Slate", hint: "Neutral grey with a blue accent" },
-  { id: "indigo", name: "Indigo", hint: "Atlassian's own family" },
-  { id: "forest", name: "Forest", hint: "Warm-neutral, green accent" },
-  { id: "graphite", name: "Graphite", hint: "Near-monochrome" },
-  { id: "midnight", name: "Midnight", hint: "Dark-first, violet accent" },
+  { id: "obsidian", name: "Obsidian", hint: "Violet on near-black" },
+  { id: "solar", name: "Solar", hint: "Warm amber, paper-like" },
+  { id: "cobalt", name: "Cobalt", hint: "Cool blue, high contrast" },
 ];
 export type ThemeMode = "light" | "dark";
 
 const THEME_STORAGE_KEY = "tangram-theme";
 const MODE_STORAGE_KEY = "tangram-mode";
-const DEFAULT_THEME: ThemeName = "terracotta";
+const DEFAULT_THEME: ThemeName = "obsidian";
 const DEFAULT_MODE: ThemeMode = "light";
 
 // Inlined into <head> so the theme/mode attributes are set before first

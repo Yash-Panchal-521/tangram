@@ -6,302 +6,198 @@
  * more [data-theme="..."] blocks can be added here later without touching
  * component code, since every primitive is built on these token names.
  */
-/* The text ramp carries three tokens and has perceptual room for about two.
-   `--text-dim` was pulled toward `--text` until it cleared 4.5:1 on every surface
-   it is painted on, which lands it close to `--text-muted` in several palettes —
-   that closeness is the finding, not a mistake. It measured 2.05-4.04:1 before,
-   failing in all twelve combinations, while carrying every column's card count,
-   five section headings, every comment timestamp, and Created/Updated.
+/* v7 — three palettes, hard-edged.
 
-   So the two are now near-synonyms and the distinction has to be earned by use:
-   `--text-dim` is for marks nobody reads — a closed select's chevron, the search
-   glyph, an inactive day in the date grid, a clear button's cross. Anything that
-   is content, including a number, is `--text-muted`. */
-[data-theme="terracotta"][data-mode="light"] {
-  --bg: #e2d4c9;
-  --surface: #faf3ec;
-  --surface-2: #f0e4d8;
-  --border: #d4bfb0;
-  --border-2: #c0a898;
-  --text: #2a1a10;
-  --text-muted: #785646;
-  --text-dim: #72584b;
-  --accent: #ae3e2e;
-  --accent-h: #963424;
-  --accent-fg: #ffffff;
-  --success: #4a7c58;
-  --danger: #b02e20;
-  --warn: #865c0d;
-  --ring: rgba(174, 62, 46, 0.2);
+   Replaces six neutral chassis palettes with three that have a point of view:
+   Obsidian (violet), Solar (amber) and Cobalt (blue). Fewer palettes is the
+   trade that lets colour do something structural — six neutral ones forced every
+   surface to be a chassis with one accent slot, which is most of why the old
+   look was competent and forgettable.
+
+   Values come from the v7 design, with the ones that failed docs/ui-standards.md
+   nudged and nothing else touched. Every nudge is small and each is recorded in
+   the commit; the largest is --text-dim, which arrived failing 4.5:1 on every
+   surface in all six — the same defect the review found in the palettes these
+   replace, under a different name. */
+
+[data-theme="obsidian"][data-mode="light"] {
+  --bg: #f4f1f9;
+  --surface: #FFFFFF;
+  --surface-2: #e7e1f4;
+  --surface-3: #FFFFFF;
+  --border: #d5cde9;
+  --border-2: #EFE9FA;
+  --text: #17122A;
+  --text-muted: #4F4470;
+  --text-dim: #695f83;
+  --accent: #5B3DF5;
+  --accent-h: #4e34d3;
+  --accent-fg: #F8F6FF;
+  --accent-soft: #E7E1FC;
+  --success: #2b7a4b;
+  --success-fg: #ffffff;
+  --danger: #E14F63;
+  --danger-h: #c24455;
+  --danger-fg: #0a0a0a;
+  --danger-soft: #FCE1E5;
+  --warn: #C99A2E;
+  --warn-fg: #0a0a0a;
+  --warn-soft: #F5ECD6;
+  --scrim: rgba(244, 241, 249, 0.66);
+  --ring: rgba(91, 61, 245, 0.22);
+}
+
+[data-theme="obsidian"][data-mode="dark"] {
+  --bg: #0E0B1B;
+  --surface: #1c172b;
+  --surface-2: #262038;
+  --surface-3: #221B3B;
+  --border: #322b55;
+  --border-2: #221C3D;
+  --text: #EFEAFB;
+  --text-muted: #B7ACD9;
+  --text-dim: #9086af;
+  --accent: #9C86FF;
+  --accent-h: #aa97ff;
+  --accent-fg: #14102A;
+  --accent-soft: #241D45;
+  --success: #63d195;
+  --success-fg: #0a0a0a;
+  --danger: #FF7A8A;
+  --danger-h: #ff8d9a;
+  --danger-fg: #0a0a0a;
+  --danger-soft: #3A1620;
+  --warn: #E7C15C;
+  --warn-fg: #0a0a0a;
+  --warn-soft: #2E2712;
+  --scrim: rgba(14, 11, 27, 0.72);
+  --ring: rgba(156, 134, 255, 0.22);
+}
+
+[data-theme="solar"][data-mode="light"] {
+  --bg: #f6eedf;
+  --surface: #FFFDF7;
+  --surface-2: #ece1c9;
+  --surface-3: #FFFFFF;
+  --border: #ddcda9;
+  --border-2: #F2E8D0;
+  --text: #231708;
+  --text-muted: #5B4A32;
+  --text-dim: #726145;
+  --accent: #9e640a;
+  --accent-h: #885609;
+  --accent-fg: #FFF8EA;
+  --accent-soft: #F3E3BE;
+  --success: #4a7526;
+  --success-fg: #ffffff;
+  --danger: #B3241B;
+  --danger-h: #9a1f17;
   --danger-fg: #ffffff;
+  --danger-soft: #F6DAD5;
+  --warn: #C1560F;
   --warn-fg: #ffffff;
-  --success-fg: #ffffff;
-  --danger-h: #97281c;
+  --warn-soft: #F7E0CB;
+  --scrim: rgba(246, 238, 223, 0.66);
+  --ring: rgba(158, 100, 10, 0.22);
 }
 
-[data-theme="terracotta"][data-mode="dark"] {
-  --bg: #1a0e0a;
-  --surface: #281914;
-  --surface-2: #34221d;
-  --border: #4c362e;
-  --border-2: #5a4034;
-  --text: #f0e0d6;
-  --text-muted: #a58676;
-  --text-dim: #9d8884;
-  --accent: #c84c3d;
-  --accent-h: #ba4034;
-  --accent-fg: #ffffff;
-  --success: #5aaa70;
-  --danger: #d05040;
-  --warn: #c89040;
-  --ring: rgba(204, 78, 62, 0.25);
+[data-theme="solar"][data-mode="dark"] {
+  --bg: #141008;
+  --surface: #20190f;
+  --surface-2: #2b2317;
+  --surface-3: #291F12;
+  --border: #3b311e;
+  --border-2: #291F12;
+  --text: #F3E9D4;
+  --text-muted: #C2B090;
+  --text-dim: #998a6d;
+  --accent: #F0B23E;
+  --accent-h: #f2bd59;
+  --accent-fg: #1B1508;
+  --accent-soft: #2E2412;
+  --success: #a9cd5c;
+  --success-fg: #0a0a0a;
+  --danger: #F0665A;
+  --danger-h: #f27b71;
   --danger-fg: #0a0a0a;
+  --danger-soft: #331714;
+  --warn: #F0834A;
   --warn-fg: #0a0a0a;
-  --success-fg: #0a0a0a;
-  --danger-h: #d7685b;
+  --warn-soft: #331F12;
+  --scrim: rgba(20, 16, 8, 0.72);
+  --ring: rgba(240, 178, 62, 0.22);
 }
 
-/*
- * Palettes to explore. Every one carries the same token names in both modes,
- * because a palette that only exists in light is one nobody can evaluate — half
- * the app's surfaces are judged in dark.
- *
- * Chosen to differ in *temperature and weight* rather than only hue: a picker
- * where every option is a slightly different blue tells you nothing. Slate is
- * the neutral product grey most tools land on; Indigo is Atlassian's own
- * family, since the rest of this app follows Jira's shape; Forest is warm-
- * neutral with a green accent; Graphite is near-monochrome, the test of whether
- * the UI works when colour carries almost nothing; Midnight is dark-first,
- * where the light mode is the afterthought rather than the other way round.
- */
-
-[data-theme="slate"][data-mode="light"] {
-  --bg: #e4e7eb;
-  --surface: #ffffff;
-  --surface-2: #f1f3f7;
-  --border: #ccd2db;
-  --border-2: #bcc4d0;
-  --text: #101828;
-  --text-muted: #5a6478;
-  --text-dim: #5e6779;
-  --accent: #2f5cff;
-  --accent-h: #2449d8;
-  --accent-fg: #ffffff;
-  --success: #128a5a;
-  --danger: #cc2f2f;
-  --warn: #b06f00;
-  --ring: rgba(47, 92, 255, 0.2);
-  --danger-fg: #ffffff;
-  --warn-fg: #0a0a0a;
-  --success-fg: #0a0a0a;
-  --danger-h: #af2828;
-}
-
-[data-theme="slate"][data-mode="dark"] {
-  --bg: #0c1018;
-  --surface: #161d28;
-  --surface-2: #1e2734;
-  --border: #303b49;
-  --border-2: #3a4757;
-  --text: #e6ecf5;
-  --text-muted: #94a1b5;
-  --text-dim: #828ea2;
-  --accent: #5b82ff;
-  --accent-h: #4a70ef;
-  --accent-fg: #0c1018;
-  --success: #35b57e;
-  --danger: #f0605a;
-  --warn: #d99a2b;
-  --ring: rgba(91, 130, 255, 0.25);
-  --danger-fg: #0a0a0a;
-  --warn-fg: #0a0a0a;
-  --success-fg: #0a0a0a;
-  --danger-h: #f27671;
-}
-
-[data-theme="indigo"][data-mode="light"] {
-  --bg: #e1e4e9;
-  --surface: #ffffff;
-  --surface-2: #f0f3f8;
-  --border: #c9d0db;
-  --border-2: #b8c2d2;
-  --text: #172b4d;
-  --text-muted: #58667f;
-  --text-dim: #58667f;
-  --accent: #0052cc;
-  --accent-h: #0044aa;
-  --accent-fg: #ffffff;
-  --success: #00875a;
-  --danger: #de350b;
-  --warn: #ff8b00;
-  --ring: rgba(0, 82, 204, 0.2);
-  --danger-fg: #ffffff;
-  --warn-fg: #0a0a0a;
+[data-theme="cobalt"][data-mode="light"] {
+  --bg: #f0f2f8;
+  --surface: #FFFFFF;
+  --surface-2: #e1e5f2;
+  --surface-3: #FFFFFF;
+  --border: #cbd2e4;
+  --border-2: #EAEDF8;
+  --text: #0E1530;
+  --text-muted: #3E4A72;
+  --text-dim: #5a6586;
+  --accent: #2A3FE0;
+  --accent-h: #2436c1;
+  --accent-fg: #F3F5FF;
+  --accent-soft: #E1E5FC;
+  --success: #0f7355;
   --success-fg: #ffffff;
-  --danger-h: #bf2e09;
-}
-
-[data-theme="indigo"][data-mode="dark"] {
-  --bg: #0d1424;
-  --surface: #181f30;
-  --surface-2: #20293b;
-  --border: #343e50;
-  --border-2: #3f4a5b;
-  --text: #e3e9f5;
-  --text-muted: #9aa6bd;
-  --text-dim: #8790a7;
-  --accent: #4c9aff;
-  --accent-h: #3d86e8;
-  --accent-fg: #0d1424;
-  --success: #36b37e;
-  --danger: #ff5630;
-  --warn: #ffab00;
-  --ring: rgba(76, 154, 255, 0.25);
-  --danger-fg: #0a0a0a;
-  --warn-fg: #0a0a0a;
-  --success-fg: #0a0a0a;
-  --danger-h: #ff6e4d;
-}
-
-[data-theme="forest"][data-mode="light"] {
-  --bg: #e1e4df;
-  --surface: #fbfcfa;
-  --surface-2: #edf0eb;
-  --border: #c9d1c3;
-  --border-2: #bac5b3;
-  --text: #182016;
-  --text-muted: #556052;
-  --text-dim: #5e685b;
-  --accent: #2f7d4f;
-  --accent-h: #266840;
-  --accent-fg: #ffffff;
-  --success: #2f7d4f;
-  --danger: #b5372b;
-  --warn: #a3730d;
-  --ring: rgba(47, 125, 79, 0.2);
+  --danger: #D8324B;
+  --danger-h: #ba2b41;
   --danger-fg: #ffffff;
+  --danger-soft: #FBDDE3;
+  --warn: #7A8F00;
   --warn-fg: #0a0a0a;
-  --success-fg: #ffffff;
-  --danger-h: #9c2f25;
+  --warn-soft: #EAF0C8;
+  --scrim: rgba(240, 242, 248, 0.66);
+  --ring: rgba(42, 63, 224, 0.22);
 }
 
-[data-theme="forest"][data-mode="dark"] {
-  --bg: #0c110d;
-  --surface: #181e19;
-  --surface-2: #202821;
-  --border: #343d34;
-  --border-2: #3e493e;
-  --text: #e4ece2;
-  --text-muted: #93a08f;
-  --text-dim: #868f83;
-  --accent: #52b47a;
-  --accent-h: #449c68;
-  --accent-fg: #0c110d;
-  --success: #52b47a;
-  --danger: #e0604f;
-  --warn: #d0a03c;
-  --ring: rgba(82, 180, 122, 0.25);
-  --danger-fg: #0a0a0a;
-  --warn-fg: #0a0a0a;
+[data-theme="cobalt"][data-mode="dark"] {
+  --bg: #0A0E1E;
+  --surface: #111632;
+  --surface-2: #1b213f;
+  --surface-3: #1B2140;
+  --border: #262e57;
+  --border-2: #1B2140;
+  --text: #E7EAF9;
+  --text-muted: #A9B1D6;
+  --text-dim: #8189ae;
+  --accent: #7C90FF;
+  --accent-h: #8ea0ff;
+  --accent-fg: #0B0F22;
+  --accent-soft: #1E2650;
+  --success: #46d0a2;
   --success-fg: #0a0a0a;
-  --danger-h: #e47668;
-}
-
-[data-theme="graphite"][data-mode="light"] {
-  --bg: #e6e6e6;
-  --surface: #ffffff;
-  --surface-2: #f2f2f2;
-  --border: #d2d2d2;
-  --border-2: #c4c4c4;
-  --text: #141414;
-  --text-muted: #5c5c5c;
-  --text-dim: #676767;
-  --accent: #1a1a1a;
-  --accent-h: #000000;
-  --accent-fg: #ffffff;
-  --success: #2a7a4a;
-  --danger: #c22f2f;
-  --warn: #9a6c00;
-  --ring: rgba(20, 20, 20, 0.18);
-  --danger-fg: #ffffff;
-  --warn-fg: #ffffff;
-  --success-fg: #ffffff;
-  --danger-h: #a72828;
-}
-
-[data-theme="graphite"][data-mode="dark"] {
-  --bg: #0d0d0d;
-  --surface: #191919;
-  --surface-2: #222222;
-  --border: #363636;
-  --border-2: #424242;
-  --text: #ededed;
-  --text-muted: #a0a0a0;
-  --text-dim: #898989;
-  --accent: #ededed;
-  --accent-h: #ffffff;
-  --accent-fg: #0d0d0d;
-  --success: #4caa78;
-  --danger: #e56a5c;
-  --warn: #cf9c3a;
-  --ring: rgba(237, 237, 237, 0.22);
+  --danger: #FF7086;
+  --danger-h: #ff8497;
   --danger-fg: #0a0a0a;
+  --danger-soft: #341620;
+  --warn: #C7DE4E;
   --warn-fg: #0a0a0a;
-  --success-fg: #0a0a0a;
-  --danger-h: #e97f73;
+  --warn-soft: #232C11;
+  --scrim: rgba(10, 14, 30, 0.72);
+  --ring: rgba(124, 144, 255, 0.22);
 }
 
-[data-theme="midnight"][data-mode="light"] {
-  --bg: #e5e6ea;
-  --surface: #ffffff;
-  --surface-2: #f1f2f6;
-  --border: #cfd1da;
-  --border-2: #c0c3d0;
-  --text: #14162b;
-  --text-muted: #565a76;
-  --text-dim: #63667f;
-  --accent: #6b4dd6;
-  --accent-h: #593fba;
-  --accent-fg: #ffffff;
-  --success: #23855f;
-  --danger: #c8302f;
-  --warn: #a8720a;
-  --ring: rgba(107, 77, 214, 0.2);
-  --danger-fg: #ffffff;
-  --warn-fg: #0a0a0a;
-  --success-fg: #ffffff;
-  --danger-h: #ac2928;
-}
-
-[data-theme="midnight"][data-mode="dark"] {
-  --bg: #08080f;
-  --surface: #161623;
-  --surface-2: #1e1e2f;
-  --border: #323248;
-  --border-2: #3c3c58;
-  --text: #e8e8f4;
-  --text-muted: #9a9ab8;
-  --text-dim: #84849f;
-  --accent: #8f74ff;
-  --accent-h: #7c5ff0;
-  --accent-fg: #08080f;
-  --success: #3fbb8a;
-  --danger: #f0655f;
-  --warn: #d9a441;
-  --ring: rgba(143, 116, 255, 0.28);
-  --danger-fg: #08080f;
-  --warn-fg: #08080f;
-  --success-fg: #08080f;
-  --danger-h: #f27b75;
-}
 
 :root {
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-public-sans), ui-sans-serif, system-ui, sans-serif;
+  /* Display only: headings, the wordmark, numerals that want presence.
+     Body stays Public Sans, which is quieter and reads better small. */
+  --font-display: var(--font-space-grotesk), var(--font-public-sans), ui-sans-serif, sans-serif;
 
-  --radius-sm: 5px;
-  --radius-md: 7px;
-  --radius-lg: 9px;
-  --radius-xl: 13px;
+  /* Hard-edged, per the v7 direction. The old scale ran 5-13px and read as
+     friendly-generic; 2px reads as drawn. 143 components already use these
+     tokens rather than literal radii, so the whole product changes shape from
+     here rather than from a sweep. `xl` keeps a hair more for the largest
+     panels, which is what stops dialogs looking like unstyled boxes. */
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 3px;
   --radius-full: 999px;
 
   --shadow-sm: 0 4px 18px rgba(0, 0, 0, 0.08);
@@ -327,6 +223,10 @@
   --color-danger-h: var(--danger-h);
   --color-warn: var(--warn);
   --color-warn-fg: var(--warn-fg);
+  --color-warn-soft: var(--warn-soft);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger-soft: var(--danger-soft);
+  --color-surface-3: var(--surface-3);
   --color-ring: var(--ring);
 
   --radius-sm: var(--radius-sm);
@@ -339,6 +239,7 @@
   --shadow-lg: var(--shadow-lg);
 
   --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
 }
 
 body {

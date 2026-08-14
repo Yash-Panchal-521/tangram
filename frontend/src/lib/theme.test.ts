@@ -21,12 +21,12 @@ beforeEach(() => {
 
 describe("themeInitScript", () => {
   it("applies a stored palette and mode", () => {
-    localStorage.setItem("tangram-theme", "slate");
+    localStorage.setItem("tangram-theme", "cobalt");
     localStorage.setItem("tangram-mode", "dark");
 
     runInitScript();
 
-    expect(document.documentElement.dataset.theme).toBe("slate");
+    expect(document.documentElement.dataset.theme).toBe("cobalt");
     expect(document.documentElement.dataset.mode).toBe("dark");
   });
 
@@ -39,7 +39,7 @@ describe("themeInitScript", () => {
 
     runInitScript();
 
-    expect(document.documentElement.dataset.theme).toBe("terracotta");
+    expect(document.documentElement.dataset.theme).toBe("obsidian");
   });
 
   it("falls back on a mode that is not a mode", () => {
@@ -53,7 +53,7 @@ describe("themeInitScript", () => {
   it("defaults when nothing is stored at all", () => {
     runInitScript();
 
-    expect(document.documentElement.dataset.theme).toBe("terracotta");
+    expect(document.documentElement.dataset.theme).toBe("obsidian");
     expect(document.documentElement.dataset.mode).toBe("light");
   });
 
@@ -70,7 +70,7 @@ describe("themeInitScript", () => {
 
     runInitScript();
 
-    expect(document.documentElement.dataset.theme).toBe("terracotta");
+    expect(document.documentElement.dataset.theme).toBe("obsidian");
     expect(document.documentElement.dataset.mode).toBe("light");
 
     if (original) Object.defineProperty(window, "localStorage", original);
@@ -80,13 +80,6 @@ describe("themeInitScript", () => {
     // This list and globals.css have to change together — nothing can read
     // which [data-theme] blocks exist at runtime. A palette in one and not the
     // other is either an option that does nothing or a block nobody can reach.
-    expect(THEMES.map((t) => t.id)).toEqual([
-      "terracotta",
-      "slate",
-      "indigo",
-      "forest",
-      "graphite",
-      "midnight",
-    ]);
+    expect(THEMES.map((t) => t.id)).toEqual(["obsidian", "solar", "cobalt"]);
   });
 });
