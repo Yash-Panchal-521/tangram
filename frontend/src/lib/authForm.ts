@@ -56,3 +56,44 @@ export function friendlyAuthError(error: unknown): string {
   }
   return "Something went wrong. Please try again.";
 }
+
+/**
+ * The failures that are specific to the popup flow.
+ *
+ * Kept apart from `friendlyAuthError` because most of these have no
+ * email/password equivalent, and two of them are not errors at all in the sense
+ * a person would recognise — closing the window is a decision, not a fault.
+ */
+export function friendlyGoogleError(error: unknown): string | null {
+  if (!(error instanceof FirebaseError)) return "Something went wrong. Please try again.";
+
+  switch (error.code) {
+    // Closed the popup, or clicked the button again while one was open. Saying
+    // "something went wrong" for a deliberate cancel is how an app teaches
+    // people to distrust its error messages (S3.x).
+    case "auth/popup-closed-by-user":
+    case "auth/cancelled-popup-request":
+    case "auth/user-cancelled":
+      return null;
+
+    case "auth/popup-blocked":
+      return "Your browser blocked the sign-in window. Allow pop-ups for this site and try again.";
+
+    case "auth/account-exists-with-different-credential":
+      return "That email already has an account here. Sign in with your password instead.";
+
+    case "auth/operation-not-allowed":
+      // Names what to do without naming infrastructure to someone who cannot
+      // act on it — the person seeing this is usually not the project owner.
+      return "Google sign-in isn't available right now. Use your email and password.";
+
+    case "auth/network-request-failed":
+      return "Network problem. Check your connection and try again.";
+
+    case "auth/unauthorized-domain":
+      return "Google sign-in isn't available from this address.";
+
+    default:
+      return "Couldn't sign in with Google. Try again, or use your email and password.";
+  }
+}

@@ -12,6 +12,7 @@ import { InviteBanner } from "@/components/invite/InviteBanner";
 import { useInviteOffer } from "@/components/invite/useInviteOffer";
 import { AuthField, PasswordRule } from "@/components/auth/AuthField";
 import { AuthShell } from "@/components/auth/AuthShell";
+import { GoogleSignIn } from "@/components/auth/GoogleSignIn";
 import { Button } from "@/components/ui/Button";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 
@@ -223,7 +224,25 @@ export default function SignupPage() {
         </Button>
       </form>
 
-      <p className="text-[12.5px] leading-relaxed text-text-dim">
+      {/* `isNewUser` comes from Firebase, not from the fact that this is the
+          sign-up page. Someone with an account can arrive here and press the
+          Google button, and sending them through a first-run flow they
+          finished months ago would be wrong. */}
+      <GoogleSignIn
+        disabled={submitting}
+        onSignedIn={(isNewUser) => {
+          signingUpRef.current = true;
+          router.replace(
+            inviteToken
+              ? buildInviteReturnPath(inviteToken)
+              : isNewUser
+                ? (next ?? "/welcome")
+                : (next ?? "/board")
+          );
+        }}
+      />
+
+      <p className="mt-6 text-[12.5px] leading-relaxed text-text-dim">
         Already have an account?{" "}
         {/* Carries the destination across, so switching form doesn't strand
             someone who came here from an invite link. */}

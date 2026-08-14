@@ -12,6 +12,7 @@ import { InviteBanner } from "@/components/invite/InviteBanner";
 import { useInviteOffer } from "@/components/invite/useInviteOffer";
 import { AuthField } from "@/components/auth/AuthField";
 import { AuthShell } from "@/components/auth/AuthShell";
+import { GoogleSignIn } from "@/components/auth/GoogleSignIn";
 import { Button } from "@/components/ui/Button";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 
@@ -133,7 +134,11 @@ export default function LoginPage() {
         </Button>
       </form>
 
-      <p className="text-[12.5px] leading-relaxed text-text-dim">
+      {/* Same destination as the password path: an invitation goes back to
+          the invite page to be decided, never auto-accepted. */}
+      <GoogleSignIn disabled={submitting} onSignedIn={() => router.replace(destination)} />
+
+      <p className="mt-6 text-[12.5px] leading-relaxed text-text-dim">
         No account yet?{" "}
         <Link
           href={
