@@ -1062,7 +1062,20 @@ export function BoardView({ boardId }: { boardId: string }) {
         <div
           ref={boardAreaRef}
           onMouseMove={handlePointerMove}
-          className="flex-1 overflow-x-auto overflow-y-hidden px-6 py-5 relative"
+          // The two views want opposite things from this box. Columns scroll
+          // sideways while each column scrolls its own cards, so the board must
+          // not scroll vertically. The matrix is one tall grid that scrolls
+          // down, and its rows must not be clipped.
+          //
+          // It also has to be a flex column for lanes: BoardLanes is
+          // `flex-1 min-h-0`, which resolves against nothing in a plain block
+          // and leaves the inner scroll area as tall as its content — the whole
+          // reason lanes would not scroll at all.
+          className={
+            laneView === "status"
+              ? "flex-1 overflow-x-auto overflow-y-hidden px-6 py-5 relative"
+              : "flex-1 min-h-0 flex flex-col overflow-hidden relative"
+          }
         >
           <RemoteCursors cursors={remoteCursors} />
 
