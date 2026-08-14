@@ -43,7 +43,7 @@ async function signUp() {
   const user = userEvent.setup();
   render(<SignupPage />);
 
-  await user.type(screen.getByLabelText("Full name"), "Ada Lovelace");
+  await user.type(screen.getByLabelText("Display name"), "Ada Lovelace");
   // Cleared first: with an invitation the field arrives prefilled, and typing
   // into it would concatenate two addresses into one invalid one.
   await user.clear(screen.getByLabelText("Email"));

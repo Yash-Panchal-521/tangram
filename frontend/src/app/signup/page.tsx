@@ -143,12 +143,11 @@ export default function SignupPage() {
     >
       <p className="text-[10px] uppercase tracking-[0.14em] text-text-dim mb-1.5">Create account</p>
       <h2
-        className="text-[31px] font-normal tracking-[-0.01em] mb-2"
+        className={`text-[31px] font-normal tracking-[-0.01em] ${offer ? "mb-2" : "mb-[26px]"}`}
         style={{ fontFamily: "var(--font-display)" }}
       >
         {offer ? "Create your account to join." : "Create your account."}
       </h2>
-      <p className="text-[13px] text-text-muted mb-5">Takes about ten seconds.</p>
 
       {/* The context the old invitation interstitial carried. Without it this is
           a bare form, and nothing on screen says why anyone is filling it in. */}
@@ -156,8 +155,8 @@ export default function SignupPage() {
         <InviteBanner token={inviteToken} offer={offer} className="mb-5" />
       )}
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4 mb-4">
-        <AuthField id={nameId} label="Full name">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-[15px] mb-5">
+        <AuthField id={nameId} label="Display name">
           <input
             id={nameId}
             type="text"
@@ -187,9 +186,13 @@ export default function SignupPage() {
         <AuthField
           id={passwordId}
           label="Password"
-          hint={
+          // The design puts a static "6 characters minimum" opposite the label.
+          // This puts the live-ticking rule there instead: same position, same
+          // job, and it also answers "have I met it yet" without a second line
+          // under the field repeating the first.
+          labelHint={
             <PasswordRule met={passwordLongEnough}>
-              At least {MIN_PASSWORD_LENGTH} characters
+              {MIN_PASSWORD_LENGTH} characters minimum
             </PasswordRule>
           }
         >

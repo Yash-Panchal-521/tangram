@@ -79,18 +79,21 @@ export default function LoginPage() {
     >
       <p className="text-[10px] uppercase tracking-[0.14em] text-text-dim mb-1.5">Sign in</p>
       <h2
-        className="text-[31px] font-normal tracking-[-0.01em] mb-2"
+        className={`text-[31px] font-normal tracking-[-0.01em] ${offer ? "mb-2" : "mb-[26px]"}`}
         style={{ fontFamily: "var(--font-display)" }}
-      >Welcome back.</h2>
-      <p className="text-[13px] text-text-muted mb-5">
-        {offer ? "Sign in to accept your invitation." : "Sign in to continue to Tangram."}
-      </p>
+      >
+        Welcome back.
+      </h2>
+      {/* The design goes straight from title to fields. The subhead survives
+          only where it carries something the title cannot — that you are here to
+          accept an invitation, which changes what signing in means. */}
+      {offer && <p className="text-[13px] text-text-muted mb-5">Sign in to accept your invitation.</p>}
 
       {inviteToken && offer && (
         <InviteBanner token={inviteToken} offer={offer} className="mb-5" />
       )}
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4 mb-4">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-[15px] mb-5">
         <AuthField id={emailId} label="Email">
           <input
             id={emailId}
@@ -105,6 +108,10 @@ export default function LoginPage() {
           />
         </AuthField>
 
+        {/* No "6 characters minimum" here, unlike sign-up. The design draws one
+            auth screen with a flag for the extra name field, but the password
+            rule only means something where a password is being *chosen* — on
+            sign-in it is a rule about a password that already exists. */}
         <AuthField id={passwordId} label="Password">
           <PasswordInput
             id={passwordId}
@@ -125,12 +132,12 @@ export default function LoginPage() {
           </p>
         )}
 
-        <Button type="submit" disabled={submitting} className="w-full mt-1">
+        <Button type="submit" disabled={submitting} className="w-full mt-[9px]">
           {submitting ? "Signing in…" : "Sign in →"}
         </Button>
       </form>
 
-      <p className="text-[13px] text-text-muted">
+      <p className="text-[12.5px] leading-relaxed text-text-dim">
         New to Tangram?{" "}
         <Link
           href={

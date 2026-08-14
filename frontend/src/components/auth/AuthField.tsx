@@ -11,23 +11,35 @@ export function AuthField({
   label,
   children,
   hint,
+  labelHint,
 }: {
   id: string;
   label: string;
   children: React.ReactNode;
   hint?: React.ReactNode;
+  /**
+   * Sits opposite the label, on the same baseline (v7).
+   *
+   * For a rule you need *before* typing — the password minimum — rather than
+   * after being rejected for it. Below the field it reads as feedback on what
+   * you just entered; beside the label it reads as part of the question.
+   */
+  labelHint?: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label
-        htmlFor={id}
-        // 10px at 0.12em (v7). The micro-label is the design's recurring device --
-        // it names a field without competing with its value, which is what lets
-        // the underline inputs stay unboxed and still read as fields.
-        className="text-[10px] font-medium uppercase tracking-[0.12em] text-text-dim"
-      >
-        {label}
-      </label>
+      <span className="flex items-baseline justify-between gap-3">
+        {/* 10px at 0.12em (v7). The micro-label is the design's recurring device
+            — it names a field without competing with its value, which is what
+            lets the underline inputs stay unboxed and still read as fields. */}
+        <label
+          htmlFor={id}
+          className="text-[10px] font-medium uppercase tracking-[0.12em] text-text-dim"
+        >
+          {label}
+        </label>
+        {labelHint && <span className="text-[12px] text-text-dim shrink-0">{labelHint}</span>}
+      </span>
       {children}
       {hint}
     </div>
