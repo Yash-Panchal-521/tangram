@@ -10,8 +10,19 @@ import { FirebaseError } from "firebase/app";
 //
 // `rounded-none` is deliberate: with a bottom border only there is nothing for a
 // radius to round, and leaving one on produced a 2px nick at each end.
+// Focus is the rule thickening, not a ring appearing.
+//
+// The app-wide focus ring is `box-shadow: 0 0 0 3px var(--ring)` on a rounded
+// rectangle, which is right for a boxed field and wrong here: it drew a box
+// around a field that deliberately has none. These opt out with
+// `data-focus-ring="none"` — which has to be an attribute, because that rule is
+// unlayered in globals.css and outranks any utility (S1.3's cousin).
+//
+// The replacement is an inset shadow along the bottom edge rather than
+// `border-b-2`, so the underline doubles in weight without the extra pixel
+// pushing the field's contents up.
 export const authInputClasses =
-  "w-full py-2.5 px-0 bg-transparent border-0 border-b border-border rounded-none text-[15px] text-text placeholder:text-text-dim transition-colors focus-visible:border-accent";
+  "w-full py-2.5 px-0 bg-transparent border-0 border-b border-border rounded-none text-[15px] text-text placeholder:text-text-dim transition-colors focus-visible:border-accent focus-visible:shadow-[inset_0_-1px_0_0_var(--accent)]";
 
 // Firebase's own floor. Named rather than inlined so the hint shown to the user,
 // the input's minLength and the submit guard can't drift from each other -- the

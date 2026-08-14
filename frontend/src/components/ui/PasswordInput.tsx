@@ -17,35 +17,6 @@ interface PasswordInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>,
   className?: string;
 }
 
-function EyeIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-      <path
-        d="M1 7s2.2-4 6-4 6 4 6 4-2.2 4-6 4-6-4-6-4Z"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinejoin="round"
-      />
-      <circle cx="7" cy="7" r="1.75" stroke="currentColor" strokeWidth="1.2" />
-    </svg>
-  );
-}
-
-function EyeOffIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-      <path
-        d="M5.7 3.2A6.3 6.3 0 0 1 7 3c3.8 0 6 4 6 4a11.7 11.7 0 0 1-2 2.4M3.3 4.4A11.4 11.4 0 0 0 1 7s2.2 4 6 4a6.2 6.2 0 0 0 2.2-.4"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path d="M2 2L12 12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 // A password field with a show/hide control. The toggle is a real focusable
 // button (not tabIndex={-1}) so it's reachable by keyboard, and type="button"
 // so it can never submit the surrounding form.
@@ -70,8 +41,8 @@ export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
             type={visible ? "text" : "password"}
             className={cn(
               className ?? DEFAULT_FIELD_CLASSES,
-              // Room for the toggle so long values don't run underneath it.
-              "pr-10",
+              // Room for the "Show"/"Hide" word, which is wider than the icon it replaced.
+              "pr-12",
               error && "border-danger"
             )}
             aria-invalid={Boolean(error)}
@@ -84,9 +55,16 @@ export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
             aria-label={visible ? "Hide password" : "Show password"}
             aria-pressed={visible}
             title={visible ? "Hide password" : "Show password"}
-            className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center justify-center w-8 h-8 rounded-md text-text-dim hover:text-text hover:bg-surface-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            // A word, not an icon (v7). The eye had a hover fill and a radius,
+            // which on an unboxed field put a small rounded box inside a field
+            // whose whole point is not having one. "Show"/"Hide" also says which
+            // way the control goes, where an eye leaves you to guess whether it
+            // means "it is hidden" or "press to hide".
+            //
+            // Still a 24px target: the text is 10px but the button is not.
+            className="absolute right-0 top-1/2 -translate-y-1/2 h-6 px-1 flex items-center text-[10px] font-medium uppercase tracking-[0.1em] text-text-dim hover:text-text transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {visible ? <EyeOffIcon /> : <EyeIcon />}
+            {visible ? "Hide" : "Show"}
           </button>
         </div>
 

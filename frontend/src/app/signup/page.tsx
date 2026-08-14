@@ -166,6 +166,7 @@ export default function SignupPage() {
             required
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
+            data-focus-ring="none"
             className={authInputClasses}
           />
         </AuthField>
@@ -179,6 +180,7 @@ export default function SignupPage() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            data-focus-ring="none"
             className={authInputClasses}
           />
         </AuthField>
@@ -204,6 +206,7 @@ export default function SignupPage() {
             minLength={MIN_PASSWORD_LENGTH}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            data-focus-ring="none"
             className={authInputClasses}
           />
         </AuthField>
