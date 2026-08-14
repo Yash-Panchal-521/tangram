@@ -1,5 +1,6 @@
 "use client";
 
+import { LANE_VIEWS, type LaneView } from "@/lib/boardLanes";
 import { useEffect, useRef } from "react";
 import { Avatar } from "@/components/ui/Avatar";
 import { LabelChip } from "@/components/ui/LabelChip";
@@ -41,6 +42,8 @@ export function BoardFilterBar({
   labels,
   currentUserId,
   matches,
+  view,
+  onViewChange,
   total,
   onChange,
   onClear,
@@ -51,6 +54,9 @@ export function BoardFilterBar({
   /** Sorted first in the People menu, because filtering to yourself is common. */
   currentUserId: string | null;
   matches: number;
+  /** How the board is grouped. Lives here because it sits in this row. */
+  view: LaneView;
+  onViewChange: (view: LaneView) => void;
   total: number;
   onChange: (next: BoardFilter) => void;
   onClear: () => void;
@@ -312,6 +318,31 @@ export function BoardFilterBar({
           <div className="w-px h-[18px] bg-border" aria-hidden="true" />
         </>
       )}
+
+      {/* How the board is grouped, at the end of the row it belongs to. Not in
+          the header: the header says which board you are on and never changes,
+          this changes what you are looking at — the same reasoning that put the
+          filters here rather than up there. */}
+      <div className="flex gap-[3px]" role="group" aria-label="Group the board by">
+        {LANE_VIEWS.map((option) => {
+          const selected = option.id === view;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => onViewChange(option.id)}
+              aria-pressed={selected}
+              className={
+                selected
+                  ? "px-2.5 py-1 rounded-md text-[12px] font-medium bg-surface-2 text-text cursor-pointer"
+                  : "px-2.5 py-1 rounded-md text-[12px] text-text-dim hover:text-text transition-colors cursor-pointer"
+              }
+            >
+              {option.name}
+            </button>
+          );
+        })}
+      </div>
 
       {/* Every active criterion, named and removable where it is showing its
           effect. Without this the only record of what you filtered by is inside

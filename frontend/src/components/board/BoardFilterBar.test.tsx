@@ -31,6 +31,8 @@ function mount(overrides: Partial<Parameters<typeof BoardFilterBar>[0]> = {}) {
       total={12}
       onChange={onChange}
       onClear={onClear}
+      view="status"
+      onViewChange={() => {}}
       {...overrides}
     />
   );

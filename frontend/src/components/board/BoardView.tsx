@@ -48,9 +48,11 @@ import { CreateCardDialog } from "@/components/board/CreateCardDialog";
 import { SeedColumnsDialog } from "@/components/board/SeedColumnsDialog";
 import { BoardSettingsDialog } from "@/components/board/BoardSettingsDialog";
 import { countMatches, filterBoard, isFilterActive } from "@/lib/boardFilter";
+import { type LaneView } from "@/lib/boardLanes";
 import { BOARD_TOUR } from "@/lib/boardTour";
 import { Walkthrough } from "@/components/onboarding/Walkthrough";
 import { BoardColumn } from "@/components/board/BoardColumn";
+import { BoardLanes } from "@/components/board/BoardLanes";
 import { BoardIntro } from "@/components/board/BoardIntro";
 import { BoardSkeleton } from "@/components/board/BoardSkeleton";
 import { KanbanCard } from "@/components/board/KanbanCard";
@@ -129,6 +131,9 @@ export function BoardView({ boardId }: { boardId: string }) {
   const [creating, setCreating] = useState(false);
   const [seedingColumns, setSeedingColumns] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // How the board is grouped. Not in the URL, unlike the filter: a filter is
+  // a thing you send someone, a grouping is how you personally like to look.
+  const [laneView, setLaneView] = useState<LaneView>("status");
   // The open card's thread. Held here rather than in the modal because every
   // other piece of sync lives here, and a comment arriving from someone else is
   // a broadcast like any other -- the modal would otherwise need its own
@@ -939,6 +944,8 @@ export function BoardView({ boardId }: { boardId: string }) {
           total={countMatches(board)}
           onChange={setFilter}
           onClear={clearFilter}
+          view={laneView}
+          onViewChange={setLaneView}
         />
       )}
 
@@ -1019,6 +1026,17 @@ export function BoardView({ boardId }: { boardId: string }) {
               )}
             </div>
           ) : (
+          laneView !== "status" ? (
+            // The matrix. Given the *filtered* board, so a filter narrows what
+            // the lanes contain rather than which lanes exist -- an empty row
+            // under a filter is information, and dropping it would hide it.
+            <BoardLanes
+              board={visibleBoard ?? board}
+              view={laneView}
+              memberNames={memberNames}
+              onCardClick={(card) => openCardById(card.id)}
+            />
+          ) : (
           <div className="flex items-stretch gap-3 h-full" data-tour="columns">
             {(visibleBoard ?? board).columns.map((column, i) => (
               <BoardColumn
@@ -1053,6 +1071,7 @@ export function BoardView({ boardId }: { boardId: string }) {
             )}
 
           </div>
+          )
           )}
         </div>
 
