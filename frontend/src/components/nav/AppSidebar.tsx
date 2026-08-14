@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { TangramMark } from "@/components/ui/TangramMark";
 import { Menu, MenuItem } from "@/components/ui/Menu";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { identityColor } from "@/lib/identityColors";
 import type { WorkspaceSummaryResponse } from "@/lib/api";
 
 /**
@@ -51,17 +51,21 @@ export function AppSidebar({
   return (
     <nav
       aria-label="Workspaces and boards"
-      className={`shrink-0 h-full flex flex-col border-r border-border bg-surface transition-[width] duration-150 ${
-        collapsed ? "w-[52px]" : "w-[228px]"
+      className={`shrink-0 h-full flex flex-col border-r border-border bg-surface-2 transition-[width] duration-150 px-2.5 pt-3.5 pb-3 ${
+        collapsed ? "w-[56px]" : "w-[208px]"
       }`}
     >
-      <div className="h-[52px] shrink-0 flex items-center gap-2 px-2.5 border-b border-border">
+      {/* The workspace, and the way out of the board. A square tile in --text
+          rather than the accent: the accent is spent on the current board's bar
+          below, and two accents in one 208px column compete. */}
+      <div className="shrink-0 flex items-center gap-2.5 px-0.5 pb-3.5 border-b border-border">
         <Link
           href="/boards"
           aria-label="All boards"
-          className="w-7 h-7 shrink-0 rounded-md bg-accent flex items-center justify-center hover:opacity-85 transition-opacity"
+          className="w-6 h-6 shrink-0 rounded-md bg-text text-bg flex items-center justify-center text-[13px] font-semibold hover:opacity-85 transition-opacity"
+          style={{ fontFamily: "var(--font-display)" }}
         >
-          <TangramMark size={15} color="var(--accent-fg)" />
+          T
         </Link>
 
         {!collapsed &&
@@ -72,27 +76,27 @@ export function AppSidebar({
           ))}
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto py-2">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         {!collapsed && (
-          <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-text-dim">
+          <p className="px-1 pt-3 pb-1.5 text-[9.5px] uppercase tracking-[0.11em] text-text-dim">
             Boards
           </p>
         )}
 
         {workspaces === null ? (
-          <div className="flex flex-col gap-1.5 px-2">
+          <div className="flex flex-col gap-1.5 pt-3">
             {[0, 1, 2].map((i) => (
-              <Skeleton key={i} className="h-6 rounded-md" />
+              <Skeleton key={i} className="h-7 rounded-md" />
             ))}
           </div>
         ) : boards.length === 0 ? (
           !collapsed && (
-            <p className="px-3 text-[11px] text-text-dim leading-relaxed">
+            <p className="px-1 text-[11px] text-text-dim leading-relaxed">
               No boards yet. The workspace home is where you make one.
             </p>
           )
         ) : (
-          <ul className="flex flex-col gap-0.5 px-1.5">
+          <ul className={`flex flex-col gap-px ${collapsed ? "pt-3" : ""}`}>
             {boards.map((board) => {
               const active = board.id === currentBoardId;
               return (
@@ -101,24 +105,45 @@ export function AppSidebar({
                     href={`/board/${board.id}`}
                     aria-current={active ? "page" : undefined}
                     title={collapsed ? board.name : undefined}
-                    className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors ${
-                      active
-                        ? "bg-accent/10 text-text font-medium"
-                        : "text-text-muted hover:bg-surface-2 hover:text-text"
+                    className={`grid grid-cols-[3px_1fr] gap-2.5 items-center px-1.5 py-1.5 rounded-md transition-colors ${
+                      active ? "bg-surface" : "hover:bg-surface"
                     }`}
                   >
-                    {/* Carries the current board when collapsed, where the
-                        name cannot. Its first letter is not identity, but it
-                        is enough to tell two boards apart at a glance. */}
+                    {/* A colour bar, not a letter tile. It is the same job the
+                        avatar palette does for people — four rows in one
+                        typeface are four rows you have to read — and it survives
+                        the collapse, where a name cannot. */}
                     <span
                       aria-hidden="true"
-                      className={`w-5 h-5 shrink-0 rounded flex items-center justify-center text-[10px] font-semibold ${
-                        active ? "bg-accent text-accent-fg" : "bg-surface-2 text-text-dim"
-                      }`}
-                    >
-                      {board.name.trim().charAt(0).toUpperCase() || "?"}
-                    </span>
-                    {!collapsed && <span className="truncate">{board.name}</span>}
+                      className="self-stretch rounded-md"
+                      style={{
+                        background: active ? "var(--accent)" : identityColor(board.id),
+                        opacity: active ? 1 : 0.7,
+                      }}
+                    />
+                    {collapsed ? (
+                      <span
+                        aria-hidden="true"
+                        className={`text-[10.5px] text-left ${
+                          active ? "font-medium text-text" : "text-text-muted"
+                        }`}
+                      >
+                        {board.name.trim().charAt(0).toUpperCase() || "?"}
+                      </span>
+                    ) : (
+                      // The design puts a card count at the right of each row.
+                      // WorkspaceBoardSummary does not carry one, and inventing
+                      // a number here would be worse than omitting it. It needs
+                      // a backend field — cheap, since GET /workspaces already
+                      // joins boards and a count projection adds no round trip.
+                      <span
+                        className={`truncate text-[13px] text-left ${
+                          active ? "font-medium text-text" : "text-text-muted"
+                        }`}
+                      >
+                        {board.name}
+                      </span>
+                    )}
                   </Link>
                 </li>
               );

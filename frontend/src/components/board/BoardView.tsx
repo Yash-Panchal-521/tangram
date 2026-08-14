@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { HubConnection, HubConnectionState } from "@microsoft/signalr";
 import {
@@ -825,106 +826,102 @@ export function BoardView({ boardId }: { boardId: string }) {
     <div className="flex-1 flex flex-col overflow-hidden relative">
       {reconnecting && <ReconnectingBanner />}
 
-      <header className="h-[52px] shrink-0 flex items-center px-4.5 border-b border-border bg-surface">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          {/* The way back out. Before the home screen existed a board was a
-              dead end -- you could reach one board and never a second. */}
-          <span className="text-sm font-semibold truncate">{board.name}</span>
-          {canEdit && (
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(true)}
-              aria-label="Board settings"
-              title="Board settings"
-              className="w-6 h-6 shrink-0 flex items-center justify-center rounded-md text-text-dim hover:text-text hover:bg-surface-2 transition-colors cursor-pointer"
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
-                <circle cx="3" cy="7" r="1.3" />
-                <circle cx="7" cy="7" r="1.3" />
-                <circle cx="11" cy="7" r="1.3" />
-              </svg>
-            </button>
-          )}
-        </div>
+      {/* Not a 52px chrome bar (v7). The board announces itself: a breadcrumb
+          that says where you are and what you are, then the name at display
+          size. The controls sit on the title's baseline rather than in a strip
+          above it, so the first thing on screen is the board rather than the
+          furniture around it. */}
+      <header className="shrink-0 px-[30px] pt-[22px]">
+        <div className="flex items-end gap-4 flex-wrap">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-text-dim">
+              <Link href="/boards" className="hover:text-text transition-colors">
+                Boards
+              </Link>
+              <span aria-hidden="true">/</span>
+              {/* The caller's own role, which is the thing a viewer most needs
+                  to know and previously only appeared as a pill once something
+                  was already missing. */}
+              <span className="text-accent">{board.role}</span>
+            </div>
 
-        <div className="flex items-center gap-2.5 shrink-0">
-          <div className="flex items-center gap-1.5" data-tour="sync">
-            <div
-              className="w-1.5 h-1.5 rounded-full shrink-0"
-              style={{
-                background: connected ? "var(--success)" : "var(--warn)",
-                // No animation on the connected state. It used to pulse for as
-                // long as the board was open -- the only permanent motion in the
-                // product, in the header, on a surface people leave open all day.
-                // S6.3 wants motion brief and purposeful; an infinite three-second
-                // breath is neither, and it carried nothing the static dot beside
-                // the word "Synced" does not already say. Worse, a moving thing at
-                // the top of the screen competes with a board whose entire point is
-                // that things move on it when someone else edits.
-                //
-                // The @keyframes block stays: BoardSkeleton comments on drawing the
-                // same dot *without* the pulse, and that comment needs a referent.
-                animation: undefined,
-              }}
-            />
-            <span
-              className="text-xs whitespace-nowrap"
-              // The dot is the signal; the word is its caption. `--warn` as text
-              // on `--surface` measured 1.84–3.72:1 across the six light
-              // palettes, and the colour carried nothing the dot beside it was
-              // not already carrying in a shape nobody has to read.
-              style={{ color: "var(--text-muted)" }}
-            >
-              {connected ? "Synced" : "Connecting…"}
-            </span>
+            <div className="flex items-center gap-2 mt-[7px]">
+              <h1
+                className="text-[32px] font-normal tracking-[-0.013em] truncate"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                {board.name}
+              </h1>
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => setSettingsOpen(true)}
+                  aria-label="Board settings"
+                  title="Board settings"
+                  className="w-6 h-6 shrink-0 flex items-center justify-center rounded-md text-text-dim hover:text-text hover:bg-surface-2 transition-colors cursor-pointer"
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
+                    <circle cx="3" cy="7" r="1.3" />
+                    <circle cx="7" cy="7" r="1.3" />
+                    <circle cx="11" cy="7" r="1.3" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Names the reason the editing controls are missing. Without it a
-              viewer just sees a board that appears to be missing features. */}
-          {!canEdit && (
-            <>
-              <div className="w-px h-4.5 bg-border" />
+          <div className="flex-1" />
+
+          <div className="flex items-center gap-3.5 shrink-0 pb-1.5">
+            <div className="flex items-center gap-1.5" data-tour="sync">
+              <div
+                className="w-1.5 h-1.5 rounded-full shrink-0"
+                style={{ background: connected ? "var(--success)" : "var(--warn)" }}
+              />
+              {/* The dot is the signal; the word is its caption. `--warn` as text
+                  measured 1.84–3.72:1 across the light palettes, and the colour
+                  carried nothing the dot was not already carrying in a shape
+                  nobody has to read. */}
+              <span className="text-[11px] text-text-muted whitespace-nowrap">
+                {connected ? "Synced" : "Connecting…"}
+              </span>
+            </div>
+
+            {/* Names the reason the editing controls are missing. Without it a
+                viewer just sees a board that appears to lack features. */}
+            {!canEdit && (
               <span
                 title="You have view-only access to this workspace. Ask an owner for Editor access to make changes."
-                className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface-2 border border-border text-[11px] font-medium text-text-muted whitespace-nowrap"
+                className="px-2 py-0.5 rounded-md bg-surface-2 border border-border text-[10px] uppercase tracking-[0.08em] text-text-muted whitespace-nowrap"
               >
-                <svg width="11" height="11" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                  <path
-                    d="M1 7s2.2-4 6-4 6 4 6 4-2.2 4-6 4-6-4-6-4Z"
-                    stroke="currentColor"
-                    strokeWidth="1.2"
-                    strokeLinejoin="round"
-                  />
-                  <circle cx="7" cy="7" r="1.75" stroke="currentColor" strokeWidth="1.2" />
-                </svg>
                 View only
               </span>
-            </>
-          )}
+            )}
 
-          <div className="w-px h-4.5 bg-border" />
+            <PresenceAvatars users={presentUsers} />
 
-          <PresenceAvatars users={presentUsers} />
-
-
-          {canEdit && (
-            <button
-              type="button"
-              onClick={() => setCreating(true)}
-              disabled={!connected || board.columns.length === 0}
-              data-tour="create"
-              title="Create a card (c)"
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-accent text-accent-fg text-xs font-medium hover:bg-accent-h transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            <Link
+              href={`/workspace/${board.workspaceId}/members`}
+              className="px-3.5 py-2 border border-border rounded-md text-[12.5px] text-text-muted hover:text-text hover:border-text-dim transition-colors"
             >
-              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                <line x1="6" y1="2" x2="6" y2="10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                <line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-              </svg>
-              Create
-            </button>
-          )}
+              Share
+            </Link>
 
-          <UserMenu onShowMeAround={() => setTourOpen(true)} />
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => setCreating(true)}
+                disabled={!connected || board.columns.length === 0}
+                data-tour="create"
+                title="Create a card (c)"
+                className="px-[15px] py-2 rounded-md bg-accent text-accent-fg text-[12.5px] font-medium hover:bg-accent-h transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                New card
+              </button>
+            )}
+
+            <UserMenu onShowMeAround={() => setTourOpen(true)} />
+          </div>
         </div>
       </header>
 
