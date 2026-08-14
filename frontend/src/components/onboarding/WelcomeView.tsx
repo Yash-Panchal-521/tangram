@@ -15,12 +15,23 @@ import {
   DEFAULT_TEMPLATE,
   suggestedWorkspaceName,
 } from "@/lib/boardTemplates";
-import { AuthBrandPanel } from "@/components/auth/AuthBrandPanel";
 import { AuthField } from "@/components/auth/AuthField";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { authInputClasses } from "@/lib/authForm";
+
+/**
+ * The three things worth knowing before the first card, from the design.
+ *
+ * At the foot rather than up top: they are orientation, not instructions, and
+ * nobody reads a numbered list before they have chosen anything.
+ */
+const FIRST_RUN_NOTES = [
+  { step: "01", body: "Cards carry a priority, labels, one assignee and a due day. Nothing is required." },
+  { step: "02", body: "Give a column a limit and the board tells you when work in it stops moving." },
+  { step: "03", body: "Everyone sees the same board as it changes. The operation log says who changed what." },
+];
 
 const EMAIL_SPLIT = /[,;\s]+/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -165,38 +176,37 @@ export function WelcomeView() {
     .filter((e) => e.length > 0 && !EMAIL_PATTERN.test(e));
 
   return (
-    <div className="flex-1 flex overflow-hidden">
-      <AuthBrandPanel
-        headline={
-          <>
-            One minute,
-            <br />
-            then you&apos;re working.
-          </>
-        }
-        subhead="Name it, pick a shape, bring your team. All of it is changeable later — none of it is required now."
-      />
+    <div className="flex-1 bg-bg overflow-y-auto relative">
+      <div className="absolute top-5 right-5 z-10">
+        <ThemeToggle />
+      </div>
 
-      <div className="flex-1 bg-bg relative flex flex-col items-center justify-center p-12 overflow-y-auto">
-        <div className="absolute top-5 right-5 z-10">
-          <ThemeToggle />
-        </div>
-
+      {/* No brand panel here, unlike /login and /signup. First run is a page you
+          act on rather than a door you come through, and the design gives it the
+          full width and one centred column for that reason. */}
+      <div className="max-w-[800px] mx-auto px-10 pt-[70px] pb-20">
         {existing === null && !error ? (
-          <div role="status" aria-busy="true" className="w-full max-w-[420px] flex flex-col gap-4">
+          <div role="status" aria-busy="true" className="flex flex-col gap-5">
             <span className="sr-only">Getting things ready…</span>
-            <Skeleton className="h-6 w-48 rounded" />
-            <Skeleton className="h-10 w-full rounded-lg" />
-            <Skeleton className="h-10 w-full rounded-lg" />
-            <Skeleton className="h-20 w-full rounded-lg" />
+            <Skeleton className="h-3 w-24 rounded" />
+            <Skeleton className="h-12 w-2/3 rounded" />
+            <Skeleton className="h-16 w-full rounded" />
+            <Skeleton className="h-16 w-full rounded" />
           </div>
         ) : (
-          <div className="w-full max-w-[420px] animate-[fade-up_0.25s_ease-out]">
-            <h2 className="text-[26px] font-semibold tracking-tight mb-1.5">
-              Let&apos;s set up your board.
-            </h2>
-            <p className="text-[13px] text-text-muted mb-7">
-              Everything here has a sensible default — skip if you&apos;d rather just start.
+          <div className="animate-[fade-up_0.25s_ease-out]">
+            <p className="text-[10px] uppercase tracking-[0.14em] text-text-dim">First run</p>
+            <h1
+              className="mt-4 text-[44px] font-normal leading-[1.12] tracking-[-0.014em]"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              {reusingWorkspace ? reusingWorkspace.name : "Your workspace"} is empty.
+              <br />
+              <span className="text-accent">Pick a shape</span> and start.
+            </h1>
+            <p className="mt-5 max-w-[520px] text-[15px] leading-[1.7] text-text-muted">
+              Columns are the stages work moves through. Rename anything later — columns, limits
+              and labels are all editable in place.
             </p>
 
             <form
@@ -204,138 +214,188 @@ export function WelcomeView() {
                 e.preventDefault();
                 void createEverything(true);
               }}
-              className="flex flex-col gap-4"
             >
-              {/* Someone can reach this screen already owning an empty
-                  workspace -- created for them, never filled. The board goes
-                  there rather than stacking a second one, so offering a name
-                  field would be offering a control that silently does nothing.
-                  Name it or state it; don't pretend. */}
-              {reusingWorkspace ? (
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-text-dim">
-                    Workspace
-                  </span>
-                  <p className="text-[13px] text-text-muted">
-                    Adding to{" "}
-                    <span className="font-medium text-text">{reusingWorkspace.name}</span>, the
-                    workspace you already have.
-                  </p>
-                </div>
-              ) : (
-                <AuthField id={workspaceId} label="Workspace">
+              {/* Names first, then the shape. The design shows only the template
+                  list, but a workspace and a board still need names, and choosing
+                  a shape for something unnamed is the wrong order. */}
+              <div className="mt-11 flex flex-col gap-[15px] max-w-[420px]">
+                {reusingWorkspace ? (
+                  // Someone can reach this screen already owning an empty
+                  // workspace -- created for them, never filled. The board goes
+                  // there rather than stacking a second one, so a name field
+                  // would be a control that silently does nothing.
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-text-dim">
+                      Workspace
+                    </span>
+                    <p className="text-[13px] text-text-muted">
+                      Adding to{" "}
+                      <span className="font-medium text-text">{reusingWorkspace.name}</span>, the
+                      workspace you already have.
+                    </p>
+                  </div>
+                ) : (
+                  <AuthField id={workspaceId} label="Workspace">
+                    <input
+                      id={workspaceId}
+                      value={workspaceName}
+                      onChange={(e) => setWorkspaceName(e.target.value)}
+                      placeholder="Rita's workspace"
+                      autoFocus
+                      data-focus-ring="none"
+                      className={authInputClasses}
+                    />
+                  </AuthField>
+                )}
+
+                <AuthField id={boardId} label="First board">
                   <input
-                    id={workspaceId}
-                    value={workspaceName}
-                    onChange={(e) => setWorkspaceName(e.target.value)}
-                    placeholder="Ada's workspace"
-                    autoFocus
+                    id={boardId}
+                    value={boardName}
+                    onChange={(e) => setBoardName(e.target.value)}
+                    placeholder="My board"
+                    data-focus-ring="none"
                     className={authInputClasses}
                   />
                 </AuthField>
-              )}
+              </div>
 
-              <AuthField id={boardId} label="First board">
-                <input
-                  id={boardId}
-                  value={boardName}
-                  onChange={(e) => setBoardName(e.target.value)}
-                  placeholder="My board"
-                  className={authInputClasses}
-                />
-              </AuthField>
-
-              <fieldset className="flex flex-col gap-1.5">
-                <legend className="text-[11px] font-semibold uppercase tracking-wider text-text-dim mb-1.5">
-                  Columns
-                </legend>
-                <div className="flex flex-col gap-2">
-                  {BOARD_TEMPLATES.map((option) => {
-                    const selected = option.id === templateId;
-                    return (
-                      <label
-                        key={option.id}
-                        className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors ${
+              {/* The heavy rule is the design's device for opening a list: a full
+                  --text line above it, hairlines between the rows. It reads as a
+                  table of choices rather than a stack of cards. */}
+              <fieldset className="mt-11 border-t border-text">
+                <legend className="sr-only">Columns</legend>
+                {BOARD_TEMPLATES.map((option, index) => {
+                  const selected = option.id === templateId;
+                  return (
+                    <label
+                      key={option.id}
+                      className={
+                        selected
+                          ? "grid grid-cols-[52px_minmax(0,1fr)_auto] gap-5 items-center w-full py-5 px-2 border-b border-border-2 cursor-pointer transition-colors bg-surface"
+                          : "grid grid-cols-[52px_minmax(0,1fr)_auto] gap-5 items-center w-full py-5 px-2 border-b border-border-2 cursor-pointer transition-colors hover:bg-surface"
+                      }
+                    >
+                      <input
+                        type="radio"
+                        name="template"
+                        value={option.id}
+                        checked={selected}
+                        onChange={() => setTemplateId(option.id)}
+                        className="sr-only"
+                      />
+                      <span
+                        className={
                           selected
-                            ? "border-accent bg-surface"
-                            : "border-border bg-surface hover:border-border-2"
-                        }`}
+                            ? "text-[26px] font-semibold text-accent"
+                            : "text-[26px] font-semibold text-text-dim"
+                        }
+                        style={{ fontFamily: "var(--font-display)" }}
+                        aria-hidden="true"
                       >
-                        <input
-                          type="radio"
-                          name="template"
-                          value={option.id}
-                          checked={selected}
-                          onChange={() => setTemplateId(option.id)}
-                          className="mt-0.5 accent-accent"
-                        />
-                        <span className="flex-1 min-w-0">
-                          <span className="block text-[13px] font-medium">{option.name}</span>
-                          <span className="block text-[11px] text-text-muted">
-                            {option.description}
-                          </span>
-                          {/* The actual columns, not just a label. The choice is
-                              only meaningful if you can see what it produces. */}
-                          <span className="block text-[11px] text-text-dim mt-1">
-                            {option.columns.join(" · ")}
-                          </span>
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-[16px] font-medium tracking-[-0.012em]">
+                          {option.name}
                         </span>
-                      </label>
-                    );
-                  })}
-                </div>
+                        {/* The columns themselves, not a summary. The choice only
+                            means something if you can see what it produces. */}
+                        <span className="flex gap-[7px] mt-2 flex-wrap">
+                          {option.columns.map((c) => (
+                            <span
+                              key={c}
+                              className="px-2 py-0.5 border border-border rounded-md text-[11px] text-text-muted"
+                            >
+                              {c}
+                            </span>
+                          ))}
+                        </span>
+                      </span>
+                      <span
+                        className={
+                          selected
+                            ? "text-[10px] uppercase tracking-[0.11em] text-accent"
+                            : "text-[10px] uppercase tracking-[0.11em] text-text-dim"
+                        }
+                      >
+                        {selected ? "Selected" : "Choose"}
+                      </span>
+                    </label>
+                  );
+                })}
               </fieldset>
 
-              <AuthField
-                id={inviteId}
-                label="Invite your team (optional)"
-                hint={
-                  invalidInvites.length > 0 ? (
-                    <p className="text-[11px] text-warn">
-                      {invalidInvites.length === 1
-                        ? `“${invalidInvites[0]}” doesn't look like an email address — it'll be skipped.`
-                        : `${invalidInvites.length} of these don't look like email addresses and will be skipped.`}
-                    </p>
-                  ) : (
-                    <p className="text-[11px] text-text-dim">
-                      They join as editors, and can watch the board with you the moment they sign
-                      up.
-                    </p>
-                  )
-                }
-              >
-                <textarea
+              <div className="mt-8 max-w-[420px]">
+                <AuthField
                   id={inviteId}
-                  value={invites}
-                  onChange={(e) => setInvites(e.target.value)}
-                  placeholder="sam@company.com, ada@company.com"
-                  rows={2}
-                  className={`${authInputClasses} resize-none`}
-                />
-              </AuthField>
+                  label="Invite your team (optional)"
+                  hint={
+                    invalidInvites.length > 0 ? (
+                      <p className="text-[11px] text-warn">
+                        {invalidInvites.length === 1
+                          ? `“${invalidInvites[0]}” doesn't look like an email address — it'll be skipped.`
+                          : `${invalidInvites.length} of these don't look like email addresses and will be skipped.`}
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-text-dim">
+                        They join as editors, and can watch the board with you the moment they sign
+                        up.
+                      </p>
+                    )
+                  }
+                >
+                  <textarea
+                    id={inviteId}
+                    value={invites}
+                    onChange={(e) => setInvites(e.target.value)}
+                    placeholder="sam@studio.com, ada@studio.com"
+                    rows={2}
+                    data-focus-ring="none"
+                    className={`${authInputClasses} resize-none`}
+                  />
+                </AuthField>
+              </div>
 
               {error && (
-                <p role="alert" className="text-xs text-danger">
+                <p role="alert" className="mt-4 text-xs text-danger">
                   {error}
                 </p>
               )}
 
-              <div className="flex items-center gap-2 mt-1">
-                <Button type="submit" disabled={submitting} className="flex-1">
-                  {submitting ? "Setting up…" : "Create my board →"}
+              <div className="flex items-center gap-4 mt-8">
+                <Button type="submit" disabled={submitting}>
+                  {submitting ? "Setting up…" : "Create board"}
                 </Button>
                 {/* Skipping is not a lesser path -- it produces exactly what the
-                    automatic bootstrap produced before this screen existed. */}
-                <Button
+                    automatic bootstrap produced before this screen existed, so it
+                    says what it does rather than just "Skip". */}
+                <button
                   type="button"
-                  variant="ghost"
                   disabled={submitting}
                   onClick={() => void createEverything(false)}
+                  className="text-[13px] text-text-dim hover:text-text transition-colors cursor-pointer disabled:opacity-50"
                 >
-                  Skip
-                </Button>
+                  Skip — start from an empty board
+                </button>
               </div>
             </form>
+
+            <div className="mt-16 pt-7 border-t border-border grid grid-cols-1 sm:grid-cols-3 gap-[30px]">
+              {FIRST_RUN_NOTES.map((note) => (
+                <div key={note.step}>
+                  <p
+                    className="text-[20px] font-semibold text-warn"
+                    style={{ fontFamily: "var(--font-display)" }}
+                  >
+                    {note.step}
+                  </p>
+                  <p className="mt-2 text-[13px] leading-[1.65] text-text-muted text-pretty">
+                    {note.body}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
