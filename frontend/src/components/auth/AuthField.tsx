@@ -21,7 +21,10 @@ export function AuthField({
     <div className="flex flex-col gap-1.5">
       <label
         htmlFor={id}
-        className="text-[11px] font-semibold uppercase tracking-wider text-text-dim"
+        // 10px at 0.12em (v7). The micro-label is the design's recurring device --
+        // it names a field without competing with its value, which is what lets
+        // the underline inputs stay unboxed and still read as fields.
+        className="text-[10px] font-medium uppercase tracking-[0.12em] text-text-dim"
       >
         {label}
       </label>

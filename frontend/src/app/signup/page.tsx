@@ -141,7 +141,11 @@ export default function SignupPage() {
       // the error if account creation then failed.
       checking={loading || (user !== null && !submitting)}
     >
-      <h2 className="text-[26px] font-semibold tracking-tight mb-1.5">
+      <p className="text-[10px] uppercase tracking-[0.14em] text-text-dim mb-1.5">Create account</p>
+      <h2
+        className="text-[31px] font-normal tracking-[-0.01em] mb-2"
+        style={{ fontFamily: "var(--font-display)" }}
+      >
         {offer ? "Create your account to join." : "Create your account."}
       </h2>
       <p className="text-[13px] text-text-muted mb-5">Takes about ten seconds.</p>

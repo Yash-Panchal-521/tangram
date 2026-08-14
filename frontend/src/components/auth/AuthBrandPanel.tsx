@@ -1,70 +1,61 @@
-import { TangramMark } from "@/components/ui/TangramMark";
-
-// "Offline-tolerant sync" used to be the third line, and it was not true: the
-// app reconnects and replays the operations it missed, but it does not queue
-// edits made while offline. Either build the queue or stop claiming it -- and
-// the honest version describes something more impressive anyway, because
-// catching up by sequence number is the part that's actually hard.
-const FEATURES = [
-  "Real-time cursor presence",
-  "Owner / Editor / Viewer RBAC",
-  "Replays what you missed on reconnect",
-];
+// Three, not a bulleted list of sentences (v7). The old panel argued its case in
+// full lines with tick marks, which is a landing page's job. Naming the three
+// things and stopping is the more confident version, and it leaves the headline
+// carrying the weight instead of competing with nine words below it.
+//
+// "Offline-tolerant sync" was a fourth claim here once and it was not true: the
+// app reconnects and replays what it missed, but it does not queue edits made
+// offline. Replaced then, and worth not reintroducing.
+const CAPABILITIES = ["Realtime", "Roles", "WIP limits"];
 
 /**
- * The left-hand marketing panel shared by /login and /signup. Extracted so the
- * two pages can't drift apart visually.
+ * The accent-filled panel shared by /login and /signup.
  *
  * Everything on it is `--accent-fg`, never white. The panel is painted in
  * `--accent`, and once palettes became switchable that stopped being reliably
- * dark: Graphite's dark accent is #ededed, where white text measured 1.17:1 —
- * invisible. Every dark palette failed, between 1.17 and 3.45. `--accent-fg`
- * exists for exactly this question and answers it correctly in all twelve,
- * because it is chosen per palette rather than assumed.
+ * dark — a near-white accent made white text 1.17:1, invisible. `--accent-fg`
+ * exists for exactly this question and is chosen per palette rather than assumed
+ * (S1.2f).
+ *
+ * The circles are drawn in the foreground colour at low alpha rather than in a
+ * fixed white, for the same reason.
  */
 export function AuthBrandPanel({ headline, subhead }: { headline: React.ReactNode; subhead: string }) {
   return (
-    <div className="w-[420px] shrink-0 bg-accent relative hidden md:flex flex-col py-11 px-12 overflow-hidden">
+    <div className="hidden md:flex shrink-0 basis-[46%] bg-accent relative flex-col justify-between py-13 px-12 overflow-hidden">
+      {/* Two rings, mostly off-canvas. They give the panel depth without a
+          gradient or an image, and they scale with the panel rather than being
+          a fixed asset that crops badly. */}
       <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          backgroundImage:
-            "radial-gradient(circle, color-mix(in srgb, var(--accent-fg) 10%, transparent) 1px, transparent 1px)",
-          backgroundSize: "22px 22px",
-        }}
+        className="absolute -right-24 -bottom-20 w-[340px] h-[340px] rounded-full pointer-events-none"
+        style={{ border: "1px solid color-mix(in srgb, var(--accent-fg) 16%, transparent)" }}
       />
-      <div className="absolute -right-11 -bottom-6 opacity-[0.07] pointer-events-none">
-        <TangramMark size={380} color="var(--accent-fg)" />
+      <div
+        className="absolute right-2 bottom-14 w-[200px] h-[200px] rounded-full pointer-events-none"
+        style={{ border: "1px solid color-mix(in srgb, var(--accent-fg) 12%, transparent)" }}
+      />
+
+      <span
+        className="relative text-[21px] font-semibold text-accent-fg tracking-tight"
+        style={{ fontFamily: "var(--font-display)" }}
+      >
+        Tangram
+      </span>
+
+      <div className="relative max-w-[430px]">
+        <h1
+          className="text-[44px] font-semibold text-accent-fg leading-[1.1] tracking-[-0.015em] m-0"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          {headline}
+        </h1>
+        <p className="mt-6 max-w-[350px] text-sm leading-[1.7] text-accent-fg/70">{subhead}</p>
       </div>
 
-      <div className="flex items-center gap-2.5 relative shrink-0">
-        <div className="w-8 h-8 rounded-lg bg-accent-fg/20 flex items-center justify-center shrink-0">
-          <TangramMark size={18} color="var(--accent-fg)" />
-        </div>
-        <span className="text-base font-semibold text-accent-fg tracking-tight">Tangram</span>
-      </div>
-
-      <div className="flex-1 flex flex-col justify-center relative py-10">
-        <h1 className="text-4xl font-semibold text-accent-fg tracking-tight leading-[1.05] mb-4">{headline}</h1>
-        <p className="text-[13px] text-accent-fg/70 leading-relaxed mb-9">{subhead}</p>
-        <div className="flex flex-col gap-3">
-          {FEATURES.map((line) => (
-            <div key={line} className="flex items-center gap-2.5">
-              <div className="w-5 h-5 rounded-full bg-accent-fg/20 flex items-center justify-center shrink-0">
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                  <path
-                    d="M1.5 5L3.8 7.5L8.5 2.5"
-                    stroke="var(--accent-fg)"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
-              <span className="text-[13px] text-accent-fg/85">{line}</span>
-            </div>
-          ))}
-        </div>
+      <div className="relative flex gap-7 text-[10px] uppercase tracking-[0.12em] text-accent-fg/60">
+        {CAPABILITIES.map((c) => (
+          <span key={c}>{c}</span>
+        ))}
       </div>
     </div>
   );

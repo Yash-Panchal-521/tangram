@@ -77,7 +77,11 @@ export default function LoginPage() {
       // on their way out of this page.
       checking={loading || user !== null}
     >
-      <h2 className="text-[26px] font-semibold tracking-tight mb-1.5">Welcome back.</h2>
+      <p className="text-[10px] uppercase tracking-[0.14em] text-text-dim mb-1.5">Sign in</p>
+      <h2
+        className="text-[31px] font-normal tracking-[-0.01em] mb-2"
+        style={{ fontFamily: "var(--font-display)" }}
+      >Welcome back.</h2>
       <p className="text-[13px] text-text-muted mb-5">
         {offer ? "Sign in to accept your invitation." : "Sign in to continue to Tangram."}
       </p>

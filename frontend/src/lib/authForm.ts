@@ -2,8 +2,16 @@ import { FirebaseError } from "firebase/app";
 
 // Shared by the sign-in and sign-up forms so the two panels stay identical
 // without either page owning the other's styling.
+// Underline, not a box (v7). A boxed field draws four lines to say "type here"
+// when one will do, and on a form of three fields the boxes end up carrying more
+// visual weight than the words. The rule sits on `--border` and moves to
+// `--accent` on focus, so the focus state is the line thickening in colour
+// rather than a ring appearing around a shape.
+//
+// `rounded-none` is deliberate: with a bottom border only there is nothing for a
+// radius to round, and leaving one on produced a 2px nick at each end.
 export const authInputClasses =
-  "w-full py-2.5 px-3.5 bg-surface border border-border rounded-lg text-sm text-text placeholder:text-text-dim transition-colors focus-visible:border-accent";
+  "w-full py-2.5 px-0 bg-transparent border-0 border-b border-border rounded-none text-[15px] text-text placeholder:text-text-dim transition-colors focus-visible:border-accent";
 
 // Firebase's own floor. Named rather than inlined so the hint shown to the user,
 // the input's minLength and the submit guard can't drift from each other -- the

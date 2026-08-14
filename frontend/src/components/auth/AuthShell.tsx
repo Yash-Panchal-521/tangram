@@ -24,7 +24,7 @@ export function AuthShell({
     <div className="flex-1 flex overflow-hidden">
       <AuthBrandPanel headline={headline} subhead={subhead} />
 
-      <div className="flex-1 bg-bg relative flex flex-col items-center justify-center p-12 overflow-y-auto">
+      <div className="flex-1 basis-[54%] bg-bg relative flex flex-col items-center justify-center p-10 overflow-y-auto">
         <div className="absolute top-5 right-5 z-10">
           <ThemeToggle />
         </div>
@@ -33,7 +33,7 @@ export function AuthShell({
           <div
             role="status"
             aria-busy="true"
-            className="w-full max-w-[360px] flex flex-col items-center gap-2 text-center"
+            className="w-full max-w-[346px] flex flex-col items-center gap-2 text-center"
           >
             <p className="text-sm text-text-muted">Checking your session…</p>
             <p className="text-xs text-text-dim">
@@ -41,7 +41,7 @@ export function AuthShell({
             </p>
           </div>
         ) : (
-          <div className="w-full max-w-[360px] animate-[fade-up_0.25s_ease-out]">{children}</div>
+          <div className="w-full max-w-[346px] animate-[fade-up_0.25s_ease-out]">{children}</div>
         )}
       </div>
     </div>

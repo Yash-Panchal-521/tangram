@@ -62,11 +62,11 @@ function renderColumn(col: ColumnWithCardsResponse, onCommit: () => void) {
         colorIndex={0}
         disabled={false}
         canEdit
-        memberNames={{}}
-        onAddCard={() => {}}
-        onRenameColumn={() => {}}
-        onSetLimits={() => {}}
-        onDeleteColumn={() => {}}
+        memberNames={new Map()}
+        onAddCard={async () => {}}
+        onRenameColumn={async () => {}}
+        onSetLimits={async () => {}}
+        onDeleteColumn={async () => {}}
         onCardClick={() => {}}
       />
     </Profiler>
@@ -109,11 +109,11 @@ describe("board render cost", () => {
           colorIndex={0}
           disabled={false}
           canEdit
-          memberNames={{}}
-          onAddCard={() => {}}
-          onRenameColumn={() => {}}
-          onSetLimits={() => {}}
-          onDeleteColumn={() => {}}
+          memberNames={new Map()}
+          onAddCard={async () => {}}
+          onRenameColumn={async () => {}}
+          onSetLimits={async () => {}}
+          onDeleteColumn={async () => {}}
           onCardClick={() => {}}
         />
       </Profiler>
