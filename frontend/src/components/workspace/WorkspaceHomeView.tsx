@@ -36,6 +36,27 @@ function WorkspaceSkeleton() {
  * have or reach a second — so the multi-tenant model the backend enforces was
  * invisible from the app. This is the surface that makes it real.
  */
+/**
+ * One figure in the summary row.
+ *
+ * The number is set in the display face at 30px and the label in 10px caps
+ * beneath it, so the row reads as quantities first and categories second —
+ * which is the order you scan a summary in.
+ */
+function Stat({ n, k }: { n: number; k: string }) {
+  return (
+    <div>
+      <div
+        className="text-[30px] leading-none tabular-nums"
+        style={{ fontFamily: "var(--font-display)" }}
+      >
+        {n}
+      </div>
+      <div className="mt-1.5 text-[10px] uppercase tracking-[0.11em] text-text-dim">{k}</div>
+    </div>
+  );
+}
+
 export function WorkspaceHomeView() {
   const router = useRouter();
   const { user, loading, getToken } = useAuth();
@@ -170,7 +191,7 @@ export function WorkspaceHomeView() {
       </header>
 
       <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl w-full px-6 py-8 flex flex-col gap-8">
+        <div className="max-w-[1140px] w-full px-11 pt-11 pb-14 flex flex-col gap-12">
           {actionError && (
             <p role="alert" className="text-[13px] text-danger">
               {actionError}
@@ -202,118 +223,102 @@ export function WorkspaceHomeView() {
               const visible = showArchived ? [...active, ...archived] : active;
 
               return (
-                <section key={workspace.id} className="flex flex-col gap-3">
-                  <div className="flex items-center gap-2.5">
-                    <h2 className="text-[15px] font-semibold truncate">{workspace.name}</h2>
+                <section key={workspace.id} className="flex flex-col">
+                  {/* The kicker names what kind of thing the title is. Without
+                      it a bare workspace name at display size reads as the
+                      product's own name rather than as one of several. */}
+                  <p className="text-[10px] uppercase tracking-[0.14em] text-text-dim">Workspace</p>
+                  <div className="mt-3 flex items-baseline gap-3 flex-wrap">
+                    <h2
+                      className="text-[40px] leading-none tracking-[-0.014em] truncate"
+                      style={{ fontFamily: "var(--font-display)" }}
+                    >
+                      {workspace.name}
+                    </h2>
                     <Badge tone={isOwner ? "accent" : "neutral"}>{workspace.role}</Badge>
                     <div className="flex-1" />
                     <Link
                       href={`/workspace/${workspace.id}/members`}
-                      className="text-xs font-medium text-text-muted hover:text-text hover:underline"
+                      className="text-[12.5px] font-medium text-text-muted hover:text-text hover:underline"
                     >
                       Members
                     </Link>
-                    {canEdit && creatingIn !== workspace.id && (
-                      <Button size="sm" variant="secondary" onClick={() => setCreatingIn(workspace.id)}>
-                        New board
-                      </Button>
-                    )}
                   </div>
 
-                  {creatingIn === workspace.id && (
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        void handleCreate(workspace.id);
-                      }}
-                      className="flex items-center gap-2"
-                    >
-                      <input
-                        autoFocus
-                        value={newBoardName}
-                        onChange={(e) => setNewBoardName(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Escape") {
-                            setNewBoardName("");
-                            setCreatingIn(null);
-                          }
-                        }}
-                        placeholder="Board name"
-                        aria-label={`New board in ${workspace.name}`}
-                        className="flex-1 py-2 px-3 bg-surface border border-border rounded-lg text-[13px] text-text placeholder:text-text-dim focus-visible:border-accent"
-                      />
-                      <Button type="submit" size="sm" disabled={!newBoardName.trim()}>
-                        Create
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setNewBoardName("");
-                          setCreatingIn(null);
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                    </form>
-                  )}
+                  {/* Counts, then a rule in --text rather than a hairline: this
+                      separates the workspace's summary from its contents, and a
+                      hairline there reads as just another row divider. */}
+                  <div className="flex gap-[34px] mt-6 pb-[22px] border-b border-text">
+                    <Stat n={active.length} k={active.length === 1 ? "Board" : "Boards"} />
+                    {archived.length > 0 && <Stat n={archived.length} k="Archived" />}
+                  </div>
+
 
                   {visible.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-[13px] text-text-dim">
+                    <p className="py-8 text-[13px] text-text-dim">
                       {canEdit
                         ? "No boards here yet. Create one to get started."
                         : "No boards here yet. An owner or editor can create one."}
                     </p>
                   ) : (
-                    <ul className="grid gap-3 sm:grid-cols-2">
-                      {visible.map((board) => (
+                    <ul>
+                      {visible.map((board, i) => (
                         <li
                           key={board.id}
-                          className={`group relative rounded-xl border bg-surface p-4 transition-shadow ${
-                            board.archived
-                              ? "border-dashed border-border opacity-70"
-                              : "border-border hover:shadow-[0_3px_14px_rgba(0,0,0,0.08)] hover:border-border-2"
+                          className={`group relative grid items-center gap-5 py-5 px-1.5 border-b border-border-2 transition-colors hover:bg-surface ${
+                            board.archived ? "opacity-70" : ""
                           }`}
+                          style={{ gridTemplateColumns: "44px minmax(0,1fr) auto" }}
                         >
-                          {renamingId === board.id ? (
-                            <form
-                              onSubmit={(e) => {
-                                e.preventDefault();
-                                void handleRename(board.id, board.name);
-                              }}
-                            >
-                              <input
-                                autoFocus
-                                value={renameValue}
-                                onChange={(e) => setRenameValue(e.target.value)}
-                                onBlur={() => void handleRename(board.id, board.name)}
-                                onKeyDown={(e) => e.key === "Escape" && setRenamingId(null)}
-                                aria-label={`Rename ${board.name}`}
-                                className="w-full text-[13px] font-medium bg-surface-2 border border-border rounded px-2 py-1 focus-visible:border-accent"
-                              />
-                            </form>
-                          ) : (
-                            <Link
-                              href={`/board/${board.id}`}
-                              onClick={() => openBoard(board.id)}
-                              className="text-[13px] font-medium hover:text-accent"
-                            >
-                              {/* Stretched so the whole card is the click
-                                  target, without nesting the row's buttons
-                                  inside an anchor. */}
-                              <span className="absolute inset-0 rounded-xl" aria-hidden="true" />
-                              {board.name}
-                            </Link>
-                          )}
+                          <span
+                            aria-hidden="true"
+                            className="text-[22px] leading-none text-text-dim tabular-nums"
+                            style={{ fontFamily: "var(--font-display)" }}
+                          >
+                            {String(i + 1).padStart(2, "0")}
+                          </span>
 
-                          <p className="text-[11px] text-text-dim mt-1">
-                            {board.archived ? "Archived · " : ""}
-                            updated {relativeTime(board.updatedAt)}
-                          </p>
+                          <span className="min-w-0">
+                            {renamingId === board.id ? (
+                              <form
+                                onSubmit={(e) => {
+                                  e.preventDefault();
+                                  void handleRename(board.id, board.name);
+                                }}
+                              >
+                                <input
+                                  autoFocus
+                                  value={renameValue}
+                                  onChange={(e) => setRenameValue(e.target.value)}
+                                  onBlur={() => void handleRename(board.id, board.name)}
+                                  onKeyDown={(e) => e.key === "Escape" && setRenamingId(null)}
+                                  aria-label={`Rename ${board.name}`}
+                                  className="w-full text-base font-medium bg-surface-2 border border-border rounded-[2px] px-2 py-1 focus-visible:border-accent"
+                                />
+                              </form>
+                            ) : (
+                              <Link
+                                href={`/board/${board.id}`}
+                                onClick={() => openBoard(board.id)}
+                                className="block text-base font-medium tracking-[-0.014em] truncate hover:text-accent"
+                              >
+                                {/* Stretched so the whole row is the click
+                                    target, without nesting the row's buttons
+                                    inside an anchor. */}
+                                <span className="absolute inset-0" aria-hidden="true" />
+                                {board.name}
+                              </Link>
+                            )}
+                            <span className="block mt-[5px] text-[12.5px] text-text-dim">
+                              {board.archived ? "Archived · " : ""}
+                              updated {relativeTime(board.updatedAt)}
+                            </span>
+                          </span>
 
                           {canEdit && renamingId !== board.id && (
-                            <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                            // Above the stretched link, or the row's own anchor
+                            // swallows these clicks.
+                            <span className="relative z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                               {!board.archived && (
                                 <button
                                   onClick={() => {
@@ -322,7 +327,7 @@ export function WorkspaceHomeView() {
                                   }}
                                   disabled={busyBoardId === board.id}
                                   aria-label={`Rename ${board.name}`}
-                                  className="px-1.5 py-0.5 rounded text-[11px] font-medium text-text-muted hover:text-text hover:bg-surface-2 cursor-pointer disabled:opacity-50"
+                                  className="px-1.5 py-0.5 rounded-[2px] text-[11px] font-medium text-text-muted hover:text-text hover:bg-surface-2 cursor-pointer disabled:opacity-50"
                                 >
                                   Rename
                                 </button>
@@ -337,7 +342,7 @@ export function WorkspaceHomeView() {
                                     onClick={() => void handleUnarchive(board.id)}
                                     disabled={busyBoardId === board.id}
                                     aria-label={`Restore ${board.name}`}
-                                    className="px-1.5 py-0.5 rounded text-[11px] font-medium text-accent hover:bg-surface-2 cursor-pointer disabled:opacity-50"
+                                    className="px-1.5 py-0.5 rounded-[2px] text-[11px] font-medium text-accent hover:bg-surface-2 cursor-pointer disabled:opacity-50"
                                   >
                                     Restore
                                   </button>
@@ -346,17 +351,90 @@ export function WorkspaceHomeView() {
                                     onClick={() => void handleArchive(board.id, board.name)}
                                     disabled={busyBoardId === board.id}
                                     aria-label={`Archive ${board.name}`}
-                                    className="px-1.5 py-0.5 rounded text-[11px] font-medium text-text-muted hover:text-danger hover:bg-surface-2 cursor-pointer disabled:opacity-50"
+                                    className="px-1.5 py-0.5 rounded-[2px] text-[11px] font-medium text-text-muted hover:text-danger hover:bg-surface-2 cursor-pointer disabled:opacity-50"
                                   >
                                     Archive
                                   </button>
                                 ))}
-                            </div>
+                            </span>
                           )}
                         </li>
                       ))}
                     </ul>
                   )}
+
+                  {/* A row, not a button floating above the list. It is the last
+                      entry in the same sequence, so it carries the same 44px
+                      number column — the "+" sits where a number would, and the
+                      form that replaces it keeps the row's shape rather than
+                      appearing somewhere else on the page. */}
+                  {canEdit &&
+                    (creatingIn === workspace.id ? (
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          void handleCreate(workspace.id);
+                        }}
+                        className="grid items-center gap-5 w-full py-5 px-1.5 border-b border-border-2"
+                        style={{ gridTemplateColumns: "44px minmax(0,1fr) auto" }}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="text-[20px] leading-none text-text-dim"
+                          style={{ fontFamily: "var(--font-display)" }}
+                        >
+                          +
+                        </span>
+                        {/* Underlined, not boxed — the v7 field. A box here
+                            would be the only one on a page built from rules. */}
+                        <input
+                          autoFocus
+                          value={newBoardName}
+                          onChange={(e) => setNewBoardName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Escape") {
+                              setNewBoardName("");
+                              setCreatingIn(null);
+                            }
+                          }}
+                          placeholder="Board name"
+                          aria-label={`New board in ${workspace.name}`}
+                          data-focus-ring="none"
+                          className="w-full bg-transparent border-b border-border pb-1 text-base font-medium text-text placeholder:text-text-dim focus-visible:border-accent focus-visible:shadow-[inset_0_-1px_0_0_var(--accent)] outline-none"
+                        />
+                        <span className="flex items-center gap-1">
+                          <Button type="submit" size="sm" disabled={!newBoardName.trim()}>
+                            Create
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setNewBoardName("");
+                              setCreatingIn(null);
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </span>
+                      </form>
+                    ) : (
+                      <button
+                        onClick={() => setCreatingIn(workspace.id)}
+                        className="grid items-center gap-5 w-full py-5 px-1.5 border-b border-border-2 text-[13.5px] text-text-dim hover:text-text cursor-pointer text-left"
+                        style={{ gridTemplateColumns: "44px minmax(0,1fr)" }}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="text-[20px] leading-none"
+                          style={{ fontFamily: "var(--font-display)" }}
+                        >
+                          +
+                        </span>
+                        <span>New board</span>
+                      </button>
+                    ))}
                 </section>
               );
             })
