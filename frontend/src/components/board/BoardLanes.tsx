@@ -1,6 +1,6 @@
 "use client";
 
-import { useDndContext, useDraggable, useDroppable } from "@dnd-kit/core";
+import { useDraggable, useDroppable } from "@dnd-kit/core";
 import type { BoardDetailResponse, CardResponse } from "@/lib/api";
 import { cellId } from "@/lib/laneDrop";
 import { KanbanCard } from "@/components/board/KanbanCard";
@@ -188,17 +188,15 @@ function LaneCell({
   canEdit: boolean;
   children: React.ReactNode;
 }) {
-  const { active } = useDndContext();
   const { setNodeRef, isOver } = useDroppable({ id, disabled: !canEdit });
-
-  const fromLaneId = active?.data.current?.laneId as string | undefined;
-  const takesDrop = fromLaneId === laneId || acceptsLaneChange;
 
   return (
     <div
       ref={setNodeRef}
+      data-lane={laneId}
+      data-accepts-lane-change={acceptsLaneChange ? "" : undefined}
       className={`px-3.5 py-3 border-l border-border-2 flex flex-col gap-2 transition-colors ${
-        isOver && takesDrop ? "bg-accent-soft" : ""
+        isOver ? "bg-accent-soft" : ""
       }`}
     >
       {children}
