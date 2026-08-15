@@ -796,7 +796,12 @@ export function BoardView({ boardId }: { boardId: string }) {
     const lanes = lanesFor(visibleBoard ?? board, laneView, memberNames);
     const from = lanes.find((l) => l.cells.some((cards) => cards.some((c) => c.id === cardId)));
     const to = lanes.find((l) => l.id === cell.laneId);
-    if (!from || !to || !to.droppable) return;
+    // Deliberately not gated on `to.acceptsLaneChange` here. A drop into a lane
+    // that refuses one may still be a stage change within the card's own row,
+    // which every lane allows; `resolveLaneDrop` is the single place that tells
+    // the two apart, and duplicating half its rule here is what stopped the
+    // label view moving cards between columns at all.
+    if (!from || !to) return;
 
     const drop = resolveLaneDrop({
       card,

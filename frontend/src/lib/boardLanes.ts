@@ -27,16 +27,20 @@ export type Lane = {
   /** Total across the row, which is what the lane header counts. */
   count: number;
   /**
-   * Whether dropping a card into this lane means anything.
+   * Whether a card may be dragged *into* this lane from another one.
    *
-   * True for person and priority, which are single-valued: moving a card into
-   * the lane sets that one field. False for labels, where a card can carry
-   * several — "make this card belong to `bug`" is unambiguous, but the drop
-   * would also have to decide what happens to the labels it already has, and
-   * silently replacing them is the kind of destructive guess a drag should
-   * never make.
+   * Only ever about the vertical axis. Moving a card sideways within its own
+   * row changes the stage, which is unambiguous however the board is grouped,
+   * and no lane may refuse it — this flag once did, which quietly cost the
+   * label view ordinary kanban.
+   *
+   * True for person and priority, which are single-valued: crossing into the
+   * lane sets that one field. False for labels, where a card can carry several
+   * — "make this card belong to `bug`" is clear enough, but the drop would also
+   * have to decide what happens to the labels it already has, and silently
+   * replacing them is the kind of destructive guess a drag should never make.
    */
-  droppable: boolean;
+  acceptsLaneChange: boolean;
 };
 
 const UNASSIGNED = "lane:unassigned";
@@ -63,10 +67,10 @@ export function lanesFor(
   // Insertion-ordered, so lanes appear in the order the grouping defines rather
   // than the order cards happen to be in.
   const lanes = new Map<string, Lane>();
-  const lane = (id: string, name: string, droppable: boolean) => {
+  const lane = (id: string, name: string, acceptsLaneChange: boolean) => {
     let existing = lanes.get(id);
     if (!existing) {
-      existing = { id, name, cells: emptyCells(), count: 0, droppable };
+      existing = { id, name, cells: emptyCells(), count: 0, acceptsLaneChange };
       lanes.set(id, existing);
     }
     return existing;
@@ -88,7 +92,7 @@ export function lanesFor(
   columns.forEach((column, columnIndex) => {
     for (const card of column.cards) {
       for (const target of lanesForCard(card, view, board.labels)) {
-        const row = lane(target.id, target.name, target.droppable);
+        const row = lane(target.id, target.name, target.acceptsLaneChange);
         row.cells[columnIndex].push(card);
         row.count++;
       }
@@ -111,12 +115,12 @@ function lanesForCard(
   card: CardResponse,
   view: LaneView,
   labels: LabelResponse[]
-): { id: string; name: string; droppable: boolean }[] {
+): { id: string; name: string; acceptsLaneChange: boolean }[] {
   if (view === "person") {
     return [
       card.assigneeId
-        ? { id: `lane:person:${card.assigneeId}`, name: "", droppable: true }
-        : { id: UNASSIGNED, name: "Unassigned", droppable: true },
+        ? { id: `lane:person:${card.assigneeId}`, name: "", acceptsLaneChange: true }
+        : { id: UNASSIGNED, name: "Unassigned", acceptsLaneChange: true },
     ];
   }
 
@@ -124,30 +128,39 @@ function lanesForCard(
     const priority = PRIORITIES.find((p) => p === (card.priority as CardPriority));
     return [
       priority
-        ? { id: `lane:priority:${priority}`, name: priority, droppable: true }
-        : { id: NO_PRIORITY, name: "No priority", droppable: true },
+        ? { id: `lane:priority:${priority}`, name: priority, acceptsLaneChange: true }
+        : { id: NO_PRIORITY, name: "No priority", acceptsLaneChange: true },
     ];
   }
 
   if (card.labels.length === 0) {
-    return [{ id: NO_LABEL, name: "Unlabelled", droppable: false }];
+    return [{ id: NO_LABEL, name: "Unlabelled", acceptsLaneChange: false }];
   }
 
   return card.labels.map((l) => ({
     id: `lane:label:${l.id}`,
     name: labels.find((x) => x.id === l.id)?.name ?? l.name,
-    droppable: false,
+    acceptsLaneChange: false,
   }));
 }
 
 /**
- * Lanes with nothing in them, dropped — except in the person view.
+ * Lanes with nothing in them, dropped — except where an empty row is the point.
  *
- * A board grouped by priority does not need a row for every level nobody used;
- * a board grouped by person does, because "who has no work" is exactly the
- * question that view answers.
+ * The rule is about drop targets, not about which view is special. A row you
+ * can drag a card into has to exist while it is still empty, or the view
+ * cannot accept the change it advertises: hiding every unused priority meant
+ * a card could only be dragged to High once something was already High, so the
+ * handle was there and the gesture did nothing.
+ *
+ * Person and priority are closed sets — every member, six levels — so showing
+ * them all costs a few short rows and buys a working axis. Person has the
+ * second reason too: "who has no work" is the question that view answers.
+ *
+ * Labels are open-ended and refuse lane changes anyway, so an empty label row
+ * is noise with nothing behind it.
  */
 export function visibleLanes(lanes: Lane[], view: LaneView): Lane[] {
-  if (view === "person") return lanes;
+  if (view === "person" || view === "priority") return lanes;
   return lanes.filter((l) => l.count > 0);
 }

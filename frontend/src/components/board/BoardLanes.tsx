@@ -1,6 +1,6 @@
 "use client";
 
-import { useDraggable, useDroppable } from "@dnd-kit/core";
+import { useDndContext, useDraggable, useDroppable } from "@dnd-kit/core";
 import type { BoardDetailResponse, CardResponse } from "@/lib/api";
 import { cellId } from "@/lib/laneDrop";
 import { KanbanCard } from "@/components/board/KanbanCard";
@@ -16,10 +16,11 @@ import { limitState } from "@/lib/columnLimit";
  * question from the column board. A column answers "what is in review"; a lane
  * answers "what is Rita carrying, and how far along is any of it".
  *
- * Read-only for now, deliberately. Dragging here means two things at once —
- * sideways changes the stage, downwards changes the assignee or the priority —
- * and the second is a mutation a drag should not perform until the semantics
- * are settled. Cards still open, which is most of what this view is for.
+ * Dragging means two things at once, and the axes are governed separately.
+ * Sideways changes the stage and is always allowed — it is the ordinary kanban
+ * action and it means the same thing however the rows are grouped. Downwards
+ * changes who holds the card or how urgent it is, which is a field mutation
+ * arrived at by gesture, so it confirms first and some rows refuse it outright.
  */
 export function BoardLanes({
   board,
@@ -134,14 +135,16 @@ export function BoardLanes({
                 <LaneCell
                   key={board.columns[i].id}
                   id={cellId(lane.id, board.columns[i].id)}
-                  droppable={canEdit && lane.droppable}
+                  laneId={lane.id}
+                  acceptsLaneChange={lane.acceptsLaneChange}
+                  canEdit={canEdit}
                 >
                   {cards.map((card) => (
                     <LaneCard
                       key={card.id}
                       card={card}
                       laneId={lane.id}
-                      draggable={canEdit && lane.droppable}
+                      draggable={canEdit}
                       assigneeName={card.assigneeId ? memberNames.get(card.assigneeId) : undefined}
                       onClick={() => onCardClick(card)}
                     />
@@ -167,26 +170,42 @@ function initialsFor(name: string): string {
 /**
  * One crossing of a lane and a column.
  *
- * Only a drop target where the lane means something single-valued — the label
- * view is grouped by a field a card can hold several of, so there is no
- * unambiguous answer to "what does dropping here do".
+ * Takes a drop in two cases, and they are not the same case. A card already in
+ * this row is only changing stage, which is unambiguous however the board is
+ * grouped — so even label rows accept it. A card arriving from another row is
+ * also changing a field, which only rows representing one single-valued thing
+ * can absorb.
+ *
+ * The cell registers as a drop target either way rather than toggling
+ * `disabled` on the active drag: dnd-kit measures droppable rects when the drag
+ * starts, so one that switches on afterwards has no rect to collide with. What
+ * changes is the highlight, which is withheld unless the drop would actually do
+ * something — an invalid cell that lit up would promise a move it then refuses.
  */
 function LaneCell({
   id,
-  droppable,
+  laneId,
+  acceptsLaneChange,
+  canEdit,
   children,
 }: {
   id: string;
-  droppable: boolean;
+  laneId: string;
+  acceptsLaneChange: boolean;
+  canEdit: boolean;
   children: React.ReactNode;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id, disabled: !droppable });
+  const { active } = useDndContext();
+  const { setNodeRef, isOver } = useDroppable({ id, disabled: !canEdit });
+
+  const fromLaneId = active?.data.current?.laneId as string | undefined;
+  const takesDrop = fromLaneId === laneId || acceptsLaneChange;
 
   return (
     <div
       ref={setNodeRef}
       className={`px-3.5 py-3 border-l border-border-2 flex flex-col gap-2 transition-colors ${
-        isOver ? "bg-accent-soft" : ""
+        isOver && takesDrop ? "bg-accent-soft" : ""
       }`}
     >
       {children}

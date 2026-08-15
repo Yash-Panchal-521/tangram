@@ -91,12 +91,15 @@ describe("lanesFor", () => {
     expect(lanes.every((l) => l.cells[0][0].id === "a")).toBe(true);
   });
 
-  it("refuses drops in the label view and accepts them everywhere else", () => {
+  it("refuses lane changes in the label view and accepts them everywhere else", () => {
+    // Only the vertical axis. Moving sideways is a stage change, which every
+    // lane allows however the board is grouped — this flag once said otherwise
+    // and cost the label view ordinary kanban entirely.
     const b = board([[card("a", { assigneeId: "u1", priority: "High" as never })]], [{ id: "l1", name: "bug" }]);
 
-    expect(lanesFor(b, "person", new Map([["u1", "Rita"]])).every((l) => l.droppable)).toBe(true);
-    expect(lanesFor(b, "priority", NO_MEMBERS).every((l) => l.droppable)).toBe(true);
-    expect(lanesFor(b, "label", NO_MEMBERS).every((l) => !l.droppable)).toBe(true);
+    expect(lanesFor(b, "person", new Map([["u1", "Rita"]])).every((l) => l.acceptsLaneChange)).toBe(true);
+    expect(lanesFor(b, "priority", NO_MEMBERS).every((l) => l.acceptsLaneChange)).toBe(true);
+    expect(lanesFor(b, "label", NO_MEMBERS).every((l) => !l.acceptsLaneChange)).toBe(true);
   });
 
   it("orders priority lanes by urgency, not by what the cards happen to be", () => {
@@ -114,10 +117,29 @@ describe("lanesFor", () => {
     ]);
   });
 
-  it("drops empty lanes everywhere except the person view", () => {
+  it("keeps every priority lane, so a card can be dragged into an unused level", () => {
+    // The reason is the drop target, not the tidiness. Hiding unused levels
+    // meant a card could only be dragged to High once something was already
+    // High — the handle was there and the gesture did nothing.
     const lanes = lanesFor(board([[card("a", { priority: "Low" as never })]]), "priority", NO_MEMBERS);
 
-    expect(visibleLanes(lanes, "priority").map((l) => l.name)).toEqual(["Low"]);
+    expect(visibleLanes(lanes, "priority").map((l) => l.name)).toEqual([
+      "Highest",
+      "High",
+      "Medium",
+      "Low",
+      "Lowest",
+      "No priority",
+    ]);
+  });
+
+  it("still drops empty label lanes, which nothing can be dragged into anyway", () => {
+    const b = board(
+      [[card("a", { labels: [{ id: "l1", name: "bug", color: "red" }] as never })]],
+      [{ id: "l1", name: "bug" }, { id: "l2", name: "unused" }]
+    );
+
+    expect(visibleLanes(lanesFor(b, "label", NO_MEMBERS), "label").map((l) => l.name)).toEqual(["bug"]);
   });
 
   it("counts a multi-label card once per lane, not once overall", () => {

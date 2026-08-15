@@ -130,10 +130,9 @@ describe("resolveLaneDrop", () => {
     expect(cleared?.update).toEqual({ clearPriority: true });
   });
 
-  it("refuses a label lane entirely", () => {
+  it("refuses a move between label lanes", () => {
     // A card can carry several labels, so a drop would also have to decide what
-    // happens to the ones it already has. The lane view marks these
-    // undroppable; this is the second line of defence.
+    // happens to the ones it already has.
     const drop = resolveLaneDrop({
       card: card(),
       fromLaneId: "lane:label:l1",
@@ -144,6 +143,22 @@ describe("resolveLaneDrop", () => {
     });
 
     expect(drop).toBeNull();
+  });
+
+  it("still moves between stages inside one label lane", () => {
+    // The refusal above is about the vertical axis only. Grouping by label used
+    // to block the horizontal one too, which quietly cost this view the
+    // ordinary kanban action — dragging a card to the next column did nothing.
+    const drop = resolveLaneDrop({
+      card: card(),
+      fromLaneId: "lane:label:l1",
+      toLaneId: "lane:label:l1",
+      toColumnId: "col-4",
+      view: "label",
+      laneName: "bug",
+    });
+
+    expect(drop).toEqual({ targetColumnId: "col-4", update: null, confirm: null });
   });
 
   it("falls back to a readable phrase for an untitled card", () => {
