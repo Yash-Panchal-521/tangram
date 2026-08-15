@@ -96,8 +96,12 @@ describe("InviteView — signed in, opened the link", () => {
   it("asks, rather than joining on arrival", async () => {
     const { post } = mount();
 
-    expect(await screen.findByText(/Join Acme Team\?/)).toBeTruthy();
-    expect(screen.getByText(/Ada Lovelace invited you as/)).toBeTruthy();
+    // The headline names the inviter and the workspace; the particulars —
+    // including what the role lets you do — are the property list under it.
+    expect(await screen.findByText(/invited you to/)).toBeTruthy();
+    // Twice on purpose: once in the headline, once in the Workspace row.
+    expect(screen.getAllByText("Acme Team").length).toBe(2);
+    expect(screen.getByText("Role")).toBeTruthy();
     expect(screen.getByText(/add, edit, move and delete/)).toBeTruthy();
     // The link isn't bound to an address, and there is no "leave workspace" --
     // silently joining the wrong account would not be undoable.
@@ -109,7 +113,7 @@ describe("InviteView — signed in, opened the link", () => {
 
     expect(await screen.findByText(/Joining as sam@company.com/)).toBeTruthy();
     expect(
-      screen.getByRole("link", { name: /Use a different account/ }).getAttribute("href")
+      screen.getByRole("link", { name: /sign in with another account/ }).getAttribute("href")
     ).toBe(`/login?invite=${TOKEN}`);
   });
 
@@ -125,7 +129,7 @@ describe("InviteView — signed in, opened the link", () => {
     const user = userEvent.setup();
     const { post } = mount();
 
-    await user.click(await screen.findByRole("button", { name: /Accept invitation/ }));
+    await user.click(await screen.findByRole("button", { name: /Accept and open workspace/ }));
 
     await waitFor(() => expect(post).toHaveBeenCalledWith(`/invitations/${TOKEN}/accept`, "token"));
     expect(await screen.findByText("You're in.")).toBeTruthy();
@@ -158,7 +162,7 @@ describe("InviteView — signed in, opened the link", () => {
     vi.spyOn(api, "post").mockImplementation(() => new Promise(() => {}));
     render(<InviteView token={TOKEN} autoAccept={false} />);
 
-    await user.click(await screen.findByRole("button", { name: /Accept invitation/ }));
+    await user.click(await screen.findByRole("button", { name: /Accept and open workspace/ }));
 
     expect((screen.getByRole("button", { name: "Joining…" }) as HTMLButtonElement).disabled).toBe(
       true
@@ -179,7 +183,7 @@ describe("InviteView — signed in, opened the link", () => {
     );
     render(<InviteView token={TOKEN} autoAccept={false} />);
 
-    await user.click(await screen.findByRole("button", { name: /Accept invitation/ }));
+    await user.click(await screen.findByRole("button", { name: /Accept and open workspace/ }));
 
     // A 409 means it changed under us -- another tab, or the clock. Leaving the
     // dead button on screen would invite a pointless second click.
@@ -228,7 +232,7 @@ describe("InviteView — back from sign-up", () => {
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain("Can't reach Tangram");
     // Stranded on a dead end would mean signing up and never joining.
-    expect(screen.getByRole("button", { name: /Accept invitation/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Accept and open workspace/ })).toBeTruthy();
   });
 });
 
@@ -299,6 +303,6 @@ describe("InviteView — dead ends", () => {
     await user.click(screen.getByRole("button", { name: "Try again" }));
 
     await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
-    expect(await screen.findByText(/Join Acme Team\?/)).toBeTruthy();
+    expect(await screen.findByText(/invited you to/)).toBeTruthy();
   });
 });

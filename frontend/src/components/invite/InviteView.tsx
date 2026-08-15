@@ -12,7 +12,6 @@ import {
   expiresIn,
   ROLE_MEANS,
 } from "@/lib/invite";
-import { AuthBrandPanel } from "@/components/auth/AuthBrandPanel";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
@@ -141,24 +140,22 @@ export function InviteView({ token, autoAccept }: { token: string; autoAccept: b
   }, [outcome, autoAccept, router]);
 
   return (
-    <div className="flex-1 flex overflow-hidden">
-      <AuthBrandPanel
-        headline={
-          <>
-            You&apos;ve been
-            <br />
-            invited.
-          </>
-        }
-        subhead="Tangram is a real-time collaborative board. Everyone sees the same thing at the same time, with roles that decide who can change it."
-      />
+    // Centred, not the split panel the sign-in pages use. That panel exists to
+    // sell the product to someone deciding whether to join it; a person holding
+    // an invitation has already been sold, and the only question on this screen
+    // is whether this particular offer is the one they meant to accept. A poster
+    // beside it competes with the answer.
+    <div className="flex-1 bg-bg relative flex items-center justify-center p-10 overflow-y-auto">
+      <div className="absolute top-5 right-5 z-10">
+        <ThemeToggle />
+      </div>
 
-      <div className="flex-1 bg-bg relative flex flex-col items-center justify-center p-12 overflow-y-auto">
-        <div className="absolute top-5 right-5 z-10">
-          <ThemeToggle />
-        </div>
+      <div className="w-full max-w-[520px]">
+        <span className="text-[19px] font-semibold" style={{ fontFamily: "var(--font-display)" }}>
+          Tangram
+        </span>
 
-        <div className="w-full max-w-[400px]">
+        <div className="mt-8">
           {!offer && !loadError ? (
             <Loading />
           ) : loadError ? (
@@ -178,26 +175,18 @@ export function InviteView({ token, autoAccept }: { token: string; autoAccept: b
             <Loading label={user ? "Joining…" : "Checking your session…"} />
           ) : (
             <Offer offer={offer!}>
-              <p className="text-xs text-text-dim mb-5">
-                This invitation expires {expiresIn(offer!.expiresAt)}.
-              </p>
-
               {actionError && (
-                <p role="alert" className="text-xs text-danger mb-3">
+                <p role="alert" className="text-[13px] text-danger mt-6">
                   {actionError}
                 </p>
               )}
 
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={() => void respond("accept")}
-                  disabled={busy !== null}
-                  className="flex-1"
-                >
-                  {busy === "accept" ? "Joining…" : "Accept invitation →"}
+              <div className="flex flex-wrap items-center gap-2.5 mt-7">
+                <Button onClick={() => void respond("accept")} disabled={busy !== null}>
+                  {busy === "accept" ? "Joining…" : "Accept and open workspace"}
                 </Button>
                 <Button
-                  variant="ghost"
+                  variant="secondary"
                   onClick={() => void respond("decline")}
                   disabled={busy !== null}
                 >
@@ -205,12 +194,17 @@ export function InviteView({ token, autoAccept }: { token: string; autoAccept: b
                 </Button>
               </div>
 
+              {/* Which account is about to join, and the way out. The link is not
+                  bound to an address and there is no "leave workspace" yet, so
+                  joining as the wrong account is not self-undoable — saying the
+                  invitation survives switching is what makes it safe to switch. */}
               {user?.email && (
-                <p className="text-[11px] text-text-dim mt-3">
-                  Joining as {user.email}.{" "}
+                <p className="text-[12.5px] text-text-dim mt-4">
+                  Not you? Joining as {user.email} —{" "}
                   <Link href={buildInviteLoginPath(token)} className="text-accent hover:underline">
-                    Use a different account
+                    sign in with another account
                   </Link>
+                  , the invitation stays valid.
                 </p>
               )}
             </Offer>
@@ -244,15 +238,45 @@ function Offer({
 }) {
   return (
     <div className="animate-[fade-up_0.25s_ease-out]">
-      <h2 className="text-[26px] font-semibold tracking-tight mb-1.5">
-        Join {offer.workspaceName}?
-      </h2>
-      <p className="text-[13px] text-text-muted mb-6">
-        {offer.invitedByName} invited you as{" "}
-        {offer.role === "Editor" || offer.role === "Owner" ? "an" : "a"}{" "}
-        <span className="font-medium text-text">{offer.role}</span>. {ROLE_MEANS[offer.role]}
+      <p className="text-[10px] uppercase tracking-[0.14em] text-text-dim">
+        Invitation · expires {expiresIn(offer.expiresAt)}
       </p>
+      {/* The sentence is the headline. Naming the inviter and the workspace in
+          the one line at display size answers "is this the invitation I meant
+          to accept" before anything else on the screen is read. */}
+      <h2
+        className="mt-3.5 text-[38px] leading-[1.16] tracking-[-0.012em] text-pretty"
+        style={{ fontFamily: "var(--font-display)" }}
+      >
+        {offer.invitedByName} invited you to <span className="text-accent">{offer.workspaceName}</span>
+      </h2>
+
+      {/* The particulars as a property list under a rule in --text, so what you
+          are agreeing to is scannable rather than buried in the paragraph the
+          headline used to carry. */}
+      <dl className="mt-8 border-t border-text">
+        <OfferRow k="From" v={offer.invitedByName} />
+        <OfferRow k="Workspace" v={offer.workspaceName} />
+        <OfferRow k="Role" v={offer.role} note={ROLE_MEANS[offer.role]} />
+      </dl>
+
       {children}
+    </div>
+  );
+}
+
+/** One `118px | rest` row of the offer's property list. */
+function OfferRow({ k, v, note }: { k: string; v: string; note?: string }) {
+  return (
+    <div
+      className="grid gap-4 py-3.5 border-b border-border-2"
+      style={{ gridTemplateColumns: "118px minmax(0,1fr)" }}
+    >
+      <dt className="pt-0.5 text-[10px] uppercase tracking-[0.11em] text-text-dim">{k}</dt>
+      <dd className="min-w-0">
+        <span className="text-sm">{v}</span>
+        {note && <span className="block mt-1 text-[12.5px] text-text-dim">{note}</span>}
+      </dd>
     </div>
   );
 }
