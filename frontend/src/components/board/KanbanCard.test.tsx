@@ -68,29 +68,25 @@ describe("KanbanCard — due dates", () => {
   });
 
   it("tones overdue, today and later differently", () => {
-    const { container: overdue } = render(
-      <KanbanCard card={{ title: "T", description: null, dueAt: day(-1) }} />
-    );
-    expect(overdue.querySelector("span.rounded-full")!.className).toContain("text-danger");
+    expect(screen.queryByText("1d late")).toBeNull();
+
+    render(<KanbanCard card={{ title: "T", description: null, dueAt: day(-1) }} />);
+    expect(screen.getByText("1d late").className).toContain("text-danger");
     cleanup();
 
-    const { container: today } = render(
-      <KanbanCard card={{ title: "T", description: null, dueAt: day(0) }} />
-    );
-    expect(today.querySelector("span.rounded-full")!.className).toContain("text-warn");
+    render(<KanbanCard card={{ title: "T", description: null, dueAt: day(0) }} />);
+    expect(screen.getByText("Today").className).toContain("text-warn");
     cleanup();
 
-    const { container: later } = render(
-      <KanbanCard card={{ title: "T", description: null, dueAt: day(9) }} />
-    );
-    const cls = later.querySelector("span.rounded-full")!.className;
+    render(<KanbanCard card={{ title: "T", description: null, dueAt: day(5) }} />);
+    const cls = screen.getByText("in 5d").className;
     expect(cls).not.toContain("text-danger");
     expect(cls).not.toContain("text-warn");
   });
 
   it("shows no due badge when the card has no date", () => {
     const { container } = render(<KanbanCard card={{ title: "T", description: null }} />);
-    expect(container.querySelector("span.rounded-full")).toBeNull();
+    expect(container.textContent).toBe("T");
   });
 });
 
@@ -126,78 +122,121 @@ describe("KanbanCard — pending", () => {
 });
 
 describe("KanbanCard — priority", () => {
-  it("shows the priority without needing the card opened", () => {
-    // The point of putting it on the face: urgency should be readable while
-    // scanning a column, not one click away.
+  it("states the level, so urgency is readable while scanning a column", () => {
     render(<KanbanCard card={{ title: "Urgent", description: null, priority: "Highest" }} />);
 
-    expect(screen.getByRole("img", { name: "Highest priority" })).toBeTruthy();
+    expect(screen.getByText("Highest")).toBeTruthy();
   });
 
-  it("says the level in words, not only in shape and colour", () => {
-    // Five levels rendered as chevrons are indistinguishable to a screen
-    // reader, and the two urgent ones share a colour with each other.
-    render(<KanbanCard card={{ title: "Low", description: null, priority: "Lowest" }} />);
+  it("keeps all five levels distinct, which two shades of red would not", () => {
+    // The face used to draw chevrons and lean on direction plus doubling to
+    // separate Highest from High. The word does that on its own, and survives
+    // being read aloud.
+    const words = (["Highest", "High", "Medium", "Low", "Lowest"] as const).map((p) => {
+      cleanup();
+      render(<KanbanCard card={{ title: "x", description: null, priority: p }} />);
+      return screen.getByText(p).textContent;
+    });
 
-    expect(screen.getByLabelText("Lowest priority")).toBeTruthy();
+    expect(new Set(words).size).toBe(5);
   });
 
   it("shows nothing when nobody has set one", () => {
-    render(<KanbanCard card={{ title: "Plain", description: null, priority: null }} />);
+    const { container } = render(
+      <KanbanCard card={{ title: "Plain", description: null, priority: null }} />
+    );
 
-    expect(screen.queryByRole("img", { name: /priority/ })).toBeNull();
+    expect(container.textContent).toBe("Plain");
+  });
+
+  it("marks the card's edge, and leaves the space when there is no level", () => {
+    // The 3px strip is always in the layout — see NO_PRIORITY_TICK. Setting a
+    // priority must not shift the card's text sideways.
+    const { container: withP } = render(
+      <KanbanCard card={{ title: "T", description: null, priority: "High" }} />
+    );
+    const set = withP.firstElementChild as HTMLElement;
+    expect(set.className).toContain("border-l-[3px]");
+    expect(set.style.borderLeftColor).toBe("var(--danger)");
+    cleanup();
+
+    const { container: without } = render(<KanbanCard card={{ title: "T", description: null }} />);
+    const unset = without.firstElementChild as HTMLElement;
+    expect(unset.className).toContain("border-l-[3px]");
+    expect(unset.style.borderLeftColor).toBe("transparent");
   });
 
   it("puts priority before the due date", () => {
     // Urgency changes whether you care about the deadline, so it is read first.
-    const { container } = render(
+    render(
       <KanbanCard card={{ title: "Both", description: null, priority: "High", dueAt: day(3) }} />
     );
 
-    const row = container.querySelector(".items-center.gap-2")!;
-    const icon = screen.getByRole("img", { name: "High priority" });
+    const badge = screen.getByText("High");
     const due = screen.getByText("in 3d");
-    expect(row.compareDocumentPosition(icon) & Node.DOCUMENT_POSITION_CONTAINED_BY).toBeTruthy();
-    expect(icon.compareDocumentPosition(due) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(badge.compareDocumentPosition(due) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+describe("KanbanCard — labels", () => {
+  const label = { id: "l1", name: "billing", color: "red" as const };
+
+  it("sets the name in a text token, never in the label's own hue", () => {
+    // S1.2g. Hue-painted label text measured 2.15-4.49:1 and was corrected in
+    // v5; this face renders smaller than the chips that failed, so painting the
+    // word here would land the same defect somewhere new.
+    render(<KanbanCard card={{ title: "T", description: null, labels: [label] }} />);
+
+    const name = screen.getByText("billing");
+    expect(name.parentElement!.className).toContain("text-text-muted");
+    // No inline colour anywhere on the word or its wrapper — that is what the
+    // corrected chip does, and what this must not undo.
+    expect(name.getAttribute("style")).toBeNull();
+    expect(name.parentElement!.getAttribute("style")).toBeNull();
   });
 
-  it("gives the five levels distinguishable shapes, not just colours", () => {
-    // Someone who cannot separate red from grey still has to tell Highest from
-    // High, and Low from Lowest — so direction and doubling carry it.
-    const shapes = (["Highest", "High", "Medium", "Low", "Lowest"] as const).map((p) => {
-      cleanup();
-      const { container } = render(
-        <KanbanCard card={{ title: p, description: null, priority: p }} />
-      );
-      const svg = container.querySelector('[role="img"]')!;
-      return svg.innerHTML;
-    });
+  it("still carries the hue, on a dot beside the word", () => {
+    const { container } = render(
+      <KanbanCard card={{ title: "T", description: null, labels: [label] }} />
+    );
 
-    expect(new Set(shapes).size).toBe(5);
+    const dot = container.querySelector("span[aria-hidden='true'].rounded-full") as HTMLElement;
+    expect(dot).not.toBeNull();
+    expect(dot.style.backgroundColor).toBeTruthy();
   });
 });
 
 describe("KanbanCard — comments", () => {
-  it("shows how many there are", () => {
+  it("counts in words, not as a number beside a speech bubble", () => {
+    // The bare count read as a quantity of nothing in particular to anyone who
+    // never sees the icon.
     render(<KanbanCard card={{ title: "Discussed", description: null, commentCount: 3 }} />);
 
-    expect(screen.getByText("3")).toBeTruthy();
+    expect(screen.getByText("3 comments")).toBeTruthy();
+  });
+
+  it("says one comment in the singular", () => {
+    render(<KanbanCard card={{ title: "Discussed", description: null, commentCount: 1 }} />);
+
+    expect(screen.getByText("1 comment")).toBeTruthy();
   });
 
   it("says nothing when there are none", () => {
-    // A "0" on every card would be noise on the row where width is scarcest,
-    // and the missing icon already carries the same information.
+    // A "0 comments" on every card would be noise on the row where width is
+    // scarcest, and the absence already carries the same information.
     const { container } = render(
       <KanbanCard card={{ title: "Quiet", description: null, commentCount: 0 }} />
     );
 
-    expect(container.textContent).not.toContain("0");
+    expect(container.textContent).toBe("Quiet");
   });
+});
 
-  it("counts in words too, for anyone who never sees the speech bubble", () => {
-    render(<KanbanCard card={{ title: "Discussed", description: null, commentCount: 2 }} />);
+describe("KanbanCard — last touched", () => {
+  it("says when it last moved, which is what makes a stale card visible", () => {
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    render(<KanbanCard card={{ title: "T", description: null, updatedAt: twoHoursAgo }} />);
 
-    // The number alone reads as a quantity of nothing in particular.
-    expect(screen.getByText(/comments/)).toBeTruthy();
+    expect(screen.getByText("2h ago")).toBeTruthy();
   });
 });

@@ -5,6 +5,7 @@ import type { BoardDetailResponse, CardResponse } from "@/lib/api";
 import { cellId } from "@/lib/laneDrop";
 import { KanbanCard } from "@/components/board/KanbanCard";
 import { identityColor } from "@/lib/identityColors";
+import { initialsOf } from "@/lib/initials";
 import { LANE_VIEWS, lanesFor, visibleLanes, type LaneView } from "@/lib/boardLanes";
 import { limitState } from "@/lib/columnLimit";
 
@@ -119,7 +120,7 @@ export function BoardLanes({
                   className="shrink-0 w-7 h-7 rounded-md flex items-center justify-center text-[9px] font-bold uppercase tracking-[0.02em] leading-none text-accent-fg"
                   style={{ background: identityColor(lane.id) }}
                 >
-                  {initialsFor(lane.name)}
+                  {initialsOf(lane.name)}
                 </span>
                 <span className="min-w-0">
                   <span className="block text-[13.5px] font-medium tracking-[-0.008em] truncate">
@@ -157,14 +158,6 @@ export function BoardLanes({
       </div>
     </div>
   );
-}
-
-/** Two letters at most, so a long name and a short one occupy the same square. */
-function initialsFor(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  const first = parts[0]?.[0] ?? "?";
-  const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  return (first + last).toUpperCase();
 }
 
 /**

@@ -1,17 +1,33 @@
-import { Avatar } from "@/components/ui/Avatar";
-import { PriorityIcon } from "@/components/ui/PriorityIcon";
-import { LabelChip } from "@/components/ui/LabelChip";
+import { labelSwatchStyle } from "@/lib/labelColors";
 import { dueLabel, dueStatus } from "@/lib/dueDate";
+import { NO_PRIORITY_TICK, PRIORITY_FACE } from "@/lib/priority";
+import { relativeTime } from "@/lib/relativeTime";
+import { initialsOf } from "@/lib/initials";
 import type { CardResponse } from "@/lib/api";
 
 const DUE_TONE: Record<string, string> = {
-  overdue: "bg-danger/10 text-danger border-danger/30",
-  today: "bg-warn/10 text-warn border-warn/30",
-  soon: "bg-surface-2 text-text-muted border-border",
-  later: "bg-surface-2 text-text-dim border-border",
+  overdue: "bg-danger-soft text-danger",
+  today: "bg-warn-soft text-warn",
+  soon: "bg-surface-2 text-text-muted",
+  later: "bg-surface-2 text-text-dim",
 };
 
 /**
+ * A card, as the board draws it.
+ *
+ * Three rows, and the order is the argument. Meta first — how urgent, what
+ * kind, whose — because those decide whether the title is worth reading at all.
+ * Then the title. Then the timing, which only matters once you have decided to
+ * care.
+ *
+ * Everything here is words rather than ornament: the priority is spelled out
+ * instead of drawn as chevrons, labels are set in micro-caps instead of filled
+ * pills, and the assignee is initials rather than a coloured disc. At this size
+ * a filled shape reads as decoration and costs the width the title needs, while
+ * the same information as text survives being small. Colour is still present —
+ * on the badge, on the label, on the card's leading edge — but never carrying
+ * meaning alone (S1.2).
+ *
  * `draggable` only controls the grip — the drag itself is wired up by
  * SortableKanbanCard, which owns the `group` this reveals against. Viewers and
  * the drag overlay pass false: one can't drag, the other is already mid-drag.
@@ -23,21 +39,76 @@ export function KanbanCard({
   assigneeName = null,
 }: {
   card: Pick<CardResponse, "title" | "description"> &
-    Partial<Pick<CardResponse, "dueAt" | "assigneeId" | "priority" | "labels" | "commentCount">>;
+    Partial<
+      Pick<
+        CardResponse,
+        "dueAt" | "assigneeId" | "priority" | "labels" | "commentCount" | "updatedAt"
+      >
+    >;
   draggable?: boolean;
   pending?: boolean;
   /** Resolves an assignee id to a name. Anyone who has left the workspace
    *  simply doesn't resolve, and the card reads as unassigned. */
   assigneeName?: string | null;
 }) {
+  const face = card.priority ? PRIORITY_FACE[card.priority] : null;
+  const hasMeta = Boolean(card.priority || card.labels?.length || assigneeName);
+  const hasFoot = Boolean(card.dueAt || (card.commentCount ?? 0) > 0 || card.updatedAt);
+
   return (
     <div
-      className={`relative bg-surface border rounded-[8px] p-3.5 flex flex-col gap-2 transition-shadow ${
+      // The tick is a border rather than an inner strip so it cannot be
+      // overlapped by the padding box, and it is always present — see
+      // NO_PRIORITY_TICK for why an unset card still reserves the 3px.
+      style={{ borderLeftColor: face?.tick ?? NO_PRIORITY_TICK }}
+      className={`relative bg-surface border border-l-[3px] rounded-[2px] px-3 py-[11px] overflow-hidden transition-colors ${
         pending
           ? "border-dashed border-border-2 opacity-60"
-          : "border-border hover:shadow-[0_3px_14px_rgba(0,0,0,0.08)] hover:border-border-2"
+          : "border-border hover:border-text-dim"
       }`}
     >
+      {hasMeta && (
+        <div className="flex flex-wrap items-center gap-x-[7px] gap-y-1 mb-[7px] min-w-0">
+          {card.priority && face && (
+            <span
+              className={`px-[5px] py-px rounded-[2px] text-[9.5px] font-bold tracking-[0.04em] whitespace-nowrap ${face.badge}`}
+            >
+              {card.priority}
+            </span>
+          )}
+          {card.labels?.map((l) => (
+            // Micro-caps with the hue on a dot, not on the word.
+            //
+            // The design sets the name itself in the label's colour. That is
+            // the defect `labelChipStyle` was corrected for in v5 — hue-painted
+            // label text measured 2.15-4.49:1 across the palettes — and this
+            // renders a pixel smaller than the chips that failed, so it would
+            // land the same defect somewhere new (S1.2g). The dot carries the
+            // identity, the word stays on a text token and stays readable.
+            <span
+              key={l.id}
+              className="inline-flex items-center gap-1 min-w-0 text-[9.5px] uppercase tracking-[0.07em] font-semibold text-text-muted"
+            >
+              <span
+                aria-hidden="true"
+                style={labelSwatchStyle(l.color)}
+                className="shrink-0 w-[5px] h-[5px] rounded-full"
+              />
+              <span className="truncate max-w-[110px]">{l.name}</span>
+            </span>
+          ))}
+          <span className="flex-1" />
+          {assigneeName && (
+            <span
+              className="text-[9px] font-semibold text-text-dim whitespace-nowrap"
+              title={assigneeName}
+            >
+              {initialsOf(assigneeName)}
+            </span>
+          )}
+        </div>
+      )}
+
       {draggable && (
         // Hover alone said "draggable" only through the cursor, which is
         // invisible until you are already over the card. Revealed on
@@ -58,79 +129,49 @@ export function KanbanCard({
         </span>
       )}
 
-      {/* Above the title, not below it. A label says what *kind* of work this
-          is, which frames the title rather than qualifying it — and putting
-          them at the bottom would push them under the due pill where they
-          compete with it for the same glance. */}
-      {card.labels && card.labels.length > 0 && (
-        <div className={`flex flex-wrap gap-1 ${draggable ? "pr-5" : ""}`}>
-          {card.labels.map((l) => (
-            <LabelChip key={l.id} label={l} size="sm" />
-          ))}
-        </div>
-      )}
-
       {/* Clamped: a card is a summary. Before this, one long paragraph grew a
           card tall enough to push everything below it out of the column. */}
-      <p
-        className={`text-[13px] font-medium leading-snug line-clamp-3 ${draggable ? "pr-5" : ""}`}
-      >
+      <p className={`text-[12.5px] leading-[1.45] line-clamp-3 ${draggable ? "pr-5" : ""}`}>
         {card.title}
       </p>
+      {/* The design's sample cards carry no description, which is not the same
+          as the design removing the field — dropping it would lose content the
+          board has always shown. Kept, clamped, and muted below the title. */}
       {card.description && (
-        <p className="text-xs text-text-muted leading-snug line-clamp-2">{card.description}</p>
+        <p className="mt-1 text-[11px] text-text-muted leading-snug line-clamp-2">
+          {card.description}
+        </p>
       )}
 
-      {(card.dueAt || assigneeName || card.priority || (card.commentCount ?? 0) > 0) && (
-        <div className="flex items-center gap-2 pt-0.5">
-          {/* Ahead of the due pill: how urgent something is changes whether you
-              care about its deadline, so it is read first. Icon only -- a word
-              would cost the width the title needs, and the icon carries its own
-              label for anyone not reading shapes. */}
-          {card.priority && <PriorityIcon priority={card.priority} size={13} />}
-          {/* Only when there are some. A "0" on every card would be noise on
-              the one row where width is scarcest, and the absence of the icon
-              already says the same thing. */}
-          {(card.commentCount ?? 0) > 0 && (
-            <span
-              className="inline-flex items-center gap-1 text-[11px] text-text-dim"
-              title={`${card.commentCount} comment${card.commentCount === 1 ? "" : "s"}`}
-            >
-              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                <path
-                  d="M10.5 7.5a1 1 0 0 1-1 1H4L1.5 10.5V2.5a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1z"
-                  stroke="currentColor"
-                  strokeWidth="1.2"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              {card.commentCount}
-              {/* The number alone reads as a quantity of nothing in particular
-                  to a screen reader, which never sees the speech bubble. */}
-              <span className="sr-only"> comments</span>
-            </span>
-          )}
+      {hasFoot && (
+        <div className="flex flex-wrap items-center gap-x-[7px] gap-y-1 mt-[9px] text-[10.5px] text-text-dim min-w-0">
           {card.dueAt && (
             <span
-              className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-medium ${
+              className={`px-1.5 py-px rounded-[2px] font-semibold whitespace-nowrap ${
                 DUE_TONE[dueStatus(card.dueAt)]
               }`}
             >
-              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                <rect x="1.5" y="2.5" width="9" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
-                <path d="M1.5 5h9M4 1.5v2M8 1.5v2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-              </svg>
-              {/* The status is carried by colour, so it is also said in words --
+              {/* The status is carried by colour, so it is also said in words —
                   "2d late" reads the same to everyone. */}
               {dueLabel(card.dueAt)}
             </span>
           )}
-          <div className="flex-1" />
-          {assigneeName && <Avatar name={assigneeName} size="sm" />}
+          {(card.commentCount ?? 0) > 0 && (
+            /* Spelled out rather than an icon and a number. The old face paired
+               a speech bubble with a bare count, which read as a quantity of
+               nothing in particular to anyone who never sees the bubble. */
+            <span className="tabular-nums whitespace-nowrap">
+              {card.commentCount} {card.commentCount === 1 ? "comment" : "comments"}
+            </span>
+          )}
+          <span className="flex-1" />
+          {card.updatedAt && (
+            <span className="tabular-nums whitespace-nowrap">{relativeTime(card.updatedAt)}</span>
+          )}
         </div>
       )}
 
-      {pending && <span className="text-[11px] text-text-dim">Adding…</span>}
+      {pending && <span className="block mt-2 text-[11px] text-text-dim">Adding…</span>}
     </div>
   );
 }

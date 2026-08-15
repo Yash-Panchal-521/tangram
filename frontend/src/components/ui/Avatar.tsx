@@ -1,5 +1,6 @@
 import { cn } from "@/lib/cn";
 import { identityColor } from "@/lib/identityColors";
+import { initialsOf } from "@/lib/initials";
 
 interface AvatarProps {
   name: string;
@@ -12,13 +13,6 @@ const sizeClasses = {
   md: "w-8 h-8 text-xs",
 };
 
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/);
-  const first = parts[0]?.[0] ?? "";
-  const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  return (first + last).toUpperCase();
-}
-
 export function Avatar({ name, size = "md", className }: AvatarProps) {
   return (
     <div
@@ -30,7 +24,7 @@ export function Avatar({ name, size = "md", className }: AvatarProps) {
         className
       )}
     >
-      {initials(name)}
+      {initialsOf(name)}
     </div>
   );
 }
