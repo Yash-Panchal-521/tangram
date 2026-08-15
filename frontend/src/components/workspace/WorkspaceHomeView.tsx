@@ -181,12 +181,12 @@ export function WorkspaceHomeView() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <header className="h-[52px] shrink-0 flex items-center px-4.5 border-b border-border bg-surface">
-        {/* No mark. The sidebar carries it, along with the workspace and
-            every board — repeating it here would be repeating it. The header
-            says which page this is and nothing else. */}
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className="text-sm font-semibold truncate">Your boards</span>
-        </div>
+        {/* No mark, and no title either. The sidebar carries the mark and the
+            board list; the page now opens with the workspace name at display
+            size, so a "Your boards" here was a third statement of the same
+            thing. What is left is the account strip, which is what the members
+            page's bar is too — the two pages agree. */}
+        <div className="flex-1 min-w-0" />
         <UserMenu />
       </header>
 

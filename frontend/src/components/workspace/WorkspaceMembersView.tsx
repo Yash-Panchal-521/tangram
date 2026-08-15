@@ -326,25 +326,36 @@ export function WorkspaceMembersView({ workspaceId }: { workspaceId: string }) {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <header className="h-[52px] shrink-0 flex items-center px-4.5 border-b border-border bg-surface">
-        {/* The mark and "back to board" both went to the sidebar, which
-            names the workspace and lists its boards — a better way back than a
-            button that guessed at /board. What is left is the page's own
-            title. */}
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className="text-sm font-semibold truncate">Members</span>
-          {workspace && (
-            <>
-              <span className="text-sm text-text-dim shrink-0">·</span>
-              <span className="text-sm text-text-muted truncate">{workspace.name}</span>
-            </>
-          )}
-        </div>
+        {/* The mark and "back to board" both went to the sidebar, which names
+            the workspace and lists its boards — a better way back than a button
+            that guessed at /board. The title went to the page itself: it now
+            opens with the workspace over "Members" at display size, and
+            repeating that here was the same two words twice on one screen. */}
+        <div className="flex-1 min-w-0" />
 
         <UserMenu />
       </header>
 
       <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-2xl w-full px-6 py-8 flex flex-col gap-7">
+        <div className="max-w-[880px] w-full px-11 pt-11 pb-14 flex flex-col gap-7">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.14em] text-text-dim truncate">
+              {workspace?.name ?? "Workspace"}
+            </p>
+            <h1
+              className="mt-3 text-[36px] leading-none tracking-[-0.013em]"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              Members
+            </h1>
+            {/* What the three roles actually mean, said once at the top, rather
+                than left for someone to infer from which controls disappear. */}
+            <p className="mt-3.5 max-w-[520px] text-sm leading-[1.7] text-text-muted">
+              Owners manage members and delete boards. Editors change cards. Viewers read
+              everything and change nothing.
+            </p>
+          </div>
+
           {(actionError || notice) && (
             <div
               // Errors are assertive, success is polite. Both were role="status"
@@ -443,8 +454,20 @@ export function WorkspaceMembersView({ workspaceId }: { workspaceId: string }) {
             {!ready ? (
               <MemberSkeleton />
             ) : (
-              <div className="flex flex-col rounded-lg border border-border overflow-hidden">
-                {sortedMembers.map((member, i) => {
+              <div>
+                {/* Column heads over a rule in --text. The grid template is
+                    repeated on every row so the three columns line up without
+                    either the head or the rows knowing about the other. */}
+                <div
+                  className="grid gap-5 pb-2.5 border-b border-text text-[10px] uppercase tracking-[0.12em] text-text-dim"
+                  style={{ gridTemplateColumns: "minmax(0,1fr) 132px 88px" }}
+                >
+                  <span>Person</span>
+                  <span>Role</span>
+                  <span className="text-right">{isOwner ? "Remove" : ""}</span>
+                </div>
+
+                {sortedMembers.map((member) => {
                   const isSelf = member.userId === myUserId;
                   const isLastOwner = member.role === "Owner" && ownerCount === 1;
                   const busy = busyUserId === member.userId;
@@ -455,31 +478,29 @@ export function WorkspaceMembersView({ workspaceId }: { workspaceId: string }) {
                   return (
                     <div
                       key={member.userId}
-                      className={`flex items-center gap-3 px-3.5 py-3 bg-surface transition-colors hover:bg-surface-2 ${
-                        i > 0 ? "border-t border-border" : ""
-                      }`}
+                      className="grid gap-5 items-center py-[15px] border-b border-border-2 transition-colors"
+                      style={{ gridTemplateColumns: "minmax(0,1fr) 132px 88px" }}
                     >
-                      <Avatar name={member.displayName} size="md" />
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <p className="text-[13px] font-medium truncate">{member.displayName}</p>
-                          {/* Without this you can't tell your own row from
-                              anyone else's, which is how people demote
-                              themselves by accident. */}
-                          {isSelf && (
-                            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-text-dim border border-border rounded px-1 py-px">
-                              You
-                            </span>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Avatar name={member.displayName} size="md" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {member.displayName}
+                            {/* Without this you can't tell your own row from
+                                anyone else's, which is how people demote
+                                themselves by accident. Set in the row's own
+                                voice rather than as a bordered pill — at this
+                                density another box is another thing to read. */}
+                            {isSelf && <span className="font-normal text-text-dim"> (you)</span>}
+                          </p>
+                          {member.email && (
+                            <p className="mt-0.5 text-xs text-text-dim truncate">{member.email}</p>
                           )}
                         </div>
-                        {member.email && (
-                          <p className="text-xs text-text-muted truncate">{member.email}</p>
-                        )}
                       </div>
 
                       {isOwner ? (
-                        <div className="w-[122px] shrink-0" title={lastOwnerHint}>
+                        <div title={lastOwnerHint}>
                           <SelectMenu
                             key={`${member.userId}-${selectGeneration}`}
                             label={`Role for ${member.displayName}`}
@@ -492,7 +513,7 @@ export function WorkspaceMembersView({ workspaceId }: { workspaceId: string }) {
                           />
                         </div>
                       ) : (
-                        <Badge tone={roleTone(member.role)} className="shrink-0">
+                        <Badge tone={roleTone(member.role)} className="justify-self-start">
                           {member.role}
                         </Badge>
                       )}
@@ -508,7 +529,7 @@ export function WorkspaceMembersView({ workspaceId }: { workspaceId: string }) {
                           aria-label={isSelf ? "Leave workspace" : `Remove ${member.displayName}`}
                           disabled={busy || isLastOwner}
                           onClick={() => handleRemove(member)}
-                          className="shrink-0 hover:text-danger"
+                          className="justify-self-end hover:text-danger"
                         >
                           {isSelf ? (
                             "Leave"
@@ -545,15 +566,17 @@ export function WorkspaceMembersView({ workspaceId }: { workspaceId: string }) {
                 <span className="ml-1.5 text-text-muted">{invitations.length}</span>
               </h2>
 
-              <div className="flex flex-col rounded-lg border border-dashed border-border overflow-hidden">
-                {invitations.map((invitation, i) => (
+              {/* Ruled like the members table above rather than boxed. The
+                  dashed edge that used to say "not real yet" is carried by the
+                  dashed avatar-shaped placeholder instead, so the two lists read
+                  as one page rather than two widgets. */}
+              <div>
+                {invitations.map((invitation) => (
                   <div
                     key={invitation.id}
-                    className={`flex items-center gap-3 px-3.5 py-3 transition-colors hover:bg-surface ${
-                      i > 0 ? "border-t border-dashed border-border" : ""
-                    }`}
+                    className="flex items-center gap-3 py-[15px] border-b border-border-2 transition-colors"
                   >
-                    <div className="w-8 h-8 rounded-full bg-surface-2 border border-border flex items-center justify-center shrink-0 text-text-dim">
+                    <div className="w-8 h-8 rounded-full bg-surface-2 border border-dashed border-border flex items-center justify-center shrink-0 text-text-dim">
                       <svg
                         width="13"
                         height="13"
@@ -581,7 +604,7 @@ export function WorkspaceMembersView({ workspaceId }: { workspaceId: string }) {
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-medium truncate">{invitation.email}</p>
+                      <p className="text-sm font-medium truncate">{invitation.email}</p>
                       {/* Was "Invited as {role}" sitting next to a badge saying
                           the same thing; the useful second line is when. The
                           expiry belongs here too -- a link that quietly stopped

@@ -205,8 +205,11 @@ export function InvitePanel({
             </span>
           ) : recipients.length === 0 ? (
             <span className="text-text-muted">
-              <span className="font-medium text-text">{newRole}:</span> {ROLE_INFO[newRole]} No
-              account needed yet — you&apos;ll get a link to send them, and they join when they
+              <span className="font-medium text-text">{newRole}:</span> {ROLE_INFO[newRole]}{" "}
+              {/* Explicit: the role blurb ends in a full stop and the next
+                  sentence began the following line, so JSX dropped the join and
+                  rendered "cards.No account needed yet". */}
+              No account needed yet — you&apos;ll get a link to send them, and they join when they
               accept it.
             </span>
           ) : distinctRoles.size > 1 ? (
