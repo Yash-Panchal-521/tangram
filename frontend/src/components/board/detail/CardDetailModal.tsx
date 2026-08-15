@@ -142,7 +142,7 @@ export function CardDetailModal({
             ticket rather than a box drawn around whatever was in it. Capped in
             pixels as well as vh so a tall monitor gets a panel rather than a
             column of empty space. */}
-        <div className="pointer-events-auto w-full h-full lg:h-[85vh] lg:max-h-[820px] lg:w-full lg:max-w-[1040px] bg-surface lg:border lg:border-border lg:rounded-xl shadow-lg flex flex-col overflow-hidden animate-[fade-up_0.2s_ease-out]">
+        <div className="pointer-events-auto w-full h-full lg:h-[85vh] lg:max-h-[820px] lg:w-full lg:max-w-[1040px] bg-surface lg:border lg:border-border lg:rounded-[3px] shadow-lg flex flex-col overflow-hidden animate-[fade-up_0.2s_ease-out]">
           {/* One header block, not two.
 
               The eyebrow and the summary used to be separate bands with a rule
@@ -176,20 +176,16 @@ export function CardDetailModal({
                 deleting={deleting}
                 readOnly={readOnly}
               />
+              {/* "Esc" rather than a cross. The key already closes this and
+                  always has; the glyph kept that a secret from anyone who had
+                  not tried it, and a word costs the same room at this size. */}
               <button
                 type="button"
                 onClick={onClose}
                 aria-label="Close"
-                className="w-7 h-7 flex items-center justify-center rounded-md text-text-muted hover:text-text hover:bg-surface-2 transition-colors cursor-pointer"
+                className="px-1.5 h-7 flex items-center justify-center rounded-[2px] text-[10px] uppercase tracking-[0.1em] text-text-muted hover:text-text hover:bg-surface-2 transition-colors cursor-pointer"
               >
-                <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-                  <path
-                    d="M1 1L11 11M11 1L1 11"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                  />
-                </svg>
+                Esc
               </button>
             </div>
 

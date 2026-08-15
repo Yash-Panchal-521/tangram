@@ -19,8 +19,13 @@ export function ContextRow({
   htmlFor?: string;
   children: React.ReactNode;
 }) {
+  // Micro-caps, matching the property lists on the members and invitation
+  // pages. At 10px with letterspacing the labels stop competing with their own
+  // values for attention, which is what a column you read *down* needs.
   const text = (
-    <span className="text-[11px] font-medium text-text-muted leading-[26px]">{label}</span>
+    <span className="text-[10px] uppercase tracking-[0.11em] text-text-dim leading-[26px]">
+      {label}
+    </span>
   );
 
   // A grid, not a flex row with a width on the label.
@@ -32,7 +37,7 @@ export function ContextRow({
   // avoid. A grid track cannot be ignored the same way, and it holds whether the
   // label is wrapped in a <label> or not.
   return (
-    <div className="grid grid-cols-[72px_1fr] items-start gap-x-2.5">
+    <div className="grid grid-cols-[86px_1fr] items-start gap-x-3">
       {htmlFor ? <label htmlFor={htmlFor}>{text}</label> : text}
       <div className="min-w-0">{children}</div>
     </div>
