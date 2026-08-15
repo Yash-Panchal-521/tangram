@@ -33,8 +33,24 @@ function workspaces(role: "Owner" | "Editor" | "Viewer" = "Owner"): WorkspaceSum
       name: "Acme",
       role,
       boards: [
-        { id: "b-1", name: "Roadmap", archived: false, updatedAt: NOW },
-        { id: "b-2", name: "Old plans", archived: true, updatedAt: NOW },
+        {
+          id: "b-1",
+          name: "Roadmap",
+          archived: false,
+          updatedAt: NOW,
+          columnCount: 4,
+          cardCount: 22,
+          overLimitColumns: 0,
+        },
+        {
+          id: "b-2",
+          name: "Old plans",
+          archived: true,
+          updatedAt: NOW,
+          columnCount: 3,
+          cardCount: 6,
+          overLimitColumns: 0,
+        },
       ],
     },
   ];

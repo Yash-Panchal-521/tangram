@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { api, type BoardResponse, type WorkspaceSummaryResponse } from "@/lib/api";
 import { friendlyError } from "@/lib/errorMessage";
-import { relativeTime } from "@/lib/relativeTime";
+import { boardMetaLine } from "@/lib/boardMeta";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -310,8 +310,7 @@ export function WorkspaceHomeView() {
                               </Link>
                             )}
                             <span className="block mt-[5px] text-[12.5px] text-text-dim">
-                              {board.archived ? "Archived · " : ""}
-                              updated {relativeTime(board.updatedAt)}
+                              {boardMetaLine(board)}
                             </span>
                           </span>
 

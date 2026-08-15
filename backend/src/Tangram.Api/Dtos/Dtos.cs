@@ -4,7 +4,23 @@ public record MeResponse(Guid Id, string DisplayName, string? AvatarUrl);
 
 public record CreateWorkspaceRequest(string Name);
 public record WorkspaceResponse(Guid Id, string Name, DateTimeOffset CreatedAt);
-public record WorkspaceBoardSummary(Guid Id, string Name, bool Archived, DateTimeOffset UpdatedAt);
+/// <summary>
+/// A board as the workspace home lists it.
+///
+/// The three counts exist so the row can say what shape the board is in without
+/// opening it — "4 columns · 22 cards · Review is over its limit" is the line
+/// that makes the list worth reading rather than a set of names. They are
+/// correlated subqueries inside the existing projection, not extra round trips
+/// (P3.1): the request already visits this board, so the counts ride along.
+/// </summary>
+public record WorkspaceBoardSummary(
+    Guid Id,
+    string Name,
+    bool Archived,
+    DateTimeOffset UpdatedAt,
+    int ColumnCount,
+    int CardCount,
+    int OverLimitColumns);
 public record RenameBoardRequest(string Name);
 public record WorkspaceSummaryResponse(Guid Id, string Name, string Role, List<WorkspaceBoardSummary> Boards);
 

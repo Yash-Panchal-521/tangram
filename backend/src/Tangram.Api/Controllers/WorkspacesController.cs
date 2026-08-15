@@ -36,7 +36,20 @@ public class WorkspacesController(AppDbContext db, ICurrentUserService currentUs
                 // board that vanishes with no trace looks like data loss.
                 w.Boards
                     .OrderByDescending(b => b.UpdatedAt)
-                    .Select(b => new WorkspaceBoardSummary(b.Id, b.Name, b.ArchivedAt != null, b.UpdatedAt))
+                    .Select(b => new WorkspaceBoardSummary(
+                        b.Id,
+                        b.Name,
+                        b.ArchivedAt != null,
+                        b.UpdatedAt,
+                        b.Columns.Count,
+                        // Summed over columns rather than counted on the board:
+                        // a card belongs to a column, and there is no board-level
+                        // collection to count without one.
+                        b.Columns.Sum(c => c.Cards.Count),
+                        // Only a maximum can be exceeded. A column with no
+                        // ceiling is not over anything, which is why this cannot
+                        // be written as a plain comparison.
+                        b.Columns.Count(c => c.MaxCards != null && c.Cards.Count > c.MaxCards)))
                     .ToList()))
             .ToListAsync(ct);
 

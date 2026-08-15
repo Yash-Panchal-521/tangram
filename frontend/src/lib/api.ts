@@ -202,6 +202,13 @@ export interface WorkspaceBoardSummary {
    *  no trace would read as data loss and offer no way back. */
   archived: boolean;
   updatedAt: string;
+  /** What shape the board is in, so the home row can say so without opening it.
+   *  Correlated subqueries on the existing projection, not extra round trips. */
+  columnCount: number;
+  cardCount: number;
+  /** Columns past their maximum. Only a maximum can be exceeded, so a board
+   *  with no limits anywhere reports 0 rather than nothing. */
+  overLimitColumns: number;
 }
 
 export interface WorkspaceSummaryResponse {
