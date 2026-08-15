@@ -29,12 +29,14 @@ the screen with it, which is the problem the current layout was built to fix.
 Converting would knowingly reintroduce it, so it wants a decision rather than a
 side effect of a restyle. Everything else on that panel is v7 (`7000edb`).
 
-**`GET /workspaces` cannot feed the design's board rows.**
-The design shows per-board column and card counts, stacked progress bars, and
-member avatars. `WorkspaceBoardSummary` carries `id`, `name`, `archived`,
-`updatedAt` and nothing else. Rendering those needs backend fields and a
-re-measured `EndpointCensusTests` budget, so it was left out rather than faked
-with placeholder numbers.
+**~~`GET /workspaces` cannot feed the design's board rows.~~** Closed in
+`cdf4885`. The endpoint now returns `columnCount`, `cardCount` and
+`overLimitColumns` as correlated subqueries on the projection that was already
+there, so it stays at its measured 2 round trips — confirmed by running
+`EndpointCensusTests`, not assumed.
+
+Still not rendered, and still needing fields that do not exist: the design's
+stacked per-column progress bars and the per-board member avatars.
 
 **`MemberResponse` has no join date**, so the members table's third column is
 Remove rather than the design's Joined.
