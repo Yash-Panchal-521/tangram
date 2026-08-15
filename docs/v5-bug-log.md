@@ -19,15 +19,18 @@ Fixed items name the commit. Open items are decisions, not oversights.
 | 7 | Workspace home | The create-board form kept the old boxed style and appeared above the list rather than in the row the "+" occupied. | `da0928c` |
 | 8 | Members / home | Both pages stated their own name twice — once in the top bar, once in the page title. | `5dfed79` |
 
-## Open — decisions, not defects
+## Resolved after review
 
-**The card detail is still a modal, not the design's 548px drawer.**
-The design's detail is a title and a property list, which fits one column. Ours
-also carries a comment thread, and the two-column layout is load-bearing: with
-one column, scrolling to the end of a long thread takes Status and Assignee off
-the screen with it, which is the problem the current layout was built to fix.
-Converting would knowingly reintroduce it, so it wants a decision rather than a
-side effect of a restyle. Everything else on that panel is v7 (`7000edb`).
+**The card detail is a drawer** (`983adf4`) — decided, and my advice on it was
+partly wrong. I reported that the design's detail carried no comment thread and
+that ours therefore needed two columns. It does carry one (`act.thread`), in the
+same 548px column. The trade-off was real — one column cannot keep Status on
+screen while a long thread scrolls — but I had a fact wrong in the middle of it.
+
+**There is no Activity screen in the design.** The `{{ act.* }}` block I read as
+one is the active *card*: status chip, reference, up/down stepping, property
+list, thread. It is the drawer above. Nothing here proposes bringing back the
+activity feed or undo that `CLAUDE.md` records as deliberately removed.
 
 **~~`GET /workspaces` cannot feed the design's board rows.~~** Closed in
 `cdf4885`. The endpoint now returns `columnCount`, `cardCount` and
@@ -35,11 +38,20 @@ side effect of a restyle. Everything else on that panel is v7 (`7000edb`).
 there, so it stays at its measured 2 round trips — confirmed by running
 `EndpointCensusTests`, not assumed.
 
-Still not rendered, and still needing fields that do not exist: the design's
-stacked per-column progress bars and the per-board member avatars.
+The distribution bars and the per-board people followed in `3b7b8a9`, on the
+same projection and still within the same 2 round trips.
 
-**`MemberResponse` has no join date**, so the members table's third column is
-Remove rather than the design's Joined.
+**~~`MemberResponse` has no join date.~~** Closed in `3b7b8a9`. `JoinedAt` is
+the membership's creation time, and re-inviting an existing member returns their
+original date rather than restarting it.
+
+## Still open
+
+**Card stepping and a card reference.** The drawer's design has up/down arrows
+to walk the board's cards and a `TG-140` reference. The reference needs a
+per-board counter with the same atomic care as `seq` — schema, not decoration —
+which is why the slot has been empty since v3. The stepping is a feature rather
+than a restyle.
 
 **The design includes an Activity screen.** `CLAUDE.md` records that the
 activity feed and undo were removed deliberately, and that an inverse cannot be
