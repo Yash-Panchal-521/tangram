@@ -294,6 +294,19 @@ body {
   }
 }
 
+/* The card drawer arriving from the right edge it is anchored to. Travel only,
+ * no fade: the panel is opaque and sits over a scrim, so fading it in would
+ * show the board through it on the way and read as a glitch rather than a
+ * movement. Stopped entirely under reduced motion, with the rest. */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(16px);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
 /* S6.1 -- no motion in this app is load-bearing. Panels sliding in, skeletons
  * pulsing and the sync dot breathing are all decoration over a state that is
  * legible without them, so under a reduced-motion preference they all stop.

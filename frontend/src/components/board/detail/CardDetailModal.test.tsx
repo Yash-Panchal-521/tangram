@@ -774,7 +774,9 @@ describe("CardDetailModal — read-only", () => {
     // The values are still there, as text.
     expect(screen.getByText("Ship the thing", { selector: "h2" })).toBeTruthy();
     expect(screen.getByText("With tests")).toBeTruthy();
-    expect(screen.getByText("To Do")).toBeTruthy();
+    // Twice: the drawer's header states the stage as a chip, and the field list
+    // repeats it as the row's value. Both are read-only text for a viewer.
+    expect(screen.getAllByText("To Do")).toHaveLength(2);
   });
 
   it("says it is view-only, so the missing controls are explained (S8.2)", () => {

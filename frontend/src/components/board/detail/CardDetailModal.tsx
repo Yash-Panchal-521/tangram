@@ -93,6 +93,11 @@ export function CardDetailModal({
   const { confirm, dialog } = useConfirm();
   const [deleting, setDeleting] = useState(false);
 
+  // Resolved from the columns rather than stored on the card: the stage *is*
+  // the column, and a card that has just been moved by someone else should read
+  // as its new stage without waiting for anything else to catch up.
+  const currentStatus = statuses.find((s) => s.id === card.columnId)?.name;
+
   // Nothing here says "stand down while the calendar is open". `useDialog`
   // keeps its own stack and only the topmost dialog answers a key, so the
   // confirmation, the calendar and the label picker each take Escape without
@@ -120,7 +125,7 @@ export function CardDetailModal({
   return (
     <>
       <div
-        className="fixed inset-0 bg-black/40 z-40"
+        className="fixed inset-0 bg-scrim backdrop-blur-[2px] z-40"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -130,19 +135,22 @@ export function CardDetailModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={headingId}
-        className="fixed inset-0 z-50 flex items-start justify-center p-0 lg:p-8 lg:items-center pointer-events-none"
+        className="fixed inset-0 z-50 flex justify-end pointer-events-none"
       >
-        {/* A fixed height, not one that fits its contents.
+        {/* A drawer against the right edge, full height, one column.
 
-            An empty card and a card with forty comments are the same panel, so
-            the panel is the same size for both: opening one card after another
-            no longer resizes the window under the pointer, and the Details
-            column does not float halfway up the screen because the description
-            happens to be one line. It is what makes this read as a view onto a
-            ticket rather than a box drawn around whatever was in it. Capped in
-            pixels as well as vh so a tall monitor gets a panel rather than a
-            column of empty space. */}
-        <div className="pointer-events-auto w-full h-full lg:h-[85vh] lg:max-h-[820px] lg:w-full lg:max-w-[1040px] bg-surface lg:border lg:border-border lg:rounded-[3px] shadow-lg flex flex-col overflow-hidden animate-[fade-up_0.2s_ease-out]">
+            The board stays visible beside it, which is half the context on a
+            kanban tool — where this card sits relative to everything else is
+            information the panel cannot carry itself.
+
+            One column, so the panel scrolls once. The two-column version kept
+            Status and Assignee on screen while a long thread scrolled, which
+            this gives up; what it buys is that the fields sit *above* the
+            thread in reading order rather than beside it, so they are the first
+            thing you meet on opening a card rather than something to look
+            across for. Below `sm` it is the full width — a 548px drawer on a
+            phone is the whole screen anyway. */}
+        <div className="pointer-events-auto w-full sm:w-[548px] h-full bg-surface border-l border-border shadow-[-26px_0_64px_rgba(0,0,0,0.16)] flex flex-col overflow-hidden animate-[slide-in-right_0.24s_cubic-bezier(0.2,0.8,0.2,1)]">
           {/* One header block, not two.
 
               The eyebrow and the summary used to be separate bands with a rule
@@ -164,9 +172,18 @@ export function CardDetailModal({
                 would earn it, and that is a per-board counter with the same
                 atomic-increment care as `seq` — schema, not decoration. Until
                 then the summary names the card, which is enough. */}
-            <div className="flex items-center gap-2 px-5 pt-3 min-h-[28px]">
+            <div className="flex items-center gap-3 px-[26px] pt-3.5 min-h-[28px]">
+              {/* The stage, stated in the header rather than only sitting in the
+                  field list below. It is the one property that says whether this
+                  card is anyone's problem right now, and the drawer is narrow
+                  enough that the list can be scrolled past. */}
+              {currentStatus && (
+                <span className="px-2 py-0.5 rounded-[2px] bg-surface-2 text-text-muted text-[10px] uppercase tracking-[0.09em] font-semibold">
+                  {currentStatus}
+                </span>
+              )}
               {readOnly && (
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-surface-2 border border-border text-text-muted">
+                <span className="text-[10px] uppercase tracking-[0.09em] font-semibold px-2 py-0.5 rounded-[2px] bg-surface-2 border border-border text-text-muted">
                   View only
                 </span>
               )}
@@ -194,17 +211,20 @@ export function CardDetailModal({
                 above the scroll area rather than scrolling with the description,
                 so you can still see which card you are commenting on from the
                 bottom of a long thread. */}
-            <div className="px-5 pt-1 pb-3">
+            <div className="px-[26px] pt-3 pb-4">
               <h2 id={headingId} className="sr-only">
                 {card.title}
               </h2>
+              {/* Display face at 29px. The title is the only thing on this panel
+                  that names the card rather than describing or classifying it,
+                  and in a 548px column it has the width to be the headline. */}
               <InlineEdit
                 label="Summary"
                 value={card.title}
                 readOnly={readOnly}
                 placeholder="Untitled card"
                 onCommit={(next) => onCommit({ title: next })}
-                className="[&_button]:text-[17px] [&_button]:font-semibold [&_button]:leading-snug [&_input]:text-[17px] [&_input]:font-semibold"
+                className="[&_button]:text-[24px] [&_button]:leading-[1.24] [&_button]:tracking-[-0.011em] [&_button]:font-[family-name:var(--font-display)] [&_input]:text-[24px] [&_input]:font-[family-name:var(--font-display)]"
               />
             </div>
           </div>
@@ -217,9 +237,30 @@ export function CardDetailModal({
               the fields you most often open a card to change. Below `lg` the
               columns stack and share one scroll, because two scrollbars in a
               phone-width sheet is worse than either problem. */}
-          <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
-            <div className="flex-1 min-w-0 lg:basis-[62%] px-5 py-4 lg:overflow-y-auto lg:min-h-0">
-              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-text-dim mb-1.5">
+          {/* One scroll for the whole drawer (S7.4 — inside itself, never the
+              page). The two-column panel needed two, because each column could
+              outrun the other; a single column cannot. */}
+          <div className="flex-1 min-h-0 overflow-y-auto px-[26px] pb-11">
+            {/* Fields first, under a rule in --text. In a column the reading
+                order *is* the hierarchy: what the card is tracked as comes
+                before what it says, because it is what you most often opened
+                the card to change. */}
+            <div className="pt-1">
+              <ContextPanel
+                card={card}
+                readOnly={readOnly}
+                members={members}
+                statuses={statuses}
+                labels={labels}
+                onCommit={onCommit}
+                onMove={onMove}
+                onCreateLabel={onCreateLabel}
+                onDeleteLabel={onDeleteLabel}
+              />
+            </div>
+
+            <div className="mt-7 pt-5 border-t border-border">
+              <h3 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-text-dim mb-1.5">
                 Description
               </h3>
               <InlineEdit
@@ -235,38 +276,23 @@ export function CardDetailModal({
                 className="[&>button]:min-h-[92px] [&>button]:items-start [&_textarea]:min-h-[140px]"
               />
 
-              {/* Under the description, in the left column: both are what the
-                  work *is*, as opposed to how it is tracked. Jira puts
-                  activity here for the same reason. */}
-              <div className="mt-7 pt-5 border-t border-border">
-                <CommentThread
-                  comments={comments.items}
-                  currentUserId={comments.currentUserId}
-                  loading={comments.loading}
-                  error={comments.error}
-                  readOnly={readOnly}
-                  onAdd={comments.onAdd}
-                  onEdit={comments.onEdit}
-                  onDelete={comments.onDelete}
-                  onRetry={comments.onRetry}
-                />
-              </div>
             </div>
 
-            {/* Divided by a rule and a tint rather than by whitespace: at 38%
-                of the width these rows are close enough to the description to
-                read as more of it. */}
-            <div className="lg:basis-[38%] lg:shrink-0 px-5 py-4 border-t lg:border-t-0 lg:border-l border-border bg-surface-2 lg:overflow-y-auto lg:min-h-0">
-              <ContextPanel
-                card={card}
+            {/* Last, and deliberately so. A thread grows without bound; putting
+                it under everything else means the fields and the description
+                keep a fixed home at the top of the scroll rather than being
+                pushed around by how much has been said. */}
+            <div className="mt-7 pt-5 border-t border-border">
+              <CommentThread
+                comments={comments.items}
+                currentUserId={comments.currentUserId}
+                loading={comments.loading}
+                error={comments.error}
                 readOnly={readOnly}
-                members={members}
-                statuses={statuses}
-                labels={labels}
-                onCommit={onCommit}
-                onMove={onMove}
-                onCreateLabel={onCreateLabel}
-                onDeleteLabel={onDeleteLabel}
+                onAdd={comments.onAdd}
+                onEdit={comments.onEdit}
+                onDelete={comments.onDelete}
+                onRetry={comments.onRetry}
               />
             </div>
           </div>
