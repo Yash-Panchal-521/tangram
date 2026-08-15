@@ -460,10 +460,11 @@ export function WorkspaceMembersView({ workspaceId }: { workspaceId: string }) {
                     either the head or the rows knowing about the other. */}
                 <div
                   className="grid gap-5 pb-2.5 border-b border-text text-[10px] uppercase tracking-[0.12em] text-text-dim"
-                  style={{ gridTemplateColumns: "minmax(0,1fr) 132px 88px" }}
+                  style={{ gridTemplateColumns: "minmax(0,1fr) 132px 96px 72px" }}
                 >
                   <span>Person</span>
                   <span>Role</span>
+                  <span>Joined</span>
                   <span className="text-right">{isOwner ? "Remove" : ""}</span>
                 </div>
 
@@ -479,7 +480,7 @@ export function WorkspaceMembersView({ workspaceId }: { workspaceId: string }) {
                     <div
                       key={member.userId}
                       className="grid gap-5 items-center py-[15px] border-b border-border-2 transition-colors"
-                      style={{ gridTemplateColumns: "minmax(0,1fr) 132px 88px" }}
+                      style={{ gridTemplateColumns: "minmax(0,1fr) 132px 96px 72px" }}
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <Avatar name={member.displayName} size="md" />
@@ -517,6 +518,13 @@ export function WorkspaceMembersView({ workspaceId }: { workspaceId: string }) {
                           {member.role}
                         </Badge>
                       )}
+
+                      {/* Relative, not a date. "3 months ago" is the question
+                          being asked here — how established someone is — and a
+                          calendar date makes you do that subtraction yourself. */}
+                      <span className="text-[12.5px] text-text-dim" title={member.joinedAt}>
+                        {relativeTime(member.joinedAt)}
+                      </span>
 
                       {isOwner && (
                         <Button

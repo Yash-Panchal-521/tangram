@@ -41,6 +41,11 @@ function workspaces(role: "Owner" | "Editor" | "Viewer" = "Owner"): WorkspaceSum
           columnCount: 4,
           cardCount: 22,
           overLimitColumns: 0,
+          columns: [
+            { name: "To Do", cardCount: 14, overLimit: false },
+            { name: "Done", cardCount: 8, overLimit: false },
+          ],
+          activePeople: ["Rita Menon"],
         },
         {
           id: "b-2",
@@ -50,6 +55,8 @@ function workspaces(role: "Owner" | "Editor" | "Viewer" = "Owner"): WorkspaceSum
           columnCount: 3,
           cardCount: 6,
           overLimitColumns: 0,
+          columns: [],
+          activePeople: [],
         },
       ],
     },

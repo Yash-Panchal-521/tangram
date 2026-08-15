@@ -32,7 +32,7 @@ public class MembersController(
 
             var members = await db.Memberships
                 .Where(m => m.WorkspaceId == workspaceId)
-                .Select(m => new MemberResponse(m.UserId, m.User.DisplayName, m.User.Email, m.Role.ToString()))
+                .Select(m => new MemberResponse(m.UserId, m.User.DisplayName, m.User.Email, m.Role.ToString(), m.CreatedAt))
                 .ToListAsync(ct);
 
             // Withheld from everyone but owners -- see PendingInvitationResponse.
@@ -82,6 +82,11 @@ public class MembersController(
                 var existing = await db.Memberships
                     .FirstOrDefaultAsync(m => m.WorkspaceId == workspaceId && m.UserId == invitee.Id, ct);
 
+                // Re-inviting an existing member changes their role; it does not
+                // restart their membership, so the date they actually joined is
+                // what comes back rather than today.
+                var joinedAt = existing?.CreatedAt ?? DateTimeOffset.UtcNow;
+
                 if (existing is not null)
                 {
                     // Re-inviting someone who is already in the workspace is
@@ -101,7 +106,7 @@ public class MembersController(
                         WorkspaceId = workspaceId,
                         UserId = invitee.Id,
                         Role = role,
-                        CreatedAt = DateTimeOffset.UtcNow
+                        CreatedAt = joinedAt
                     });
                 }
 
@@ -109,7 +114,7 @@ public class MembersController(
 
                 return new InviteMemberResponse(
                     true,
-                    new MemberResponse(invitee.Id, invitee.DisplayName, invitee.Email, role.ToString()),
+                    new MemberResponse(invitee.Id, invitee.DisplayName, invitee.Email, role.ToString(), joinedAt),
                     null);
             }
 
@@ -196,7 +201,7 @@ public class MembersController(
             membership.Role = role;
             await db.SaveChangesAsync(ct);
 
-            return new MemberResponse(userId, membership.User.DisplayName, membership.User.Email, role.ToString());
+            return new MemberResponse(userId, membership.User.DisplayName, membership.User.Email, role.ToString(), membership.CreatedAt);
         }
         catch (BoardOperationNotFoundException)
         {

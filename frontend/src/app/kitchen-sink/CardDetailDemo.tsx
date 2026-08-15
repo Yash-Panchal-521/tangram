@@ -16,8 +16,8 @@ import type {
 // skeleton earned its place here for the same reason, after drifting a whole
 // feature behind the header it imitates.
 const MEMBERS: MemberResponse[] = [
-  { userId: "u-2", displayName: "Sara Reyes", email: "sara@example.com", role: "Editor" },
-  { userId: "u-3", displayName: "Dev Patel", email: "dev@example.com", role: "Owner" },
+  { userId: "u-2", displayName: "Sara Reyes", email: "sara@example.com", role: "Editor" , joinedAt: "2026-08-01T00:00:00.000Z" },
+  { userId: "u-3", displayName: "Dev Patel", email: "dev@example.com", role: "Owner" , joinedAt: "2026-08-01T00:00:00.000Z" },
 ];
 
 const STATUSES = [

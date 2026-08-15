@@ -209,6 +209,18 @@ export interface WorkspaceBoardSummary {
   /** Columns past their maximum. Only a maximum can be exceeded, so a board
    *  with no limits anywhere reports 0 rather than nothing. */
   overLimitColumns: number;
+  /** In board order, for the distribution bar. Counts, not percentages — the
+   *  width is the client's decision and it already knows the total. */
+  columns: BoardColumnLoad[];
+  /** Distinct assignees holding a card here. Membership is workspace-wide, so
+   *  this says where attention is rather than who is permitted to look. */
+  activePeople: string[];
+}
+
+export interface BoardColumnLoad {
+  name: string;
+  cardCount: number;
+  overLimit: boolean;
 }
 
 export interface WorkspaceSummaryResponse {
@@ -223,6 +235,9 @@ export interface MemberResponse {
   displayName: string;
   email: string | null;
   role: MembershipRole;
+  /** When this membership began — not when the account was created. The same
+   *  person can be in two workspaces and joined each on a different day. */
+  joinedAt: string;
 }
 
 export interface PendingInvitationResponse {

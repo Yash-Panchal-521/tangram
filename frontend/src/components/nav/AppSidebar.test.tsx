@@ -25,6 +25,8 @@ function workspace(
       columnCount: 3,
       cardCount: 9,
       overLimitColumns: 0,
+      columns: [],
+      activePeople: [],
     })),
   } as WorkspaceSummaryResponse;
 }

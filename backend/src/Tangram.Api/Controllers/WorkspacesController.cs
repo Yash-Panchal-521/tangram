@@ -49,7 +49,26 @@ public class WorkspacesController(AppDbContext db, ICurrentUserService currentUs
                         // Only a maximum can be exceeded. A column with no
                         // ceiling is not over anything, which is why this cannot
                         // be written as a plain comparison.
-                        b.Columns.Count(c => c.MaxCards != null && c.Cards.Count > c.MaxCards)))
+                        b.Columns.Count(c => c.MaxCards != null && c.Cards.Count > c.MaxCards),
+                        // Ordered by rank, not by name or id: the bar has to
+                        // read in the same order as the board, or it describes a
+                        // distribution that does not exist.
+                        b.Columns
+                            .OrderBy(c => c.Rank)
+                            .Select(c => new BoardColumnLoad(
+                                c.Name,
+                                c.Cards.Count,
+                                c.MaxCards != null && c.Cards.Count > c.MaxCards))
+                            .ToList(),
+                        // Queried from Users rather than walked from the card,
+                        // because `Card.AssigneeId` deliberately has no FK and
+                        // therefore no navigation — see the note on the entity:
+                        // a removed member must neither block their own removal
+                        // nor cascade-delete the cards they held.
+                        db.Users
+                            .Where(u => b.Columns.SelectMany(c => c.Cards).Any(x => x.AssigneeId == u.Id))
+                            .Select(u => u.DisplayName)
+                            .ToList()))
                     .ToList()))
             .ToListAsync(ct);
 

@@ -14,7 +14,7 @@ const STATUSES = [
 ];
 
 const MEMBERS: MemberResponse[] = [
-  { userId: "u-1", displayName: "Sara R.", email: "sara@example.com", role: "Editor" },
+  { userId: "u-1", displayName: "Sara R.", email: "sara@example.com", role: "Editor" , joinedAt: "2026-08-01T00:00:00.000Z" },
 ];
 
 const LABELS: LabelResponse[] = [{ id: "l-1", name: "Bug", color: "red" }];

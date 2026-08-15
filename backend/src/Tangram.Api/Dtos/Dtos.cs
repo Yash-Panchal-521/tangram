@@ -20,13 +20,44 @@ public record WorkspaceBoardSummary(
     DateTimeOffset UpdatedAt,
     int ColumnCount,
     int CardCount,
-    int OverLimitColumns);
+    int OverLimitColumns,
+    List<BoardColumnLoad> Columns,
+    /// <summary>
+    /// Who is carrying work on this board — the distinct assignees of its cards,
+    /// not the workspace roster. Membership is workspace-wide here, so "the
+    /// people on this board" is only answerable as "the people holding a card on
+    /// it", and that is the more useful answer anyway: it says where attention
+    /// actually is rather than who is permitted to look.
+    /// </summary>
+    List<string> ActivePeople);
+
+/// <summary>
+/// One column's share of a board, for the home row's distribution bar.
+///
+/// Sent as counts rather than percentages: a width is a rendering decision, and
+/// the client already knows the total. Ordered by rank so the bar reads left to
+/// right in the same order as the board itself — a distribution drawn in an
+/// arbitrary order would say something untrue about where work is piling up.
+/// </summary>
+public record BoardColumnLoad(string Name, int CardCount, bool OverLimit);
 public record RenameBoardRequest(string Name);
 public record WorkspaceSummaryResponse(Guid Id, string Name, string Role, List<WorkspaceBoardSummary> Boards);
 
 public record InviteMemberRequest(string Email, string Role);
 public record UpdateMemberRoleRequest(string Role);
-public record MemberResponse(Guid UserId, string DisplayName, string? Email, string Role);
+/// <summary>
+/// A member of a workspace.
+///
+/// <paramref name="JoinedAt"/> is the membership's own creation time, not the
+/// user's: the same person can be in two workspaces and joined each on a
+/// different day, and the members table is asking about this one.
+/// </summary>
+public record MemberResponse(
+    Guid UserId,
+    string DisplayName,
+    string? Email,
+    string Role,
+    DateTimeOffset JoinedAt);
 // Token is null for anyone but an owner. It is the credential that grants
 // membership, so a viewer who could read it could hand out access -- exactly the
 // authority the role withholds. Reading *that* someone was invited is fine;

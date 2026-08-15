@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { api, type BoardResponse, type WorkspaceSummaryResponse } from "@/lib/api";
 import { friendlyError } from "@/lib/errorMessage";
 import { boardMetaLine } from "@/lib/boardMeta";
+import { initialsOf } from "@/lib/initials";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -268,7 +269,7 @@ export function WorkspaceHomeView() {
                           className={`group relative grid items-center gap-5 py-5 px-1.5 border-b border-border-2 transition-colors hover:bg-surface ${
                             board.archived ? "opacity-70" : ""
                           }`}
-                          style={{ gridTemplateColumns: "44px minmax(0,1fr) auto" }}
+                          style={{ gridTemplateColumns: "44px minmax(0,1fr) auto auto auto" }}
                         >
                           <span
                             aria-hidden="true"
@@ -312,6 +313,51 @@ export function WorkspaceHomeView() {
                             <span className="block mt-[5px] text-[12.5px] text-text-dim">
                               {boardMetaLine(board)}
                             </span>
+                          </span>
+
+                          {/* How the work is spread across the stages, at a
+                              glance. Segments are proportional to card counts,
+                              so a board with everything stuck in one column
+                              looks different from one that is flowing — which
+                              is the whole reason to draw it rather than list
+                              the numbers again. Hidden on an empty board: a bar
+                              of nothing measures nothing. */}
+                          <span className="hidden md:flex items-center gap-0.5 w-[180px] overflow-hidden">
+                            {board.cardCount > 0 &&
+                              board.columns
+                                .filter((col) => col.cardCount > 0)
+                                .map((col, ci) => (
+                                  <span
+                                    key={ci}
+                                    title={`${col.name}: ${col.cardCount}`}
+                                    className={`h-1.5 rounded-[1px] ${
+                                      col.overLimit ? "bg-danger" : "bg-border-2"
+                                    }`}
+                                    style={{
+                                      width: `${(col.cardCount / board.cardCount) * 100}%`,
+                                    }}
+                                  />
+                                ))}
+                          </span>
+
+                          {/* Who is actually holding work here. Overlapped, so
+                              a crowded board reads as crowded without the row
+                              growing to fit everyone. */}
+                          <span className="hidden sm:flex justify-end">
+                            {board.activePeople.slice(0, 4).map((name) => (
+                              <span
+                                key={name}
+                                title={name}
+                                className="w-[23px] h-[23px] -ml-1.5 rounded-full bg-surface border border-border text-text-muted text-[9.5px] font-semibold flex items-center justify-center"
+                              >
+                                {initialsOf(name)}
+                              </span>
+                            ))}
+                            {board.activePeople.length > 4 && (
+                              <span className="w-[23px] h-[23px] -ml-1.5 rounded-full bg-surface border border-border text-text-dim text-[9.5px] font-semibold flex items-center justify-center">
+                                +{board.activePeople.length - 4}
+                              </span>
+                            )}
                           </span>
 
                           {canEdit && renamingId !== board.id && (

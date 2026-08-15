@@ -31,7 +31,7 @@ const STATUSES = [
 ];
 
 const MEMBERS: MemberResponse[] = [
-  { userId: "u-2", displayName: "Sara R.", email: "sara@example.com", role: "Editor" },
+  { userId: "u-2", displayName: "Sara R.", email: "sara@example.com", role: "Editor" , joinedAt: "2026-08-01T00:00:00.000Z" },
 ];
 
 const LABELS = [

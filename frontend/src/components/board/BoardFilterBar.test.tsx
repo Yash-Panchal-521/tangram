@@ -9,8 +9,8 @@ import type { LabelResponse, MemberResponse } from "@/lib/api";
 afterEach(cleanup);
 
 const MEMBERS: MemberResponse[] = [
-  { userId: "u-1", displayName: "Sara R.", email: "sara@example.com", role: "Editor" },
-  { userId: "u-me", displayName: "You", email: "you@example.com", role: "Owner" },
+  { userId: "u-1", displayName: "Sara R.", email: "sara@example.com", role: "Editor" , joinedAt: "2026-08-01T00:00:00.000Z" },
+  { userId: "u-me", displayName: "You", email: "you@example.com", role: "Owner" , joinedAt: "2026-08-01T00:00:00.000Z" },
 ];
 
 const LABELS: LabelResponse[] = [
