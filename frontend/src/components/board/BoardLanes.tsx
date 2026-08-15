@@ -240,8 +240,13 @@ function LaneCard({
       type="button"
       onClick={onClick}
       className={`block w-full text-left cursor-pointer ${isDragging ? "opacity-40" : ""}`}
-      {...attributes}
-      {...listeners}
+      // Spread only when the card can actually be dragged. dnd-kit returns its
+      // attributes regardless of `disabled`, so spreading unconditionally left a
+      // viewer's card announcing itself as "draggable" to a screen reader and
+      // then refusing to move — the disabled affordance S8.1 exists to prevent,
+      // visible only to the people who cannot see it is inert.
+      {...(draggable ? attributes : {})}
+      {...(draggable ? listeners : {})}
     >
       <KanbanCard card={card} assigneeName={assigneeName} />
     </button>
