@@ -133,6 +133,45 @@ public class PresenceAndResyncTests(TangramWebApplicationFactory factory)
         Assert.False(senderReceivedCursor, "The sender should not receive its own cursor broadcast.");
     }
 
+    // The test above proves the *connection* that sent a cursor does not get it
+    // back. That is not the same as the person who sent it: duplicate the tab
+    // and the second connection is a different connection belonging to the same
+    // user, so `OthersInGroup` happily delivered to it. What you saw was a
+    // cursor carrying your own name drifting around while your real pointer sat
+    // still somewhere else.
+    [Fact]
+    public async Task Cursor_updates_do_not_reach_the_senders_own_other_tabs()
+    {
+        const string uid = "cursor-two-tabs";
+        var client = factory.CreateClientAs(uid);
+        var workspace = await (await client.PostAsJsonAsync("/workspaces", new CreateWorkspaceRequest("Two Tab Workspace")))
+            .Content.ReadFromJsonAsync<WorkspaceResponse>();
+        var board = await (await client.PostAsJsonAsync($"/workspaces/{workspace!.Id}/boards", new CreateBoardRequest("Two Tab Board")))
+            .Content.ReadFromJsonAsync<BoardResponse>();
+
+        // Two connections, one person — exactly what duplicating a tab produces.
+        await using var firstTab = BuildConnection(uid);
+        await firstTab.StartAsync();
+        await firstTab.InvokeAsync<List<PresenceUser>>("JoinBoard", board!.Id);
+
+        await using var secondTab = BuildConnection(uid);
+        var secondTabSawACursor = false;
+        secondTab.On<object>("cursor", _ => secondTabSawACursor = true);
+        await secondTab.StartAsync();
+        await secondTab.InvokeAsync<List<PresenceUser>>("JoinBoard", board.Id);
+
+        await firstTab.InvokeAsync("UpdateCursor", 11.0, 22.0);
+
+        // No completion source to await: the assertion is that nothing arrives,
+        // so the only honest wait is a real one.
+        await Task.Delay(TimeSpan.FromSeconds(2));
+
+        Assert.False(
+            secondTabSawACursor,
+            "A second tab belonging to the same user must not be sent that user's cursor."
+        );
+    }
+
     [Fact]
     public async Task Resync_replays_delta_within_threshold_and_signals_snapshot_when_lastSeenSeq_is_unset()
     {

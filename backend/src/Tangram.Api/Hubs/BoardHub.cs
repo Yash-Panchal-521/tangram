@@ -48,7 +48,22 @@ public class BoardHub(AppDbContext db, ICurrentUserLoader loader, IPresenceTrack
             return;
         }
 
-        await Clients.OthersInGroup(GroupName(boardId))
+        // Excluded by *user*, not by connection.
+        //
+        // `OthersInGroup` leaves out the connection that called, which is not
+        // the same thing as leaving out the person who called. Duplicate the
+        // tab and the second connection receives the first one's frames, so you
+        // watch a cursor with your own name on it drift around the board while
+        // your real pointer sits somewhere else.
+        //
+        // Presence next door already reasons in users rather than connections —
+        // it announces on the first and withdraws on the last — and this is the
+        // one broadcast that never caught up. Dropped at the source rather than
+        // hidden in the client because cursor frames are the highest-frequency
+        // message here, twenty a second per mover, and none of them were worth
+        // sending.
+        await Clients
+            .GroupExcept(GroupName(boardId), presence.GetConnections(boardId, userId))
             .SendAsync("cursor", new CursorUpdate(userId, displayName, x, y), Context.ConnectionAborted);
     }
 
