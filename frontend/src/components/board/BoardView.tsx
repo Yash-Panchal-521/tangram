@@ -249,6 +249,25 @@ export function BoardView({ boardId }: { boardId: string }) {
   // this; everything that resolves a card by id keeps reading `board`, so a
   // card open behind `?card=` stays open when a filter would have hidden it.
   const visibleBoard = board ? filterBoard(board, filter, now) : null;
+
+  /**
+   * The cards either side of the open one, for the drawer's step controls.
+   *
+   * Walked over the *filtered* board, not the whole one. Stepping is a way of
+   * working through what you are looking at, so with a filter on it has to stay
+   * inside it — otherwise the next card is one the board is not showing, and
+   * closing the drawer leaves you nowhere.
+   *
+   * Column order, then rank within each: the order the board reads. The lane
+   * views regroup the same cards, but stepping by lane would mean the arrows
+   * did something different depending on a view toggle elsewhere on screen.
+   */
+  const stepOrder = (visibleBoard ?? board)?.columns.flatMap((c) => c.cards) ?? [];
+  const stepIndex = openCardId ? stepOrder.findIndex((c) => c.id === openCardId) : -1;
+  const prevCardId = stepIndex > 0 ? stepOrder[stepIndex - 1].id : null;
+  const nextCardId =
+    stepIndex >= 0 && stepIndex < stepOrder.length - 1 ? stepOrder[stepIndex + 1].id : null;
+
   const filtering = isFilterActive(filter);
 
   const workspaceId = board?.workspaceId;
@@ -1223,6 +1242,8 @@ export function BoardView({ boardId }: { boardId: string }) {
           statuses={board.columns.map((c) => ({ id: c.id, name: c.name }))}
           labels={board.labels}
           onClose={closeCard}
+          onStepPrev={prevCardId ? () => openCardById(prevCardId) : undefined}
+          onStepNext={nextCardId ? () => openCardById(nextCardId) : undefined}
           onCommit={(update) => handleUpdateCard(openCardValue.id, update)}
           onMove={(targetColumnId) => handleSetCardColumn(openCardValue.id, targetColumnId)}
           onDelete={() => handleDeleteCard(openCardValue.id)}

@@ -23,13 +23,14 @@ import type {
  * shape is Jira's, and each part of it is answering something the drawer got
  * wrong:
  *
- * - **Two columns.** Description on the left because it is what the work *is*
- *   and the first thing anyone reads; context on the right because assignee and
- *   due date are things you sort by, not things you read. Below 1024px they
- *   stack, description first, which is Jira's own single-column fallback.
- * - **A modal, not a drawer.** Two columns plus a description need width the
- *   drawer never had. Dimming the board rather than navigating away keeps the
- *   surrounding columns visible, which on a kanban tool is half the context.
+ * - **A drawer against the right edge.** The board stays visible beside it,
+ *   which on a kanban tool is half the context — where this card sits relative
+ *   to everything else is information the panel cannot carry itself.
+ * - **One column, in reading order.** Fields, then description, then thread.
+ *   The fields come first because they are what you most often opened the card
+ *   to change; the thread comes last because it is the only part that grows
+ *   without bound, and anything under it would be pushed around by how much has
+ *   been said.
  * - **Every field saves itself.** One Save button made the fate of four fields
  *   depend on one request, and `runMutation` swallowed the failure and closed
  *   the panel anyway — so a rejected save looked exactly like a successful one.
@@ -47,6 +48,8 @@ export function CardDetailModal({
   statuses,
   labels,
   onClose,
+  onStepPrev,
+  onStepNext,
   onCommit,
   onMove,
   onDelete,
@@ -64,6 +67,10 @@ export function CardDetailModal({
   /** The board's label vocabulary, including labels this card doesn't carry. */
   labels: LabelResponse[];
   onClose: () => void;
+  /** Step to the card before this one in board order. Undefined at the start of
+   *  the board, which is what disables the control rather than removing it. */
+  onStepPrev?: () => void;
+  onStepNext?: () => void;
   /** Must reject on failure — that is how a field knows to revert and explain. */
   onCommit: (update: UpdateCardRequest) => Promise<void>;
   onMove: (targetColumnId: string) => Promise<void>;
@@ -188,6 +195,23 @@ export function CardDetailModal({
                 </span>
               )}
               <div className="flex-1" />
+
+              {/* Walk the board without closing the drawer. Disabled rather
+                  than removed at either end: being on the first card is a
+                  transient fact about where you are, not a statement about what
+                  you are allowed to do, which is the line S8.1 draws. Hidden
+                  entirely when there is nowhere to step at all — a board of one
+                  card should not carry two dead buttons. */}
+              {(onStepPrev || onStepNext) && (
+                <span className="flex items-center gap-1">
+                  <StepButton label="Previous card" onClick={onStepPrev}>
+                    ↑
+                  </StepButton>
+                  <StepButton label="Next card" onClick={onStepNext}>
+                    ↓
+                  </StepButton>
+                </span>
+              )}
               <CardActionsMenu
                 onDelete={handleDelete}
                 deleting={deleting}
@@ -316,6 +340,36 @@ export function CardDetailModal({
  * outside-click, and Escape belonging to the innermost layer — now live in
  * `Menu`, which the column headers share.
  */
+/**
+ * One of the drawer's step arrows.
+ *
+ * `disabled` comes from the handler being absent, so the end of the board is
+ * expressed once — by BoardView having no neighbour to offer — rather than by
+ * this component being told twice in two different ways.
+ */
+function StepButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick?: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      aria-label={label}
+      title={label}
+      className="w-6 h-6 flex items-center justify-center rounded-[2px] border border-border text-[11px] text-text-muted hover:text-text hover:border-text-dim disabled:opacity-40 disabled:hover:text-text-muted disabled:hover:border-border disabled:cursor-default cursor-pointer transition-colors"
+    >
+      <span aria-hidden="true">{children}</span>
+    </button>
+  );
+}
+
 function CardActionsMenu({
   onDelete,
   deleting,

@@ -103,6 +103,41 @@ async function choose(
 const fieldValue = (field: string) =>
   screen.getByRole("button", { name: field }).textContent;
 
+describe("CardDetailModal — stepping through the board", () => {
+  it("steps to the card either side without closing", async () => {
+    const user = userEvent.setup();
+    const onStepPrev = vi.fn();
+    const onStepNext = vi.fn();
+    mount({ onStepPrev, onStepNext });
+
+    await user.click(screen.getByRole("button", { name: "Previous card" }));
+    await user.click(screen.getByRole("button", { name: "Next card" }));
+
+    expect(onStepPrev).toHaveBeenCalled();
+    expect(onStepNext).toHaveBeenCalled();
+  });
+
+  it("disables the end of the board rather than removing the control", () => {
+    // Being on the last card is a transient fact about where you are, not a
+    // statement about what you may do — which is the line S8.1 draws between
+    // disabling and removing.
+    mount({ onStepPrev: vi.fn(), onStepNext: undefined });
+
+    expect(screen.getByRole("button", { name: "Previous card" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Next card" }).hasAttribute("disabled")
+    ).toBe(true);
+  });
+
+  it("offers nothing at all on a board of one card", () => {
+    // Two permanently dead arrows say the feature is broken rather than absent.
+    mount();
+
+    expect(screen.queryByRole("button", { name: "Previous card" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Next card" })).toBeNull();
+  });
+});
+
 describe("CardDetailModal — layout", () => {
   it("is a labelled modal dialog", () => {
     mount();
