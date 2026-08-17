@@ -74,6 +74,41 @@ export function AppSidebar({
           ) : (
             <WorkspaceSwitcher workspaces={workspaces} current={current} />
           ))}
+
+        {/* In the header row, beside the thing it collapses.
+
+            This lived at the very bottom of the rail, as a 23px icon under
+            Members. It worked, and it was findable by a screen reader — but at
+            the bottom of a full-height column it reads as another nav item
+            rather than as a control over the column itself, and it was missed
+            entirely by someone looking straight at it. A chevron next to the
+            workspace name says what it acts on by sitting on it. */}
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-expanded={!collapsed}
+          className={`shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-text-dim hover:bg-surface-2 hover:text-text transition-colors cursor-pointer ${
+            collapsed ? "mx-auto" : ""
+          }`}
+        >
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 14 14"
+            fill="none"
+            aria-hidden="true"
+            className={`shrink-0 transition-transform ${collapsed ? "" : "rotate-180"}`}
+          >
+            <path
+              d="M5.5 3.5L9 7l-3.5 3.5"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto">
@@ -186,31 +221,6 @@ export function AppSidebar({
           </Link>
         )}
 
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          aria-expanded={!collapsed}
-          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-text-dim hover:bg-surface-2 hover:text-text transition-colors cursor-pointer"
-        >
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 14 14"
-            fill="none"
-            aria-hidden="true"
-            className={`shrink-0 transition-transform ${collapsed ? "" : "rotate-180"}`}
-          >
-            <path
-              d="M5.5 3.5L9 7l-3.5 3.5"
-              stroke="currentColor"
-              strokeWidth="1.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          {!collapsed && <span className="truncate">Collapse</span>}
-        </button>
       </div>
     </nav>
   );
