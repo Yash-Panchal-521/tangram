@@ -1,13 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
   <!--
-    The TangramMark glyph on the brand accent. Colours are hardcoded rather
-    than using the theme tokens: a favicon is rendered by browser chrome, which
-    has no access to the page's CSS custom properties. #cc4e3e is the dark-mode
-    accent, chosen over the light one because it stays legible against both
-    light and dark tab strips.
+    The Medallion mark, in fixed colours rather than theme tokens: a favicon is
+    rendered by browser chrome, which has no access to the page's CSS custom
+    properties. These are the logo study's own values — #0E1530 ink and #2A3FE0
+    accent — chosen over any one palette's tokens because the tab strip is not
+    inside the app and does not know which palette is on.
+
+    Kept in step with components/ui/TangramMark.tsx by hand. Two files is the
+    price of one of them living outside the stylesheet.
   -->
-  <rect width="32" height="32" rx="7" fill="#cc4e3e" />
-  <rect x="6" y="7" width="5" height="18" rx="2" fill="#ffffff" />
-  <rect x="13.5" y="7" width="5" height="18" rx="2" fill="#ffffff" />
-  <rect x="21" y="7" width="5" height="18" rx="2" fill="#ffffff" />
+  <rect width="100" height="100" rx="20" fill="#0E1530" />
+  <polygon points="50,14 86,50 50,50" fill="#4A5694" />
+  <polygon points="86,50 50,86 50,50" fill="#2A3FE0" />
+  <polygon points="50,86 14,50 50,50" fill="#4A5694" />
+  <polygon points="14,50 50,14 50,50" fill="#7784C4" />
 </svg>

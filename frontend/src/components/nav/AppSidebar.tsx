@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Menu, MenuItem } from "@/components/ui/Menu";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { TangramMark } from "@/components/ui/TangramMark";
 import { identityColor } from "@/lib/identityColors";
 import type { WorkspaceSummaryResponse } from "@/lib/api";
 
@@ -68,13 +69,15 @@ export function AppSidebar({
           collapsed ? "flex-col items-center gap-2" : "items-center gap-2.5"
         }`}
       >
+        {/* The mark carries its own tile and corner radius, so nothing here
+            paints a background behind it — a second rounded square under a
+            rounded square shows as a halo at 24px. */}
         <Link
           href="/boards"
           aria-label="All boards"
-          className="w-6 h-6 shrink-0 rounded-md bg-text text-bg flex items-center justify-center text-[13px] font-semibold hover:opacity-85 transition-opacity"
-          style={{ fontFamily: "var(--font-display)" }}
+          className="shrink-0 flex hover:opacity-85 transition-opacity"
         >
-          T
+          <TangramMark size={24} />
         </Link>
 
         {!collapsed &&

@@ -13,6 +13,7 @@ import {
   ROLE_MEANS,
 } from "@/lib/invite";
 import { Button } from "@/components/ui/Button";
+import { TangramMark } from "@/components/ui/TangramMark";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
@@ -151,8 +152,17 @@ export function InviteView({ token, autoAccept }: { token: string; autoAccept: b
       </div>
 
       <div className="w-full max-w-[520px]">
-        <span className="text-[19px] font-semibold" style={{ fontFamily: "var(--font-display)" }}>
-          Tangram
+        {/* The full lockup. This page is often the first thing someone sees of
+            the product — they arrive from a link, with no account — so it is
+            the one place the mark and the name should appear together. */}
+        <span className="flex items-center gap-2.5">
+          <TangramMark size={26} />
+          <span
+            className="text-[19px] font-semibold"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            Tangram
+          </span>
         </span>
 
         <div className="mt-8">
