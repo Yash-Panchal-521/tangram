@@ -4,7 +4,7 @@ import { useId, useMemo, useRef, useState } from "react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { DatePicker } from "@/components/ui/DatePicker";
-import { LabelChip } from "@/components/ui/LabelChip";
+import { LabelPicker } from "@/components/board/detail/LabelPicker";
 import { PriorityIcon } from "@/components/ui/PriorityIcon";
 import { SelectMenu } from "@/components/ui/SelectMenu";
 import { matchesFilter, type BoardFilter } from "@/lib/boardFilter";
@@ -14,6 +14,7 @@ import type {
   CardPriority,
   CardResponse,
   CreateCardRequest,
+  LabelColor,
   LabelResponse,
   MemberResponse,
 } from "@/lib/api";
@@ -41,6 +42,8 @@ export function CreateCardDialog({
   filter,
   filterActive,
   onCreate,
+  onCreateLabel,
+  onDeleteLabel,
   onClearFilter,
   onClose,
 }: {
@@ -54,6 +57,9 @@ export function CreateCardDialog({
   filterActive: boolean;
   /** Must reject on failure — the dialog stays open and says why (S3.2). */
   onCreate: (columnId: string, request: CreateCardRequest) => Promise<void>;
+  /** Adds to the board's vocabulary — the picker here creates as well as applies. */
+  onCreateLabel: (name: string, color: LabelColor) => Promise<void>;
+  onDeleteLabel: (labelId: string) => Promise<void>;
   onClearFilter: () => void;
   onClose: () => void;
 }) {
@@ -72,6 +78,10 @@ export function CreateCardDialog({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // No stand-down for the label picker. `useDialog` keeps a stack and only the
+  // topmost dialog answers a key, so the picker takes its own Escape without
+  // this one hearing about it — the same reason the card drawer passes it no
+  // open/close handler either.
   useDialog({ containerRef: panelRef, onClose });
 
   /**
@@ -138,7 +148,7 @@ export function CreateCardDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative w-full max-w-[520px] max-h-[88vh] flex flex-col rounded-xl border border-border bg-surface shadow-lg overflow-hidden animate-[fade-up_0.18s_ease-out]"
+        className="relative w-full max-w-[680px] max-h-[88vh] flex flex-col rounded-[3px] border border-border bg-surface shadow-lg overflow-hidden animate-[fade-up_0.18s_ease-out]"
       >
         <form
           onSubmit={(e) => {
@@ -147,38 +157,40 @@ export function CreateCardDialog({
           }}
           className="flex flex-col min-h-0"
         >
-          <div className="px-5 pt-4 pb-3 border-b border-border shrink-0">
-            <h2 id={titleId} className="text-[15px] font-semibold">
+          <div className="px-[30px] pt-5 pb-4 border-b border-border shrink-0">
+            <h2 id={titleId} className="text-[10.5px] uppercase tracking-[0.12em] text-text-dim font-semibold">
               New card
             </h2>
           </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 flex flex-col gap-3.5">
+          <div className="flex-1 min-h-0 overflow-y-auto px-[30px] py-7 flex flex-col gap-6">
             <label className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium text-text-muted">Title</span>
+              <span className="text-[10px] uppercase tracking-[0.11em] text-text-dim">Title</span>
               <input
                 id={titleFieldId}
                 autoFocus
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="What needs doing?"
-                className="w-full text-[13px] bg-surface-2 border border-border rounded-md px-2.5 py-2 outline-none transition-colors focus-visible:border-accent placeholder:text-text-dim"
+                data-focus-ring="none"
+                className="w-full bg-transparent border-b border-border pb-2 text-[26px] leading-tight tracking-[-0.012em] outline-none transition-colors focus-visible:border-accent focus-visible:shadow-[inset_0_-1px_0_0_var(--accent)] placeholder:text-text-dim"
+                style={{ fontFamily: "var(--font-display)" }}
               />
             </label>
 
             <label className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium text-text-muted">Description</span>
+              <span className="text-[10px] uppercase tracking-[0.11em] text-text-dim">Description</span>
               <textarea
                 id={descriptionId}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                rows={3}
+                rows={4}
                 placeholder="Optional"
-                className="w-full text-[13px] bg-surface-2 border border-border rounded-md px-2.5 py-2 outline-none transition-colors focus-visible:border-accent resize-none leading-relaxed placeholder:text-text-dim"
+                className="w-full text-sm bg-surface-2 border border-border rounded-[2px] px-3 py-2.5 outline-none transition-colors focus-visible:border-accent resize-none leading-[1.7] placeholder:text-text-dim"
               />
             </label>
 
-            <div className="grid grid-cols-[72px_1fr] items-center gap-x-2.5 gap-y-1.5">
+            <div className="grid grid-cols-[86px_minmax(0,1fr)] sm:grid-cols-[86px_minmax(0,1fr)_86px_minmax(0,1fr)] items-center gap-x-3 gap-y-3.5 pt-1">
               <Field label="Status">
                 <SelectMenu
                   label="Status"
@@ -225,36 +237,32 @@ export function CreateCardDialog({
               </Field>
             </div>
 
-            {labels.length > 0 && (
-              <div className="flex flex-col gap-1.5">
-                <span className="text-xs font-medium text-text-muted">Labels</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {labels.map((label) => {
-                    const on = labelIds.includes(label.id);
-                    return (
-                      <button
-                        key={label.id}
-                        type="button"
-                        aria-pressed={on}
-                        onClick={() =>
-                          setLabelIds((ids) =>
-                            on ? ids.filter((v) => v !== label.id) : [...ids, label.id]
-                          )
-                        }
-                        // Toggled in place rather than behind the card detail's
-                        // picker: that one also *creates* labels, and inventing
-                        // vocabulary is not what someone is doing here.
-                        className={`rounded-full transition-opacity cursor-pointer ${
-                          on ? "opacity-100" : "opacity-45 hover:opacity-75"
-                        }`}
-                      >
-                        <LabelChip label={label} size="sm" />
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+            {/* The same picker the card drawer uses, which both applies labels
+                and creates them. It used to be a row of toggles over the
+                board's existing vocabulary, on the argument that inventing
+                vocabulary is not what someone is doing here — but a label is
+                almost always invented at the moment you want to apply it, and
+                the alternative was: create the card, reopen it, add the label
+                there. Two steps for something you knew before you started
+                typing.
+
+                Rendered unconditionally. Gated on the board already having
+                labels, the whole row vanished on a new board — so the one place
+                a first label is most likely to be invented was the one place
+                offering no way to do it. */}
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[10px] uppercase tracking-[0.11em] text-text-dim">Labels</span>
+              <LabelPicker
+                available={labels}
+                selected={labels.filter((l) => labelIds.includes(l.id))}
+                readOnly={false}
+                // Local, not a request: the card does not exist yet, so the chosen set
+                // rides along in the create call rather than being applied to anything.
+                onApply={async (ids) => setLabelIds(ids)}
+                onCreate={onCreateLabel}
+                onDelete={onDeleteLabel}
+              />
+            </div>
 
             {willBeHidden && (
               <div
@@ -281,7 +289,7 @@ export function CreateCardDialog({
             )}
           </div>
 
-          <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-border bg-surface-2 shrink-0">
+          <div className="flex items-center justify-end gap-2.5 px-[30px] py-4 border-t border-border bg-surface-2 shrink-0">
             <Button type="button" variant="ghost" size="sm" onClick={onClose} disabled={saving}>
               Cancel
             </Button>
@@ -298,7 +306,7 @@ export function CreateCardDialog({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <>
-      <span className="text-[11px] font-medium text-text-muted">{label}</span>
+      <span className="text-[10px] uppercase tracking-[0.11em] text-text-dim">{label}</span>
       <div className="min-w-0">{children}</div>
     </>
   );

@@ -1,3 +1,5 @@
+import { TangramMark } from "@/components/ui/TangramMark";
+
 // Three, not a bulleted list of sentences (v7). The old panel argued its case in
 // full lines with tick marks, which is a landing page's job. Naming the three
 // things and stopping is the more confident version, and it leaves the headline
@@ -35,11 +37,20 @@ export function AuthBrandPanel({ headline, subhead }: { headline: React.ReactNod
         style={{ border: "1px solid color-mix(in srgb, var(--accent-fg) 12%, transparent)" }}
       />
 
-      <span
-        className="relative text-[21px] font-semibold text-accent-fg tracking-tight"
-        style={{ fontFamily: "var(--font-display)" }}
-      >
-        Tangram
+      {/* The flat variant of the mark, for the same reason everything else here
+          is `--accent-fg`. The full mark carries its own dark tile and an accent
+          triangle, and both fail on a solid accent field — the triangle
+          disappears into the panel and the tile fights it. Monotone keeps the
+          shape, which is the recognisable part, and lets the panel supply the
+          colour. */}
+      <span className="relative flex items-center gap-3 text-accent-fg">
+        <TangramMark size={30} tone="flat" />
+        <span
+          className="text-[21px] font-semibold tracking-tight"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          Tangram
+        </span>
       </span>
 
       <div className="relative max-w-[430px]">

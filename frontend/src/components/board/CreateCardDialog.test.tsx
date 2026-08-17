@@ -21,6 +21,8 @@ const LABELS: LabelResponse[] = [{ id: "l-1", name: "Bug", color: "red" }];
 
 function mount(overrides: Partial<Parameters<typeof CreateCardDialog>[0]> = {}) {
   const onCreate = vi.fn(async () => {});
+  const onCreateLabel = vi.fn(async () => {});
+  const onDeleteLabel = vi.fn(async () => {});
   const onClearFilter = vi.fn();
   const onClose = vi.fn();
   render(
@@ -32,6 +34,8 @@ function mount(overrides: Partial<Parameters<typeof CreateCardDialog>[0]> = {}) 
       filter={EMPTY_FILTER}
       filterActive={false}
       onCreate={onCreate}
+      onCreateLabel={onCreateLabel}
+      onDeleteLabel={onDeleteLabel}
       onClearFilter={onClearFilter}
       onClose={onClose}
       {...overrides}
@@ -86,7 +90,11 @@ describe("CreateCardDialog", () => {
     await pick(user, "Status", "Done");
     await pick(user, "Assignee", /Sara R./);
     await pick(user, "Priority", "High");
-    await user.click(screen.getByRole("button", { name: /Bug/ }));
+    // Behind the picker now, which both applies and creates.
+    await user.click(screen.getByRole("button", { name: /label/i }));
+    // `pressed` disambiguates the toggle from the delete control beside it,
+    // which also carries the label name.
+    await user.click(await screen.findByRole("button", { name: /Bug/, pressed: false }));
 
     await user.click(create());
 
@@ -163,7 +171,11 @@ describe("CreateCardDialog", () => {
     await user.type(title(), "Tagged");
     expect(screen.getByRole("status")).toBeTruthy();
 
-    await user.click(screen.getByRole("button", { name: /Bug/ }));
+    // Behind the picker now, which both applies and creates.
+    await user.click(screen.getByRole("button", { name: /label/i }));
+    // `pressed` disambiguates the toggle from the delete control beside it,
+    // which also carries the label name.
+    await user.click(await screen.findByRole("button", { name: /Bug/, pressed: false }));
     await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
   });
 
@@ -189,9 +201,14 @@ describe("CreateCardDialog", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("drops the label row on a board with no labels", () => {
+  it("still offers labels on a board that has none yet", () => {
+    // This used to assert the opposite. Hiding the row meant a brand new
+    // board showed no labels, no hint they exist, and no way to make the
+    // first one — and the moment you most want to invent a label is while
+    // describing the card that needs it.
     mount({ labels: [] });
-
-    expect(screen.queryByText("Labels")).toBeNull();
+  
+    expect(screen.getByText("Labels")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /label/i })).toBeTruthy();
   });
 });

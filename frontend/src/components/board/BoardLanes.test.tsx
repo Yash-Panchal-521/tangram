@@ -3,6 +3,7 @@ import { DndContext } from "@dnd-kit/core";
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BoardLanes } from "@/components/board/BoardLanes";
+import { Avatar } from "@/components/ui/Avatar";
 import type { BoardDetailResponse, CardResponse } from "@/lib/api";
 
 afterEach(cleanup);
@@ -203,11 +204,22 @@ describe("BoardLanes — telling one row from the next", () => {
     expect(swatch.style.backgroundColor).toBeTruthy();
   });
 
-  it("keeps person lanes round", () => {
+  it("gives a person lane the same colour as that person's avatar", () => {
+    // Keyed on `lane.id`, the row hashed to a different colour than the same
+    // person's avatar on the cards inside that very row — one person, two
+    // colours, on one screen. Both now go through `identityColor(name)`.
     const c = mount(board([[card("a", { assigneeId: "u1" })]]), "person");
 
-    const swatch = c.querySelector("span.w-7") as HTMLElement;
+    const swatch = c.querySelector('[title="Rita Menon"]') as HTMLElement;
+    expect(swatch).not.toBeNull();
     expect(swatch.className).toContain("rounded-full");
+    // Compared against a rendered Avatar rather than the raw hex: jsdom
+    // normalises `#3F6B4A` to `rgb(63, 107, 74)`, and the claim is "same as the
+    // avatar" anyway, so the avatar is what it should be measured against.
+    const { container: ref } = render(<Avatar name="Rita Menon" />);
+    expect(swatch.style.background).toBe(
+      (ref.firstElementChild as HTMLElement).style.background
+    );
   });
 });
 

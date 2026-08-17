@@ -1,8 +1,8 @@
 import { labelSwatchStyle } from "@/lib/labelColors";
+import { Avatar } from "@/components/ui/Avatar";
 import { dueLabel, dueStatus } from "@/lib/dueDate";
 import { NO_PRIORITY_TICK, PRIORITY_FACE } from "@/lib/priority";
 import { relativeTime } from "@/lib/relativeTime";
-import { initialsOf } from "@/lib/initials";
 import type { CardResponse } from "@/lib/api";
 
 const DUE_TONE: Record<string, string> = {
@@ -20,13 +20,15 @@ const DUE_TONE: Record<string, string> = {
  * Then the title. Then the timing, which only matters once you have decided to
  * care.
  *
- * Everything here is words rather than ornament: the priority is spelled out
- * instead of drawn as chevrons, labels are set in micro-caps instead of filled
- * pills, and the assignee is initials rather than a coloured disc. At this size
- * a filled shape reads as decoration and costs the width the title needs, while
- * the same information as text survives being small. Colour is still present —
- * on the badge, on the label, on the card's leading edge — but never carrying
- * meaning alone (S1.2).
+ * Mostly words rather than ornament: the priority is spelled out instead of
+ * drawn as chevrons, and labels are micro-caps rather than filled pills. At
+ * this size a filled shape reads as decoration and costs the width the title
+ * needs. Colour is present — on the badge, on the label dot, on the card's
+ * leading edge — but never carrying meaning alone (S1.2).
+ *
+ * The assignee is the exception, and deliberately: it is the same `Avatar` the
+ * header, the roster and the lane rows use, because a person should be one
+ * recognisable colour everywhere rather than a different treatment per surface.
  *
  * `draggable` only controls the grip — the drag itself is wired up by
  * SortableKanbanCard, which owns the `group` this reveals against. Viewers and
@@ -68,7 +70,15 @@ export function KanbanCard({
       }`}
     >
       {hasMeta && (
-        <div className="flex flex-wrap items-center gap-x-[7px] gap-y-1 mb-[7px] min-w-0">
+        // Room for the grip, which is absolutely positioned in this same top
+        // right corner. The title already reserves it; this row ends with the
+        // assignee, so without the padding the grip sat directly on top of them
+        // the moment the card was hovered.
+        <div
+          className={`flex flex-wrap items-center gap-x-[7px] gap-y-1 mb-[7px] min-w-0 ${
+            draggable ? "pr-5" : ""
+          }`}
+        >
           {card.priority && face && (
             <span
               className={`px-[5px] py-px rounded-[2px] text-[9.5px] font-bold tracking-[0.04em] whitespace-nowrap ${face.badge}`}
@@ -98,14 +108,12 @@ export function KanbanCard({
             </span>
           ))}
           <span className="flex-1" />
-          {assigneeName && (
-            <span
-              className="text-[9px] font-semibold text-text-dim whitespace-nowrap"
-              title={assigneeName}
-            >
-              {initialsOf(assigneeName)}
-            </span>
-          )}
+          {/* The same avatar the header, the roster and the lane rows use.
+              This was grey text initials for one version of the card face,
+              which made one person two different things depending on where you
+              were looking. Colour comes from `identityColor`, keyed on the
+              name, so it is that person's colour everywhere. */}
+          {assigneeName && <Avatar name={assigneeName} size="xs" />}
         </div>
       )}
 

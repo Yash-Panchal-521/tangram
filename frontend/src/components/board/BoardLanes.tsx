@@ -4,8 +4,8 @@ import { useDraggable, useDroppable } from "@dnd-kit/core";
 import type { BoardDetailResponse, CardResponse } from "@/lib/api";
 import { cellId, laneCardId } from "@/lib/laneDrop";
 import { KanbanCard } from "@/components/board/KanbanCard";
-import { identityColor } from "@/lib/identityColors";
 import { labelSwatchStyle } from "@/lib/labelColors";
+import { Avatar } from "@/components/ui/Avatar";
 import { initialsOf } from "@/lib/initials";
 import { LANE_VIEWS, lanesFor, visibleLanes, type LaneView } from "@/lib/boardLanes";
 import { limitState } from "@/lib/columnLimit";
@@ -154,17 +154,23 @@ export function BoardLanes({
                       read — and it is the label's hue here rather than a hue
                       derived from its id, so the row matches the dot the cards
                       inside it carry. */}
-                  <span
-                    aria-hidden="true"
-                    className={`shrink-0 w-7 h-7 flex items-center justify-center text-[9px] font-bold uppercase tracking-[0.02em] leading-none text-accent-fg ${
-                      labelColor ? "rounded-[2px]" : "rounded-full"
-                    }`}
-                    style={
-                      labelColor ? labelSwatchStyle(labelColor) : { background: identityColor(lane.id) }
-                    }
-                  >
-                    {initialsOf(lane.name)}
-                  </span>
+                  {labelColor ? (
+                    // Square, in the label's own hue — the shape says what the row
+                    // groups by before the name is read, and the colour matches the
+                    // dot the cards inside it carry.
+                    <span
+                      aria-hidden="true"
+                      style={labelSwatchStyle(labelColor)}
+                      className="shrink-0 w-7 h-7 rounded-[2px] flex items-center justify-center text-[9px] font-bold uppercase tracking-[0.02em] leading-none text-accent-fg"
+                    >
+                      {initialsOf(lane.name)}
+                    </span>
+                  ) : (
+                    // The person's own avatar, keyed on their name like every other
+                    // one in the app. Keyed on `lane.id` it hashed to a different
+                    // colour than the same person's avatar on the cards in that row.
+                    <Avatar name={lane.name} size="md" className="w-7 h-7 text-[9px]" />
+                  )}
                   <span className="min-w-0">
                     <span className="block text-[13.5px] font-medium tracking-[-0.008em] truncate">
                       {lane.name}

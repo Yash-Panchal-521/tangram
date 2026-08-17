@@ -900,15 +900,20 @@ export function BoardView({ boardId }: { boardId: string }) {
       return;
     }
 
-    const move = resolveMove(board, cardIdFromDrag(String(active.id)), String(over.id));
+    // One id, derived once. The two lines below used the raw `active.id`, which
+    // is only the card id on the column board — in the matrix it carries a lane
+    // prefix, so the optimistic update matched no card and the request went
+    // to a URL with a composite id in it.
+    const cardId = cardIdFromDrag(String(active.id));
+    const move = resolveMove(board, cardId, String(over.id));
     if (!move) return;
 
     const snapshot = board;
-    setBoard(moveCardOptimistic(board, String(active.id), move.targetColumnId, move.beforeCardId));
+    setBoard(moveCardOptimistic(board, cardId, move.targetColumnId, move.beforeCardId));
 
     try {
       const token = await getToken();
-      await api.post(`/boards/${boardId}/cards/${active.id}/move`, token, {
+      await api.post(`/boards/${boardId}/cards/${cardId}/move`, token, {
         targetColumnId: move.targetColumnId,
         beforeCardId: move.beforeCardId,
       });
@@ -1206,7 +1211,19 @@ export function BoardView({ boardId }: { boardId: string }) {
           )}
         </div>
 
-        <DragOverlay>
+        {/* No drop animation.
+
+            The default flies the overlay from where you let go back to the
+            dragged node's rect. That rect is the *old* position: the optimistic
+            update has already put the card in its new column by the time the
+            pointer comes up, so the animation played the card returning to the
+            column it just left, and the card then appeared in the new one when
+            the animation finished. It read as the move failing and being
+            retried, when nothing had gone wrong at all.
+
+            Cutting it makes the drop instant, which is what the optimistic
+            update was for. */}
+        <DragOverlay dropAnimation={null}>
           {activeCard && (
             // Lifted off the board while it travels, so the card under the
             // cursor is clearly the one being moved and not a duplicate.
@@ -1249,6 +1266,8 @@ export function BoardView({ boardId }: { boardId: string }) {
           filter={filter}
           filterActive={filtering}
           onCreate={handleCreateCard}
+          onCreateLabel={handleCreateLabel}
+          onDeleteLabel={handleDeleteLabel}
           onClearFilter={clearFilter}
           onClose={() => setCreating(false)}
         />
