@@ -49,7 +49,7 @@ import { SeedColumnsDialog } from "@/components/board/SeedColumnsDialog";
 import { BoardSettingsDialog } from "@/components/board/BoardSettingsDialog";
 import { countMatches, filterBoard, isFilterActive } from "@/lib/boardFilter";
 import { lanesFor, type LaneView } from "@/lib/boardLanes";
-import { parseCellId, resolveLaneDrop } from "@/lib/laneDrop";
+import { cardIdFromDrag, parseCellId, resolveLaneDrop } from "@/lib/laneDrop";
 import { BOARD_TOUR } from "@/lib/boardTour";
 import { Walkthrough } from "@/components/onboarding/Walkthrough";
 import { BoardColumn } from "@/components/board/BoardColumn";
@@ -794,7 +794,10 @@ export function BoardView({ boardId }: { boardId: string }) {
   }
 
   function handleDragStart(event: DragStartEvent) {
-    const card = board?.columns.flatMap((c) => c.cards).find((c) => c.id === event.active.id);
+    // The matrix registers a card once per lane, so the active id may carry a
+    // lane prefix — see `laneCardId`.
+    const cardId = cardIdFromDrag(String(event.active.id));
+    const card = board?.columns.flatMap((c) => c.cards).find((c) => c.id === cardId);
     setActiveCard(card ?? null);
   }
 
@@ -806,7 +809,19 @@ export function BoardView({ boardId }: { boardId: string }) {
    * re-prioritising it, by dragging slightly too far is not something to do
    * silently (S4.2).
    */
-  async function handleLaneDrop(cardId: string, cell: { laneId: string; columnId: string }) {
+  async function handleLaneDrop(
+    cardId: string,
+    cell: { laneId: string; columnId: string },
+    /**
+     * The row the drag actually started in, carried on the drag itself.
+     *
+     * Not searched for. A card with three labels is in three rows, so looking
+     * it up finds the first of them regardless of which one was grabbed — and
+     * then a sideways move from any other row reads as a lane change and gets
+     * refused. The drag already knows where it came from.
+     */
+    fromLaneId: string
+  ) {
     if (!board || !canEdit) return;
 
     const source = board.columns.find((col) => col.cards.some((c) => c.id === cardId));
@@ -814,7 +829,7 @@ export function BoardView({ boardId }: { boardId: string }) {
     if (!card) return;
 
     const lanes = lanesFor(visibleBoard ?? board, laneView, memberNames);
-    const from = lanes.find((l) => l.cells.some((cards) => cards.some((c) => c.id === cardId)));
+    const from = lanes.find((l) => l.id === fromLaneId);
     const to = lanes.find((l) => l.id === cell.laneId);
     // Deliberately not gated on `to.acceptsLaneChange` here. A drop into a lane
     // that refuses one may still be a stage change within the card's own row,
@@ -861,7 +876,7 @@ export function BoardView({ boardId }: { boardId: string }) {
       const { message, canRetry } = friendlyError(err, "move that card");
       setActionError({
         message,
-        retry: canRetry ? () => void handleLaneDrop(cardId, cell) : undefined,
+        retry: canRetry ? () => void handleLaneDrop(cardId, cell, fromLaneId) : undefined,
       });
     }
   }
@@ -879,11 +894,13 @@ export function BoardView({ boardId }: { boardId: string }) {
     // half is a mutation rather than a reorder. Handled first, and separately.
     const cell = parseCellId(String(over.id));
     if (cell) {
-      await handleLaneDrop(String(active.id), cell);
+      const fromLaneId = active.data.current?.laneId as string | undefined;
+      if (!fromLaneId) return;
+      await handleLaneDrop(cardIdFromDrag(String(active.id)), cell, fromLaneId);
       return;
     }
 
-    const move = resolveMove(board, String(active.id), String(over.id));
+    const move = resolveMove(board, cardIdFromDrag(String(active.id)), String(over.id));
     if (!move) return;
 
     const snapshot = board;

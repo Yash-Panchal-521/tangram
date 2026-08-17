@@ -2,7 +2,7 @@
 
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import type { BoardDetailResponse, CardResponse } from "@/lib/api";
-import { cellId } from "@/lib/laneDrop";
+import { cellId, laneCardId } from "@/lib/laneDrop";
 import { KanbanCard } from "@/components/board/KanbanCard";
 import { identityColor } from "@/lib/identityColors";
 import { labelSwatchStyle } from "@/lib/labelColors";
@@ -279,10 +279,12 @@ function LaneCard({
   onClick: () => void;
 }) {
   // Keyed by lane as well as card: a multi-label card appears in several rows,
-  // and two draggables sharing an id would make dnd-kit pick up whichever it
-  // saw last regardless of which one was grabbed.
+  // and two draggables sharing an id leave dnd-kit holding whichever it saw
+  // last, so grabbing the first occurrence lifted the last one several rows
+  // away. This comment described the fix for a while before the code did it —
+  // the id below was the bare card id.
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: card.id,
+    id: laneCardId(laneId, card.id),
     disabled: !draggable,
     data: { laneId },
   });

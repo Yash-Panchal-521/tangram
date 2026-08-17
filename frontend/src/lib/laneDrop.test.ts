@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cellId, parseCellId, resolveLaneDrop } from "@/lib/laneDrop";
+import { cardIdFromDrag, cellId, laneCardId, parseCellId, resolveLaneDrop } from "@/lib/laneDrop";
 import type { CardResponse } from "@/lib/api";
 
 const card = (over: Partial<CardResponse> = {}) =>
@@ -26,6 +26,30 @@ describe("cell ids", () => {
   it("refuses anything that is not a cell", () => {
     expect(parseCellId("column:col-1")).toBeNull();
     expect(parseCellId("cell:")).toBeNull();
+  });
+});
+
+describe("draggable ids", () => {
+  it("gives one card a different id in each lane it appears in", () => {
+    // A card carrying three labels is drawn in three rows. Registered under the
+    // bare card id, dnd-kit keeps whichever it saw last, so grabbing the first
+    // occurrence lifted the third — several rows away. The component comment
+    // claimed this was keyed by lane for a while before the code was.
+    const a = laneCardId("lane:label:l1", "card-1");
+    const b = laneCardId("lane:label:l2", "card-1");
+
+    expect(a).not.toBe(b);
+  });
+
+  it("recovers the card id from either shape", () => {
+    // The column board registers a bare id and the matrix a composite one, and
+    // both land in the same drag handler.
+    expect(cardIdFromDrag(laneCardId("lane:person:u1", "card-1"))).toBe("card-1");
+    expect(cardIdFromDrag("card-1")).toBe("card-1");
+  });
+
+  it("survives a lane id containing colons", () => {
+    expect(cardIdFromDrag(laneCardId("lane:person:9f1c-42", "card-7"))).toBe("card-7");
   });
 });
 

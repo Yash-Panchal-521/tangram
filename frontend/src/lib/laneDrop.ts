@@ -32,6 +32,34 @@ export function cellId(laneId: string, columnId: string): string {
   return `cell:${laneId}:${columnId}`;
 }
 
+/**
+ * A card's draggable id *within one lane* — `{laneId}|{cardId}`.
+ *
+ * The card id alone is not unique on this board. Grouping by label puts a card
+ * carrying three labels into three rows, and three draggables registered under
+ * one id leaves dnd-kit holding whichever it saw last: grabbing the first
+ * occurrence lifted the last one, several rows away.
+ *
+ * `|` as the separator because lane ids already contain colons
+ * (`lane:person:{uuid}`) and card ids are uuids, so neither side can contain it.
+ */
+export function laneCardId(laneId: string, cardId: string): string {
+  return `${laneId}|${cardId}`;
+}
+
+/**
+ * The card id out of either shape of draggable id.
+ *
+ * The column board registers cards under a bare id and the matrix under a
+ * composite one, and both arrive at the same `handleDragEnd`. Splitting on the
+ * last `|` covers both without the caller needing to know which view it came
+ * from.
+ */
+export function cardIdFromDrag(id: string): string {
+  const cut = id.lastIndexOf("|");
+  return cut === -1 ? id : id.slice(cut + 1);
+}
+
 export function parseCellId(id: string): { laneId: string; columnId: string } | null {
   if (!id.startsWith("cell:")) return null;
   const rest = id.slice("cell:".length);
