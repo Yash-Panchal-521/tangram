@@ -205,6 +205,7 @@ export function BoardView({ boardId }: { boardId: string }) {
   // simply absent, and the card falls back to showing no assignee rather than a
   // blank avatar nobody can identify.
   const memberNames = new Map(members.map((m) => [m.userId, m.displayName]));
+  const memberRoles = new Map(members.map((m) => [m.userId, m.role as string]));
 
   // Pinned rather than read during render, because `Date.now()` in render is a
   // different value on every pass and "recently updated" would flicker. Ticked
@@ -1146,6 +1147,8 @@ export function BoardView({ boardId }: { boardId: string }) {
               memberNames={memberNames}
               onCardClick={(card) => openCardById(card.id)}
               canEdit={canEdit}
+              currentUserId={currentUserId}
+              memberRoles={memberRoles}
             />
           ) : (
           <div className="flex items-stretch gap-3 h-full" data-tour="columns">

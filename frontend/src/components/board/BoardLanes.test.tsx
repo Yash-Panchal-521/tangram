@@ -46,7 +46,12 @@ function card(id: string, over: Partial<CardResponse> = {}): CardResponse {
   } as CardResponse;
 }
 
-function board(cardsByColumn: CardResponse[][], labels: { id: string; name: string }[] = []) {
+function board(
+  cardsByColumn: CardResponse[][],
+  // Colour included: the lane header looks it up to tint the swatch, and a
+  // fixture without one silently exercises the untinted path instead.
+  labels: { id: string; name: string; color?: string }[] = []
+) {
   return {
     id: "b1",
     workspaceId: "w1",
@@ -71,7 +76,19 @@ const MEMBERS = new Map([["u1", "Rita Menon"]]);
 function mount(
   b: BoardDetailResponse,
   view: "person" | "priority" | "label",
-  { canEdit = true, members = MEMBERS } = {}
+  {
+    canEdit = true,
+    members = MEMBERS,
+    // Defaults to "nobody signed in", so a test that says nothing about
+    // identity gets rows that make no claim about whose they are.
+    currentUserId = null as string | null,
+    roles,
+  }: {
+    canEdit?: boolean;
+    members?: Map<string, string>;
+    currentUserId?: string | null;
+    roles?: Map<string, string>;
+  } = {}
 ) {
   const { container } = render(
     <DndContext>
@@ -81,11 +98,17 @@ function mount(
         memberNames={members}
         onCardClick={vi.fn()}
         canEdit={canEdit}
+        currentUserId={currentUserId}
+        memberRoles={roles}
       />
     </DndContext>
   );
   return container;
 }
+
+/** Lane rows only — the column-head grid shares `border-b` but has no height. */
+const laneRows = (c: HTMLElement) =>
+  [...c.querySelectorAll("div.grid")].filter((r) => r.className.includes("min-h-[104px]"));
 
 const cells = (c: HTMLElement) => [...c.querySelectorAll("[data-lane]")] as HTMLElement[];
 
@@ -105,7 +128,7 @@ describe("BoardLanes — where a card may be dropped", () => {
     // refusal was applied to the whole cell, which took the horizontal axis
     // with it and left the view unable to move a card between columns at all.
     const b = board([[card("a", { labels: [{ id: "l1", name: "bug", color: "red" }] as never })], []], [
-      { id: "l1", name: "bug" },
+      { id: "l1", name: "bug", color: "red" },
     ]);
     const c = mount(b, "label");
 
@@ -134,11 +157,65 @@ describe("BoardLanes — where a card may be dropped", () => {
   });
 });
 
+describe("BoardLanes — telling one row from the next", () => {
+  it("tints your own row, and not on a token the cards also use", () => {
+    // The row you look for first. `surface-2` rather than `surface`: the cards
+    // are `surface`, so tinting with the same token takes the ground out from
+    // under them on exactly the row you read most.
+    const c = mount(board([[card("a", { assigneeId: "u1" })]]), "person", {
+      currentUserId: "u1",
+    });
+    const rows = laneRows(c);
+
+    const [rita, unassigned] = rows;
+    expect(rita.className).toContain("bg-surface-2");
+    expect(rita.className).not.toMatch(/bg-surface(?!-2)/);
+    expect(unassigned.className).not.toContain("bg-surface");
+  });
+
+  it("leaves every row plain when nobody is signed in", () => {
+    const c = mount(board([[card("a", { assigneeId: "u1" })]]), "person", {
+      members: MEMBERS,
+    });
+    const rows = laneRows(c);
+
+    expect(rows.every((r) => !r.className.includes("bg-surface"))).toBe(true);
+  });
+
+  it("badges a person lane with their role", () => {
+    const c = mount(board([[card("a", { assigneeId: "u1" })]]), "person", {
+      roles: new Map([["u1", "Editor"]]),
+    });
+
+    expect(c.textContent).toContain("Editor");
+  });
+
+  it("gives a label lane a square swatch in the label's own colour", () => {
+    // Shape says which kind of thing the row groups by before the name is read,
+    // and the hue matches the dot the cards inside it carry.
+    const b = board([[card("a", { labels: [{ id: "l1", name: "bug", color: "red" }] as never })]], [
+      { id: "l1", name: "bug", color: "red" },
+    ]);
+    const c = mount(b, "label");
+
+    const swatch = c.querySelector("span.w-7") as HTMLElement;
+    expect(swatch.className).toContain("rounded-[2px]");
+    expect(swatch.style.backgroundColor).toBeTruthy();
+  });
+
+  it("keeps person lanes round", () => {
+    const c = mount(board([[card("a", { assigneeId: "u1" })]]), "person");
+
+    const swatch = c.querySelector("span.w-7") as HTMLElement;
+    expect(swatch.className).toContain("rounded-full");
+  });
+});
+
 describe("BoardLanes — which cards may be picked up", () => {
   it("gives a card a handle in the label view too", () => {
     // It can only travel sideways there, but it can travel.
     const b = board([[card("a", { labels: [{ id: "l1", name: "bug", color: "red" }] as never })]], [
-      { id: "l1", name: "bug" },
+      { id: "l1", name: "bug", color: "red" },
     ]);
     const c = mount(b, "label");
 

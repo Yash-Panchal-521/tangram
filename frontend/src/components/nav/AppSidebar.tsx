@@ -58,7 +58,16 @@ export function AppSidebar({
       {/* The workspace, and the way out of the board. A square tile in --text
           rather than the accent: the accent is spent on the current board's bar
           below, and two accents in one 208px column compete. */}
-      <div className="shrink-0 flex items-center gap-2.5 px-0.5 pb-3.5 border-b border-border">
+      {/* Stacks when collapsed. The mark and the chevron are 24px each with a
+          10px gap, which is 58px inside a 56px rail — laid out in a row they
+          overflowed and the chevron floated outside the sidebar entirely, over
+          the board. Vertical is also the only arrangement that keeps the
+          chevron inside the rail it belongs to. */}
+      <div
+        className={`shrink-0 px-0.5 pb-3.5 border-b border-border flex ${
+          collapsed ? "flex-col items-center gap-2" : "items-center gap-2.5"
+        }`}
+      >
         <Link
           href="/boards"
           aria-label="All boards"
@@ -88,9 +97,7 @@ export function AppSidebar({
           onClick={onToggle}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           aria-expanded={!collapsed}
-          className={`shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-text-dim hover:bg-surface-2 hover:text-text transition-colors cursor-pointer ${
-            collapsed ? "mx-auto" : ""
-          }`}
+          className="shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-text-dim hover:bg-surface-2 hover:text-text transition-colors cursor-pointer"
         >
           <svg
             width="15"

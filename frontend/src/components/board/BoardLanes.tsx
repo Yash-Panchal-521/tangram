@@ -5,6 +5,7 @@ import type { BoardDetailResponse, CardResponse } from "@/lib/api";
 import { cellId } from "@/lib/laneDrop";
 import { KanbanCard } from "@/components/board/KanbanCard";
 import { identityColor } from "@/lib/identityColors";
+import { labelSwatchStyle } from "@/lib/labelColors";
 import { initialsOf } from "@/lib/initials";
 import { LANE_VIEWS, lanesFor, visibleLanes, type LaneView } from "@/lib/boardLanes";
 import { limitState } from "@/lib/columnLimit";
@@ -29,6 +30,8 @@ export function BoardLanes({
   memberNames,
   onCardClick,
   canEdit,
+  currentUserId,
+  memberRoles,
 }: {
   board: BoardDetailResponse;
   view: LaneView;
@@ -36,6 +39,10 @@ export function BoardLanes({
   onCardClick: (card: CardResponse) => void;
   /** Viewers get the matrix without the drag handles (S8.1: removed, not disabled). */
   canEdit: boolean;
+  /** Ours, so the person view can say which row is yours. */
+  currentUserId?: string | null;
+  /** User id to workspace role, for the badge on a person lane. */
+  memberRoles?: Map<string, string>;
 }) {
   const lanes = visibleLanes(lanesFor(board, view, memberNames), view);
   const laneLabel = LANE_VIEWS.find((v) => v.id === view)?.laneLabel ?? "";
@@ -108,52 +115,98 @@ export function BoardLanes({
             Nothing to group yet. Cards will appear here once there are some.
           </p>
         ) : (
-          lanes.map((lane) => (
-            <div
-              key={lane.id}
-              className="grid border-b border-border-2 min-h-[104px]"
-              style={{ gridTemplateColumns: template }}
-            >
-              <div className="py-[18px] pr-[18px] flex gap-3 items-start">
-                <span
-                  aria-hidden="true"
-                  className="shrink-0 w-7 h-7 rounded-md flex items-center justify-center text-[9px] font-bold uppercase tracking-[0.02em] leading-none text-accent-fg"
-                  style={{ background: identityColor(lane.id) }}
-                >
-                  {initialsOf(lane.name)}
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-[13.5px] font-medium tracking-[-0.008em] truncate">
-                    {lane.name}
-                  </span>
-                  <span className="block mt-1 text-[11px] text-text-dim tabular-nums">
-                    {lane.count === 1 ? "1 card" : `${lane.count} cards`}
-                  </span>
-                </span>
-              </div>
+          lanes.map((lane) => {
+            const mine = currentUserId ? lane.id === `lane:person:${currentUserId}` : false;
+            const labelId = lane.id.startsWith("lane:label:")
+              ? lane.id.slice("lane:label:".length)
+              : null;
+            const labelColor = labelId
+              ? board.labels.find((l) => l.id === labelId)?.color ?? null
+              : null;
+            const role = memberRoles?.get(lane.id.slice("lane:person:".length));
 
-              {lane.cells.map((cards, i) => (
-                <LaneCell
-                  key={board.columns[i].id}
-                  id={cellId(lane.id, board.columns[i].id)}
-                  laneId={lane.id}
-                  acceptsLaneChange={lane.acceptsLaneChange}
-                  canEdit={canEdit}
-                >
-                  {cards.map((card) => (
-                    <LaneCard
-                      key={card.id}
-                      card={card}
-                      laneId={lane.id}
-                      draggable={canEdit}
-                      assigneeName={card.assigneeId ? memberNames.get(card.assigneeId) : undefined}
-                      onClick={() => onCardClick(card)}
-                    />
-                  ))}
-                </LaneCell>
-              ))}
-            </div>
-          ))
+            return (
+              <div
+                key={lane.id}
+                // Your own row is tinted. On a grid of otherwise identical rows
+                // the one question you ask first is "which of these is me", and
+                // a tint answers it without adding a word.
+                //
+                // `surface-2`, not `surface`: the cards are `surface`, so
+                // tinting the row with the same token took the ground out from
+                // under them and they lost their edge on exactly the row you
+                // look at most. This pair is the one `globals.contrast.test.ts`
+                // already holds 4 L* apart, so the cards keep their separation
+                // by the same guarantee everything else on the board uses.
+                //
+                // The separator is `--border` rather than the `--border-2`
+                // hairline used inside a row: at this row height a hairline did
+                // not survive the distance between one lane and the next.
+                className={`grid border-b border-border min-h-[104px] ${
+                  mine ? "bg-surface-2" : ""
+                }`}
+                style={{ gridTemplateColumns: template }}
+              >
+                <div className="py-[18px] pr-[18px] flex gap-3 items-start">
+                  {/* Square and in the label's own colour for a label lane,
+                      round and identity-coloured for a person. The shape says
+                      which kind of thing the row groups by before the name is
+                      read — and it is the label's hue here rather than a hue
+                      derived from its id, so the row matches the dot the cards
+                      inside it carry. */}
+                  <span
+                    aria-hidden="true"
+                    className={`shrink-0 w-7 h-7 flex items-center justify-center text-[9px] font-bold uppercase tracking-[0.02em] leading-none text-accent-fg ${
+                      labelColor ? "rounded-[2px]" : "rounded-full"
+                    }`}
+                    style={
+                      labelColor ? labelSwatchStyle(labelColor) : { background: identityColor(lane.id) }
+                    }
+                  >
+                    {initialsOf(lane.name)}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[13.5px] font-medium tracking-[-0.008em] truncate">
+                      {lane.name}
+                    </span>
+                    <span className="flex items-center gap-[7px] mt-1 text-[11px] text-text-dim">
+                      <span className="tabular-nums">
+                        {lane.count === 1 ? "1 card" : `${lane.count} cards`}
+                      </span>
+                      {role && (
+                        <span className="px-1.5 py-px rounded-[2px] bg-surface-2 text-[9.5px] uppercase tracking-[0.06em]">
+                          {role}
+                        </span>
+                      )}
+                    </span>
+                  </span>
+                </div>
+
+                {lane.cells.map((cards, i) => (
+                  <LaneCell
+                    key={board.columns[i].id}
+                    id={cellId(lane.id, board.columns[i].id)}
+                    laneId={lane.id}
+                    acceptsLaneChange={lane.acceptsLaneChange}
+                    canEdit={canEdit}
+                  >
+                    {cards.map((card) => (
+                      <LaneCard
+                        key={card.id}
+                        card={card}
+                        laneId={lane.id}
+                        draggable={canEdit}
+                        assigneeName={
+                          card.assigneeId ? memberNames.get(card.assigneeId) : undefined
+                        }
+                        onClick={() => onCardClick(card)}
+                      />
+                    ))}
+                  </LaneCell>
+                ))}
+              </div>
+            );
+          })
         )}
       </div>
     </div>
