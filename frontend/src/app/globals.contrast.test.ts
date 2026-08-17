@@ -26,6 +26,27 @@ function lstar(hex: string): number {
   return y <= 216 / 24389 ? y * (24389 / 27) : Math.cbrt(y) * 116 - 16;
 }
 
+/**
+ * CIE chroma — how much colour a token carries, independent of how light it is.
+ *
+ * L* above answers "can these two be told apart"; this answers "is this a grey
+ * or is it a colour", which is a different question and the one that decides
+ * whether chrome reads as professional or as a student project. 0 is a perfect
+ * neutral.
+ */
+function chroma(hex: string): number {
+  const v = hex.replace("#", "");
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(v.slice(i, i + 2), 16) / 255);
+  const lin = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const [R, G, B] = [lin(r), lin(g), lin(b)];
+  const X = (0.4124 * R + 0.3576 * G + 0.1805 * B) / 0.95047;
+  const Y = 0.2126 * R + 0.7152 * G + 0.0722 * B;
+  const Z = (0.0193 * R + 0.1192 * G + 0.9505 * B) / 1.08883;
+  const f = (t: number) => (t > 216 / 24389 ? Math.cbrt(t) : (841 / 108) * t + 4 / 29);
+  const [fx, fy, fz] = [f(X), f(Y), f(Z)];
+  return Math.hypot(500 * (fx - fy), 200 * (fy - fz));
+}
+
 function luminance(hex: string): number {
   const v = hex.replace("#", "");
   const [r, g, b] = [0, 2, 4].map((i) => parseInt(v.slice(i, i + 2), 16) / 255);
@@ -225,6 +246,46 @@ describe("palette contrast", () => {
           // somebody reintroduces a tint thinking it looks tidier.
           const apart = Math.abs(lstar(over) - lstar(tokens.bg));
           expect(apart).toBeLessThan(4);
+        });
+      }
+    }
+  }
+
+  /**
+   * The chassis stays near-neutral. Colour is for the things that mean
+   * something.
+   *
+   * Every surface in every palette used to be a tint of its accent — the board
+   * ground at C* 8-11, cards at 15-21, borders up to 29. Measured against what
+   * professional tools actually ship, that is an order of magnitude out:
+   * GitHub Primer's muted canvas is C* 1.2, and Linear's dark ramp runs 0.5,
+   * 0.7, 0.9, 3.6 across four steps of elevation. Saturated chrome is the single
+   * loudest tell of an amateur interface, and it is measurable rather than a
+   * matter of taste, which is why it belongs in a test.
+   *
+   * The hue survives — each chassis token is still derived from its palette's
+   * own accent — but at a chroma you read as "slightly warm" or "slightly cool"
+   * rather than as violet or amber. Depth now comes from tonal steps, the way
+   * Linear's does, and the accent is left to carry meaning on its own.
+   *
+   * Ceilings, not targets: a token may be flat grey. Borders get a little more
+   * room than fills because a hairline shows less of whatever colour it has.
+   */
+  const CHASSIS_CHROMA: [string, number][] = [
+    ["bg", 4],
+    ["surface", 4],
+    ["surface-2", 4],
+    ["surface-3", 4],
+    ["border", 6],
+    ["border-2", 6],
+  ];
+
+  for (const { id } of THEMES) {
+    for (const mode of modes) {
+      for (const [token, ceiling] of CHASSIS_CHROMA) {
+        it(`${id} / ${mode}: --${token} stays under C* ${ceiling}`, () => {
+          const tokens = tokensFor(id, mode);
+          expect(chroma(tokens[token])).toBeLessThanOrEqual(ceiling);
         });
       }
     }
