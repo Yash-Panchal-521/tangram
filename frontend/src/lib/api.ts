@@ -1,4 +1,14 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5286";
+/**
+ * 5400, not the launch profile's 5286.
+ *
+ * This fallback only fires when `NEXT_PUBLIC_API_BASE_URL` is unset, which is
+ * the moment someone has just cloned the repo and has no `.env.local` — exactly
+ * when a wrong default costs the most. 5286 has landed inside a Windows
+ * reserved port range here before (Hyper-V and WSL claim dynamic ranges at
+ * boot), which is why every document in the repo tells you to run the API on
+ * 5400 and why the default now agrees with them.
+ */
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5400";
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {

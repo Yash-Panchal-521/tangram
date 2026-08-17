@@ -145,8 +145,12 @@ Apply migrations and run:
 cd backend/src/Tangram.Api && dotnet tool install --global dotnet-ef && dotnet ef database update && dotnet run --launch-profile http
 ```
 
-The API listens on `http://localhost:5286`. In Development, Swagger UI is at
-`/swagger` and the OpenAPI document at `/openapi/v1.json`.
+The `http` launch profile listens on `http://localhost:5286`. If that fails to
+bind with `WSAEACCES` while nothing is listening, Windows has reserved the port —
+run `dotnet run --no-launch-profile --urls http://localhost:5400` instead, which
+is the port the rest of the docs and the frontend's default assume. In
+Development, Swagger UI is at `/swagger` and the OpenAPI document at
+`/openapi/v1.json`.
 
 ### Running backend tests
 

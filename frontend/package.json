@@ -16,7 +16,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@microsoft/signalr": "^10.0.0",
     "firebase": "^12.15.0",
-    "next": "16.2.10",
+    "next": "^16.3.1",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
@@ -28,7 +28,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.10",
+    "eslint-config-next": "^16.3.1",
     "jsdom": "^29.1.1",
     "tailwindcss": "^4",
     "typescript": "^5",
