@@ -1,5 +1,10 @@
 # v5 prompt 1 — fix the nine findings
 
+> **Done.** Both prompts were run and their output shipped in v5 — the findings in
+> `globals.css` and its contrast tests, the direction in the interface v5 rebuilt. Kept as
+> the record of what was asked for, not as work outstanding. Re-running either would
+> re-derive palettes that now have a chroma ceiling the prompts predate (S1.2i).
+
 Paste into Claude Code with the repo open. Attach `Tangram UI Review.dc.html`.
 
 ---

@@ -1,5 +1,7 @@
 # v5 prompt 2 — revisualise the whole product
 
+> **Done.** See the note on [`v5-prompt-1-findings.md`](v5-prompt-1-findings.md).
+
 For Claude with the project attached, **and** the deployed URL open:
 <https://tangram-mu.vercel.app>. Run this *after* prompt 1, so the contrast tests exist
 before any palette is drawn.

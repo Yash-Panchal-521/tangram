@@ -25,15 +25,23 @@ interface around Jira's shape — see [`docs/roadmap-v2.md`](docs/roadmap-v2.md)
 opens as a two-column ticket with priority, labels and comments; the board filters,
 carries work-in-progress limits and has a settings panel; cards and columns are created
 from dialogs rather than a control per column; navigation moved to a sidebar; and the
-whole app has six switchable colour palettes.
+whole app has three switchable colour palettes.
 
 **v4** was performance — see [`docs/roadmap-v4.md`](docs/roadmap-v4.md). A card took 3.1
 seconds to move in production and 4 milliseconds locally. The cause was that the database
 was in Singapore and the API in Ohio, which no amount of reading the code could reveal;
 the fix was an environment variable, and it took a move from 4222ms to 128ms server-side.
 Query folding across the whole backend was worth a further ~60ms. What remains is the
-instrumentation that found it: every response carries `Server-Timing`, and all 31
-endpoints are pinned to a round-trip budget.
+instrumentation that found it: every response carries `Server-Timing`, and the endpoint
+census pins each measured endpoint to its exact round-trip count.
+
+**v5** rebuilt the interface from a design export and then tested it by hand, screen by
+screen, in a browser — which is how most of what it fixed was found. The card detail
+became a right-hand drawer so the board stays visible beside it; the board grew swimlanes
+grouping by assignee, priority or label; the workspace home shows each board's column
+distribution and who is on it; and the chassis stopped being a tint of the accent, which
+was the single loudest thing about the product. The findings and their fixes are in
+[`docs/v5-bug-log.md`](docs/v5-bug-log.md).
 
 | Slice | Scope | State |
 |---|---|---|
@@ -85,12 +93,15 @@ endpoints are pinned to a round-trip budget.
   two tabs don't flicker. On reconnect the client replays operations since its last
   seen `seq`; past a 200-operation gap the server tells it to refetch a snapshot.
 - **Theming:** CSS custom-property design tokens (`--bg`, `--surface`, `--accent`, …)
-  mapped into Tailwind's `@theme`, keyed by `[data-theme][data-mode]`. Six palettes ×
+  mapped into Tailwind's `@theme`, keyed by `[data-theme][data-mode]`. Three palettes ×
   light/dark, switchable at runtime from the account menu and stored per browser; a
   blocking script in `<head>` sets the attributes before first paint, so there is no
-  flash of the wrong palette. No component reads a colour, so a seventh is a stylesheet
-  block and a list entry. Surface separation and accent/text pairs are asserted in
-  `globals.contrast.test.ts` rather than left to judgement.
+  flash of the wrong palette. No component reads a colour, so a fourth is a stylesheet
+  block and a list entry. The chassis — grounds, surfaces and borders — is near-neutral
+  and derived from each palette's accent hue at low chroma, so colour is spent on the
+  accent rather than on the chrome. Surface separation, accent/text pairs and a chroma
+  ceiling per chassis token are all asserted in `globals.contrast.test.ts` rather than
+  left to judgement.
 
 ## Prerequisites
 
@@ -154,7 +165,7 @@ Development, Swagger UI is at `/swagger` and the OpenAPI document at
 
 ### Running backend tests
 
-167 integration tests spin the API up in-memory (`WebApplicationFactory`) against the
+168 integration tests spin the API up in-memory (`WebApplicationFactory`) against the
 `tangram_test` database, with Firebase JWT validation swapped for a header-driven
 test handler.
 
@@ -192,7 +203,7 @@ Open `http://localhost:3000`.
 
 ### Running frontend tests
 
-661 Vitest tests. They default to the **node** environment because most of what they
+821 Vitest tests. They default to the **node** environment because most of what they
 cover is pure logic; files needing a DOM opt in per file with
 `// @vitest-environment jsdom` and use Testing Library. No Firebase config is required.
 
@@ -218,15 +229,19 @@ cd frontend && npm test
 5. **Watch it sync.** With both of you on the board, cards, columns, presence avatars
    and cursors update live. Change someone to Viewer and their next edit is rejected.
 
-To see real-time behaviour solo, open the same board URL in two tabs.
+To see real-time behaviour solo, open the same board URL in two tabs — cards and columns
+sync between them. Presence and cursors will not appear, deliberately: both are counted
+per *person*, not per connection, so your own second tab is still you.
 
 **On the board:** **Create** (or press <kbd>c</kbd>) opens one dialog for a new card;
 <kbd>/</kbd> focuses search. Filters by person, label, priority and due window live in
-the URL, so a filtered board is a link you can send. Clicking a card opens it as a
-two-column ticket — description and comments left, status, assignee, priority, due date
-and labels right — also linkable, via `?card=`. Columns carry optional work-in-progress
-limits, which colour the lane without ever blocking a move. The account menu switches
-between six colour palettes in light or dark.
+the URL, so a filtered board is a link you can send. **Group by** turns the columns into
+a matrix, one row per assignee, priority or label, and a card can be dragged between rows
+to reassign or reprioritise it. Clicking a card opens a right-hand drawer — fields, then
+description, then comments — leaving the board visible beside it, and linkable via
+`?card=`. Columns carry optional work-in-progress limits, which colour the lane without
+ever blocking a move. The account menu switches between three colour palettes in light
+or dark.
 
 ### Routes
 
@@ -396,14 +411,16 @@ frontend, then set `CORS__FRONTENDORIGIN` and redeploy the backend.
   per-board counter with the same atomic-increment care as `seq`, which is schema rather
   than decoration — so the card header deliberately leaves the space empty rather than
   filling it with a word that is true of everything.
-- **No swimlanes.** The board groups by column only. Grouping by assignee or priority
-  was scoped for v3 and not built.
 - **Theme is per-device.** Stored in `localStorage`, so it does not follow you between
   browsers — see [docs/decisions.md](docs/decisions.md) for why a database column could
   only sit on top of that rather than replace it.
-- **A third of the UI is verified by test rather than by eye.** Everything behind
-  sign-in was built without being seen in a browser, because the tooling driving these
-  checks does not enter passwords.
+- **`npm audit` is not in CI.** The backend's dependencies are checked on every build
+  and the frontend's are not, so nine Next.js advisories shipped until somebody thought
+  to look. The gate exists for one half of the stack only.
+- **The endpoint census covers 25 of 35 endpoints.** It fails anything it measures with
+  no budget, so the rule holds for everything it calls — but the six deletes, both
+  membership mutations, unarchive and the three invitation endpoints are never called by
+  it, because setting up the next measurement never requires walking them.
 
 See [docs/decisions.md](docs/decisions.md) for the architecture decisions and
 divergences behind each slice.

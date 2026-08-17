@@ -1200,3 +1200,199 @@ trips over a slow link, one slow query, or a starved CPU.
   accepted rather than fixed.
 
 The rules this produced are [`performance-standards.md`](performance-standards.md).
+
+## v5 — the interface rebuilt from the v7 design
+
+Five screens ported from a Claude Design export: the card face, the workspace
+home, the members page, the invitation page, and the card detail. What is worth
+recording is where the design was *not* followed, because each of those was a
+case of the design being drawn against assumptions this app does not hold.
+
+- **Label names are not painted in the label's hue.** The design sets them that
+  way. That is precisely the defect v5's own findings pass corrected in
+  `labelChipStyle` — hue-painted label text measured 2.15–4.49:1 — and the card
+  face renders a pixel smaller than the chips that failed, so copying it would
+  have reintroduced the same defect somewhere new. The hue moved to a 5px dot;
+  the word stays on a text token (S1.2h).
+- **The description and the drag grip stayed.** The design's sample cards have
+  neither, which is not the same as the design removing them. The tests caught
+  both, which is the argument for having written them.
+- **The workspace home's bars and avatars waited for the API.** `GET /workspaces`
+  returned only id, name, archived and updatedAt per board. Rather than fake the
+  distribution with placeholder numbers, the row shipped without it and the
+  fields were added afterwards — as correlated subqueries inside the projection
+  that was already there, so both endpoints held their measured round-trip counts
+  (2 and 4).
+- **The sign-in panel keeps a flat mark.** The Medallion carries its own dark
+  tile and an accent triangle, and both fail on a solid accent field — the
+  triangle disappears into it. A monotone variant keeps the shape, which is the
+  recognisable part, and lets the panel supply the colour.
+
+## v5 — the card is a drawer, and the advice that got there was wrong
+
+The detail panel moved from a 960px centred modal to a 548px right-hand drawer.
+Worth recording because the recommendation against it was argued from a false
+premise: that the design's detail carried no comment thread and ours therefore
+needed two columns. It does carry one, in the same 548px column.
+
+The trade-off itself was real. One column cannot keep Status and Assignee on
+screen while a long thread scrolls, which the two-column layout was built to fix.
+What one column buys back is ordering: fields sit *above* the description and the
+thread rather than beside them, so they are the first thing met on opening a
+card, and the thread goes last because it is the only part that grows without
+bound.
+
+Also settled here: **there is no Activity screen in the design.** The `act.*`
+block that looked like one is the active *card* — status chip, reference,
+up/down stepping, property list, thread. Nothing in v5 reopens the activity feed
+or undo that v2 removed, and the reasoning in `CLAUDE.md` for not reopening them
+still stands.
+
+## v5 — the chassis stopped being a tint of the accent
+
+The loudest thing about the interface was measurable. Every surface in every
+palette was a tint of its accent: the board ground at C\* 8–11, cards at 15–21,
+borders up to 28.6, against 1.2 for GitHub Primer's muted canvas and 0.5–3.6
+across Linear's four dark elevation steps.
+
+- **Derived, not eyeballed.** Each palette keeps its hue, taken from its own
+  accent, rendered at low chroma; depth comes from a tonal ladder. Every step was
+  chosen to clear the L\* separations `PAIRS` already required, so nothing that
+  depended on those edges moved.
+- **Two constraints fell out of the derivation rather than being guessed.** Dark
+  `--surface-2` cannot exceed L\* 14.5 or `--text-dim` stops clearing AA on it, so
+  the dark ladder is built down from that ceiling; and cobalt's `--text-dim`
+  needed a two-point darkening to clear 4.5:1 on the new surface.
+- **The ceiling is a test** — 36 assertions, one per chassis token per palette per
+  mode (S1.2i). Tuning twelve palettes by eye is how the original defects
+  arrived; the assertion is the oracle.
+- **What it gives up, stated:** the three palettes now differ mainly in their
+  accent. The v7 commit that introduced the tints wanted palettes "with a point
+  of view" and called the neutral system it replaced "competent and forgettable".
+  That judgement was about six interchangeable greys with one accent slot. This
+  keeps three palettes and an accent doing structural work, and only stops the
+  chrome from shouting along with it.
+
+## v5 — the mark
+
+Four triangles pinwheeling in a rounded square, replacing a letter in a box —
+which was clean, and true of any product beginning with T.
+
+Painted in theme tokens rather than the logo study's fixed navy and cobalt: the
+study was drawn against one palette and this app ships three, so what is
+reproduced is the *relationships* — one dark tile, two mid tones, one light, one
+accent. The favicon cannot do that, because browser chrome renders it outside the
+stylesheet, so it keeps the study's literal hexes and a test asserts the two
+files' polygon geometry matches. Two files drawing one mark is a drift risk with
+nothing but that test between them.
+
+Found on the way: `TangramMark` already existed as a three-bar glyph with nothing
+importing it, and the favicon — which the dead component's comment described as
+its source of truth — was still terracotta, a palette dropped two versions
+earlier.
+
+## v5 — four defects the lane matrix hid from itself
+
+All four came from one assumption: that a card appears once.
+
+- **A card with three labels registered three draggables under one id**, so
+  dnd-kit kept whichever it saw last and grabbing the first occurrence lifted the
+  third. The component comment had claimed the id was "keyed by lane as well as
+  card" since the matrix was written. It never was. A comment describing a fix is
+  worse than no comment, because it stops the next reader looking.
+- **The source lane was found by searching** rather than read from the drag,
+  which returns the first row containing the card whatever you grabbed — so
+  fixing the first defect alone would have left two of three occurrences unable
+  to move at all.
+- **One flag governed both drag axes.** Labels refuse a *lane* change because a
+  card carries several; that refusal was applied to the whole cell and took the
+  horizontal axis with it, so grouping by label silently cost the view ordinary
+  kanban. Renamed `acceptsLaneChange`, and sideways is now unconditional.
+- **Empty lanes were hidden**, so a card could only be dragged to High once
+  something was already High. The rule is about drop targets, not tidiness: a row
+  you can drag into must exist while it is still empty.
+
+`laneDrop.ts` had tests throughout and was right throughout; every one of these
+was in the component wiring around it, which had none. It has some now, and the
+file says plainly what they cannot cover — jsdom has no layout, so a real drag is
+not simulatable there.
+
+## v5 — a drop that looked like a failure
+
+Releasing a card played it returning to the column it came from, then appearing
+in the new one a beat later. Nothing was slow and nothing had failed:
+`DragOverlay` had no `dropAnimation`, so it used the default — fly the overlay
+back to the dragged node's rect — and that rect is the *old* position, because
+the optimistic update has already moved the card by the time the pointer comes
+up. The animation was describing a move that had not happened. Removing it is
+what the optimistic update was for.
+
+## v5 — duplicating a tab showed you your own cursor
+
+`UpdateCursor` broadcast with `OthersInGroup`, which excludes the connection that
+called — not the person who called. A second tab is a different connection
+belonging to the same user, so it received the first one's frames.
+
+Presence, ten lines up in the same file, already reasoned in users: it announces
+on a first connection, withdraws on a last, and filters the caller out of the
+roster. The tracker's own comment says it counts connections per user "so a user
+with two tabs open doesn't flicker in and out of presence". The case was
+understood; cursors were the one broadcast that never caught up. Now excluded by
+user, at the source rather than in the client, because cursor frames are the
+highest-frequency message here — twenty a second per moving pointer.
+
+The existing test asserted the *sender* gets no echo, which is true of a
+connection and says nothing about a person, and it passed throughout. The new one
+was confirmed to fail against `OthersInGroup` before passing against the fix: a
+test for an absence that has never been seen to fail is not evidence.
+
+## v5 — what the colour work turned up elsewhere
+
+Asking what else had gone unattended found three things that were not style.
+
+- **Four high-severity advisories in the production dependency tree** — SSRF in
+  Server Actions and in rewrites, cache confusion on request bodies, unbounded
+  Edge payloads, a DoS in image optimisation, and unauthenticated disclosure of
+  internal Server Function endpoints, plus transitive postcss path traversal and
+  a vulnerable libvips. All cleared by one non-major bump. **Nothing in CI runs
+  `npm audit`**, so the only thing between the deployed app and nine Next.js
+  advisories was somebody thinking to look. That gap is still open.
+- **The API base URL defaulted to a port documented as broken.** `api.ts` fell
+  back to `:5286`, which only fires when `NEXT_PUBLIC_API_BASE_URL` is unset —
+  the first minute after a clone. `CLAUDE.md` had recorded since v2 that the port
+  lands in a Windows reserved range and everything should run on 5400; the code,
+  `.env.example` and the README all still said otherwise. Three sources of truth
+  disagreeing about one number reads as nobody having run their own setup.
+- **Next 16.3 writes its own `AGENTS.md` and `CLAUDE.md`** into `frontend/` on
+  every `next dev`. A `CLAUDE.md` there outranks the root one for everything
+  beneath it, which would have quietly demoted the file holding every invariant
+  in this project. Turned off via `agentRules: false`; the warning it carried was
+  folded into the root file instead.
+
+Clean, for the record, in the categories that would have been worse: no TODO or
+FIXME markers, no `console.log`, no empty catch blocks, no `any`, no icon-only
+button without an accessible name, no image without alt text.
+
+## v5 — one person, one colour
+
+The card face, the lane header, the roster and the account button had drifted
+into four treatments of the same person: grey text initials on a card, a swatch
+hashed from the *lane id* in a lane row, and the real avatar everywhere else — so
+one person could be three colours on one screen. All of them go through `Avatar`
+now, which keys `identityColor` on the name.
+
+Related, and the same root: `initialsOf` had three copies, two of which already
+disagreed about the empty case. One function now, for the same reason
+`relativeTime` was extracted.
+
+## v5 — labels are invented while the card is being written
+
+The create dialog toggled the board's existing labels and hid the row entirely
+when there were none — so on a new board there were no labels, no hint they
+exist, and no way to make the first one, which is exactly the moment one is most
+likely to be invented. It carries the card drawer's `LabelPicker` now, which both
+applies and creates, and the row always renders.
+
+The original reasoning — "inventing vocabulary is not what someone is doing here"
+— was coherent but wrong about the alternative it left: create the card, reopen
+it, label it there. Two steps for something known before typing started.

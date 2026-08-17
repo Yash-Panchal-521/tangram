@@ -70,7 +70,7 @@ with nothing calling it), a navigation sidebar, and six switchable colour palett
 
 - **A card key** (`TAN-14`). The most recognisably Jira thing on a card, and it needs a
   per-board counter with the same atomic-increment care as `seq`. Schema, not decoration.
-- **Swimlanes.** Scoped, researched, not built.
+- **Swimlanes.** Scoped, researched, not built. *(Built in v5.)*
 - **Attachments, subtasks, linked items, issue types, watchers, story points, work log.**
   Each is a Jira staple; the context column is honest but shorter than Jira's.
 - **Undo.** Still impossible for the reason `CLAUDE.md` gives: an inverse cannot be

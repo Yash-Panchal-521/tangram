@@ -61,6 +61,13 @@ ceiling — the exact number, so any addition fails on the machine that made it.
 `EndpointCensusTests`. Lower them as work lands; never raise one without saying what bought
 the extra trip.
 
+The census fails an endpoint it measures with no budget, which enforces this for everything
+it *calls*. **It does not currently call all of them: 25 of 35.** The ten outside it are the
+six deletes, `PATCH` and `DELETE` on a membership, `POST /boards/{id}/unarchive`, and the
+three invitation endpoints — every one a route the census's own fixture never has to walk to
+reach the next measurement, which is exactly how they were missed rather than a decision that
+they are cheap. A rule stated and not enforced reads as covered.
+
 **P2.3 — Census the whole surface, not the endpoint you are looking at.** Four endpoints were
 pinned before this phase, and the costliest problem was in machinery all thirty-one shared.
 Optimising the one that was noticed would have missed it.

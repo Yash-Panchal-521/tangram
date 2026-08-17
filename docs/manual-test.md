@@ -7,12 +7,17 @@ half its checks referred to controls that no longer exist.
 Each check is **Do → Expect**. Where a wrong result would still look plausible, there is a
 **Why** line — those are the ones worth reading before you click.
 
-**Read this before starting.** Everything behind sign-in in v3 was built and verified by
-automated test rather than by eye, because the tooling used could not enter a password. The
-suites pass. They also passed while the board's lanes were invisible in every palette, while
-white text sat on a near-white panel, and while column moves returned 500. **This document is
-the part that was missing**, so treat §1 and §12 as the highest-value sections rather than
-formalities.
+**Read this before starting.** This was written after v3, when everything behind sign-in had
+been verified by automated test rather than by eye — the suites passed while the board's lanes
+were invisible in every palette, while white text sat on a near-white panel, and while column
+moves returned 500.
+
+That is no longer the whole story. v5 was driven by hand in a signed-in browser, and §15 below
+covers what it changed. The v5 defects are worth knowing about because of what they have in
+common: **every one of them passed the test suite.** A drag that animated back to the wrong
+column, a card that appeared three times and lifted the wrong copy, your own cursor following
+you across a duplicated tab, a chevron floating outside the sidebar — none of these are things
+an assertion was ever going to notice. Treat §1, §12 and §15 as the highest-value sections.
 
 ## Setup
 
@@ -205,7 +210,94 @@ Unchanged by v3 — the flow, the token semantics and the dead ends are all as d
 
 ## 14. Known gaps — not bugs
 
-- No card key, no swimlanes, no attachments or subtasks.
+- No card key, no attachments or subtasks. Swimlanes arrived in v5 — see §15.
 - Invitations are copied and sent by hand; there is no email delivery.
 - Theme is per-device.
 - Presence is single-instance.
+
+---
+
+## 15. What v5 changed
+
+The surfaces below were reworked or newly added. Where a check in an earlier section
+contradicts one here, this section is the current one.
+
+### 15.1 The card detail is a drawer, not a modal
+
+| # | Do | Expect |
+|---|---|---|
+| 15.1 | Open a card | A 548px panel slides in from the right; **the board stays visible beside it** |
+| 15.2 | Read down the panel | Fields, then description, then comments — in that order |
+| 15.3 | Press Escape, then reopen and press **Esc** in the header | Both close it and clear `?card=` |
+| 15.4 | Use the ↑ / ↓ arrows in the header | Steps to the previous/next card **without closing** |
+| 15.5 | On the first card, check ↑ | Disabled, not missing |
+| 15.6 | Search to one match, then open it | Both arrows **gone** |
+
+**Why 15.6:** stepping walks the *filtered* board. If it walked the whole board, "next"
+would be a card the board is not showing, and closing the drawer would leave you looking
+at a list that does not contain what you were just reading.
+
+### 15.2 The board, dragging
+
+| # | Do | Expect |
+|---|---|---|
+| 15.7 | Drag a card to another column | It lands there **immediately** and stays |
+| 15.8 | Watch closely on release | No animation of the card returning to the old column first |
+| 15.9 | In **By person**, drag a card down a row | Confirms, naming the card *and* the person |
+| 15.10 | Cancel that confirmation after a diagonal drag | **Neither** the row nor the column change is applied |
+| 15.11 | In **By label**, drag a card sideways | Moves stage, no confirmation |
+| 15.12 | In **By label**, drag a card to a different label row | Nothing happens, and the target never highlights |
+| 15.13 | Give a card three labels, then in **By label** grab its *first* occurrence | **That** copy lifts — not one of the others |
+| 15.14 | In **By priority**, drag a card into a level nothing is in yet | The row exists and accepts it |
+
+**Why 15.8:** this looked like the move failing and retrying. It was the drop animation
+flying the overlay back to a rect that no longer meant anything.
+
+**Why 15.13:** three occurrences once shared one drag id, so dnd-kit kept the last and
+grabbing any of them lifted the bottom one.
+
+### 15.3 Identity and the mark
+
+| # | Do | Expect |
+|---|---|---|
+| 15.15 | Find one person on a card, in a **By person** row, and in the header | The **same colour** in all three |
+| 15.16 | Hover a card that has an assignee | The drag grip does **not** sit on top of the avatar |
+| 15.17 | Look at the sidebar mark, then the browser tab | Four triangles in a rounded square, in both |
+| 15.18 | Collapse the sidebar | The chevron stays **inside** the rail, under the mark |
+| 15.19 | Switch palette, then look at the mark | Its accent piece follows the palette |
+| 15.20 | Open sign-in | The mark is flat/monotone on the accent panel, not the full tile |
+
+### 15.4 Creating a card
+
+| # | Do | Expect |
+|---|---|---|
+| 15.21 | Open **New card** | Roomy, ~680px, title in the display face |
+| 15.22 | On a board with **no labels at all** | The Labels row is still there, offering **+ Label** |
+| 15.23 | Create a label from inside the dialog | It appears, can be applied, and the created card carries it |
+| 15.24 | With the label picker open, press Escape | Closes **only the picker** — the dialog and what you typed survive |
+
+**Why 15.22:** the row used to be hidden when a board had none, so the moment you are
+most likely to invent a label was the one moment offering no way to do it.
+
+### 15.5 Colour
+
+| # | Do | Expect |
+|---|---|---|
+| 15.25 | Look at any screen in light mode | The page ground is near-white, not tinted with the accent |
+| 15.26 | Same in dark | Near-black, not a deep violet or navy |
+| 15.27 | Compare the three palettes | They differ mainly in the **accent**; the chrome is near-neutral in all three |
+| 15.28 | In **By person**, find your own row | Tinted, and the cards on it still have visible edges |
+
+**Why 15.28:** the tint was `--surface` for one revision — the same token the cards use —
+so the cards lost their ground on exactly the row you look at most.
+
+### 15.6 Two people, two tabs
+
+| # | Do | Expect |
+|---|---|---|
+| 15.29 | Open the same board as two different users | Each sees the other in presence, and the other's cursor |
+| 15.30 | One moves a card | It moves on the other's board **without a reload** |
+| 15.31 | **Duplicate your own tab** and move the mouse | You do **not** see a cursor with your own name on it |
+
+**Why 15.31:** `OthersInGroup` excludes the connection that called, not the person. A
+second tab is a different connection belonging to the same user.

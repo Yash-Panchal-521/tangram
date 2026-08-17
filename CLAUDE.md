@@ -14,6 +14,8 @@ rationale live elsewhere and should not be duplicated here:
   shape, what it deliberately skipped, and what it found already broken
 - [`docs/roadmap-v4.md`](docs/roadmap-v4.md) — v4: why a card took three seconds to move,
   what the fix actually was, and the hypotheses that were wrong
+- [`docs/v5-bug-log.md`](docs/v5-bug-log.md) — v5: what the by-hand pass found, what was
+  fixed, and what is still open
 - [`docs/manual-test.md`](docs/manual-test.md) — the by-hand pass for the current app
 - [`docs/performance-standards.md`](docs/performance-standards.md) — how latency is
   measured here and what a new endpoint must cost
@@ -142,6 +144,26 @@ the board drew in one order while the server computed in another. Both rank colu
 
 ## Frontend traps
 
+**A comment claiming a fix is worse than no comment.** `LaneCard` said its drag id was
+"keyed by lane as well as card" for four commits while the code passed the bare card id, and
+that sentence is exactly why nobody looked when a card in three label rows lifted the wrong
+copy. If you describe an invariant in a comment, assert it too.
+
+**One person is one colour, everywhere.** `Avatar` + `identityColor(name)` — never bare
+initials, never a hash of some other key. The lane header hashed on `lane.id`, so the same
+person was one colour in a row and another on the cards inside it.
+
+**`useDialog` keeps a stack; only the topmost answers a key.** Nested dialogs — the label
+picker, the calendar, a confirmation — need no pausing and no `onOpenChange` plumbing. Adding
+it is how you get one Escape closing two layers.
+
+**dnd-kit's default drop animation flies the overlay back to the dragged node's rect**, which
+is the *old* position once an optimistic update has moved the card. `DragOverlay` here passes
+`dropAnimation={null}` for that reason; restoring the default makes every move look rejected.
+
+**Nothing in CI runs `npm audit`.** Four high-severity advisories sat in the production tree
+until somebody thought to look. Until that is a job, run it by hand before a release.
+
 **Next 16 is not the Next.js you remember**, and its own docs ship in the
 package: `frontend/node_modules/next/dist/docs/`. Read the relevant guide there
 before writing App Router code rather than working from memory — APIs,
@@ -194,8 +216,8 @@ dev server holding port 3000, still running the old environment.
 ## Tests
 
 ```bash
-cd backend && dotnet test    # 167 integration tests, needs tangram_test on :5433
-cd frontend && npm test      # 661 Vitest tests, node by default
+cd backend && dotnet test    # 168 integration tests, needs tangram_test on :5433
+cd frontend && npm test      # 821 Vitest tests, node by default
 ```
 
 Backend tests are self-sufficient — a module initializer in `TestEnvironment.cs` seeds

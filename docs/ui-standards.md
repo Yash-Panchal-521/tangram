@@ -75,6 +75,18 @@ documented hex exception licenses the hue as identity, not as a text colour. `La
 docstring is the argument — "the colour is a second signal on top of the word, not a
 replacement for it" — and the word was the part that failed.
 
+**S1.2i — The chassis stays near-neutral: `bg`, `surface`, `surface-2` and `surface-3` under
+C\* 4, borders under 6.** Measured in CIE chroma, where 0 is a flat grey. Every surface used to
+be a tint of its palette's accent — the board ground at 8–11, cards at 15–21, borders up to
+**28.6** — against **1.2** for GitHub Primer's muted canvas and **0.5, 0.7, 0.9, 3.6** across
+Linear's four dark elevation steps. Four to twenty times more saturated than what shipping
+tools use, which is the difference between chrome that reads as professional and chrome that
+reads as a student project, and it is a number rather than an opinion. Each palette still takes
+its hue from its own accent; it is rendered at a chroma you read as "slightly warm" instead of
+as violet. Depth comes from a tonal ladder, not from saturation. Ceilings, not targets — flat
+grey is fine, and a border gets a little more room because a hairline shows less of whatever
+colour it has.
+
 **S1.3 — Never append conflicting Tailwind classes.** `cn()` is a plain join with no
 conflict resolution, so a second `border-*` or `px-*` is decided by stylesheet order, not
 by argument order. Replace the class set outright, or branch:

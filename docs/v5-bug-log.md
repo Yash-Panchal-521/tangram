@@ -47,16 +47,28 @@ original date rather than restarting it.
 
 ## Still open
 
-**Card stepping and a card reference.** The drawer's design has up/down arrows
-to walk the board's cards and a `TG-140` reference. The reference needs a
-per-board counter with the same atomic care as `seq` — schema, not decoration —
-which is why the slot has been empty since v3. The stepping is a feature rather
-than a restyle.
+**A card reference.** The drawer's design shows `TG-140`. It needs a per-board
+counter with the same atomic care as `seq` — schema, not decoration — which is
+why the slot has been empty since v3. Card stepping, listed here alongside it,
+*was* built: the drawer's up/down arrows walk the filtered board.
 
-**The design includes an Activity screen.** `CLAUDE.md` records that the
-activity feed and undo were removed deliberately, and that an inverse cannot be
-reconstructed after the fact. Not built. Reintroducing it is a product decision
-with a documented history behind it.
+**Nothing in CI runs `npm audit`.** Found while auditing the colour work and
+still true. The backend's dependencies are checked on every build and the
+frontend's are not, which is how nine Next.js advisories — four high, including
+SSRF in Server Actions — reached production. One bump cleared them; nothing
+stops the next set.
+
+**The endpoint census covers 25 of 35 endpoints.** `P2.2` says every endpoint
+has a budget, and the census does fail one it measures with no budget — but ten
+are never measured, because the fixture never has to walk them to set up the
+next call. Six deletes, both membership mutations, unarchive, and the three
+invitation endpoints. A rule stated and not enforced reads as covered.
+
+**There is no Activity screen in the design** — recorded here because this log
+first claimed there was. The `act.*` block that looked like one is the active
+*card*: status chip, reference, stepping, property list, thread. Nothing in v5
+reopens the activity feed or undo that v2 removed, and the reasoning in
+`CLAUDE.md` for not reopening them stands.
 
 ## Notes on method
 
