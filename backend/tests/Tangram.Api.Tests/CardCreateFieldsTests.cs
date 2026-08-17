@@ -59,7 +59,7 @@ public class CardCreateFieldsTests(TangramWebApplicationFactory factory)
         Assert.Equal(me.Id, card.AssigneeId);
         Assert.Equal("High", card.Priority);
         Assert.Equal(due, card.DueAt);
-        Assert.Equal("Bug", Assert.Single(card.Labels).Name);
+        Assert.Equal("Bug", Assert.Single(card.Labels!).Name);
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public class CardCreateFieldsTests(TangramWebApplicationFactory factory)
         Assert.Null(card!.AssigneeId);
         Assert.Null(card.Priority);
         Assert.Null(card.DueAt);
-        Assert.Empty(card.Labels);
+        Assert.Empty(card.Labels!);
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public class CardCreateFieldsTests(TangramWebApplicationFactory factory)
             "Mine", null, null, null, null, [foreign!.Id]));
 
         var card = await response.Content.ReadFromJsonAsync<CardResponse>();
-        Assert.Empty(card!.Labels);
+        Assert.Empty(card!.Labels!);
     }
 
     [Fact]
