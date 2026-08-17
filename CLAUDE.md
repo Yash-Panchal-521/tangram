@@ -142,6 +142,17 @@ the board drew in one order while the server computed in another. Both rank colu
 
 ## Frontend traps
 
+**Next 16 is not the Next.js you remember**, and its own docs ship in the
+package: `frontend/node_modules/next/dist/docs/`. Read the relevant guide there
+before writing App Router code rather than working from memory — APIs,
+conventions and file layout all moved.
+
+**Next writes its own `AGENTS.md` and `CLAUDE.md` into `frontend/`, and we turn
+that off** (`agentRules: false` in `next.config.ts`). Not a dislike of the
+feature: a `CLAUDE.md` inside `frontend/` outranks this file for everything
+underneath it, and this is where the invariants live. The warning it carried is
+the paragraph above.
+
 **`cn()` is a plain join with no Tailwind conflict resolution** ([`lib/cn.ts`](frontend/src/lib/cn.ts)).
 Never append a second `border-*`/`px-*` and expect it to win — stylesheet order decides.
 Either replace the class set wholesale or pick per-branch variants.
